@@ -1,0 +1,57 @@
+import io
+
+import librosa
+import numpy as np
+import pytest
+
+from app.services import chorus_detector
+
+
+def test_detect_chorus_short_audio_returns_full_clip(monkeypatch):
+    sample_rate = 22050.0
+
+    def mock_librosa_load(*args, **kwargs):
+        return np.zeros(int(sample_rate * 2)), int(sample_rate)
+
+    monkeypatch.setattr(chorus_detector.librosa, "load", mock_librosa_load)
+
+    result = chorus_detector.detect_chorus(b"short-audio-data", sample_rate)
+
+    assert result["start_time"] == 0.0
+    assert pytest.approx(result["end_time"]) == 2.0
+    assert result["confidence"] == 1.0
+
+
+def test_detect_chorus_detects_repeat_segment(monkeypatch):
+    # Create a synthetic audio signal with a clear repeating segment
+    sr = 22050
+    duration = 30  # seconds
+    t = np.linspace(0, duration, int(sr * duration), endpoint=False)
+
+    # Segment A: first 5 seconds
+    segment_a = np.sin(2 * np.pi * 440 * t[: sr * 5])
+    # Segment B: next 5 seconds
+    segment_b = np.sin(2 * np.pi * 880 * t[: sr * 5])
+
+    # Full audio: A, B, A, C (where C is some non-repeating part)
+    audio = np.concatenate([segment_a, segment_b, segment_a, np.zeros(len(t) - len(segment_a) * 3)])
+
+    # Mock librosa.load to return our synthetic audio
+    def mock_librosa_load(*args, **kwargs):
+        return audio, sr
+
+    chorus_detector.librosa.load = mock_librosa_load
+
+    # Convert audio to bytes for the function input
+    buffer = io.BytesIO()
+    import soundfile as sf
+
+    sf.write(buffer, audio, sr, format="WAV")
+    audio_data = buffer.getvalue()
+
+    result = chorus_detector.detect_chorus(audio_data, float(sr))
+
+    # Expected chorus: the second occurrence of segment A, which starts at t=10s and lasts 5s
+    assert pytest.approx(result["start_time"], abs=1.0) == 10.0  # Allow for some minor deviation
+    assert pytest.approx(result["end_time"], abs=1.0) == 15.0  # Allow for some minor deviation
+    assert result["confidence"] > 0.5  # Should have reasonable confidence

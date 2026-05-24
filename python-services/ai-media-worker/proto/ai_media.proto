@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package ai_media;
+
+service AiMediaService {
+  rpc DetectChorus  (DetectChorusRequest)  returns (DetectChorusResponse);
+  rpc SeparateAudio (SeparateAudioRequest) returns (SeparateAudioResponse);
+  rpc GenerateTts   (GenerateTtsRequest)   returns (stream TtsChunk);
+}
+
+// ----- DetectChorus -----
+message DetectChorusRequest {
+  bytes audio_data  = 1;
+  float sample_rate = 2;
+}
+
+message DetectChorusResponse {
+  float start_time  = 1;
+  float end_time    = 2;
+  float confidence  = 3;
+}
+
+// ----- SeparateAudio -----
+message SeparateAudioRequest {
+  bytes  audio_data = 1;
+  string format     = 2; // "wav" | "mp3"
+}
+
+message SeparateAudioResponse {
+  bytes vocals         = 1;
+  bytes accompaniment  = 2;
+}
+
+// ----- GenerateTts -----
+message GenerateTtsRequest {
+  string text          = 1;
+  string voice         = 2; // e.g. "vi-VN-HoaiMyNeural"
+  string output_format = 3; // e.g. "audio-24khz-48kbitrate-mono-mp3"
+}
+
+message TtsChunk {
+  bytes audio_data = 1;
+}

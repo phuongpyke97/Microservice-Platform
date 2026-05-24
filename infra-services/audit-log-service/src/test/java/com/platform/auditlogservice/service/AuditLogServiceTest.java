@@ -1,0 +1,73 @@
+package com.platform.auditlogservice.service;
+
+import com.platform.auditlogservice.entity.AuditLog;
+import com.platform.auditlogservice.exception.AuditErrorCode;
+import com.platform.auditlogservice.repository.AuditLogRepository;
+import com.platform.common.core.exception.BaseException;
+import com.platform.common.core.response.PageResponse;
+import com.platform.common.rmq.event.AuditLogEvent;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class AuditLogServiceTest {
+
+    @Mock
+    private AuditLogRepository repository;
+
+    private AuditLogService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new AuditLogService(repository);
+    }
+
+    @Test
+    void save_persistsEntityFromEvent() {
+        var event = new AuditLogEvent(10L, "credit.deducted", "10.0.0.1", "SUCCESS", "{\"amount\":100}", 1000L);
+        when(repository.save(any(AuditLog.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.save(event);
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(repository).save(captor.capture());
+        AuditLog saved = captor.getValue();
+        assertThat(saved.getUserId()).isEqualTo(10L);
+        assertThat(saved.getAction()).isEqualTo("credit.deducted");
+        assertThat(saved.getTimestamp()).isEqualTo(1000L);
+    }
+
+    @Test
+    void query_invalidDateRange_throws() {
+        assertThatThrownBy(() -> service.query(null, null, null, 2000L, 1000L, PageRequest.of(0, 20)))
+                .isInstanceOf(BaseException.class)
+                .satisfies(e -> assertThat(((BaseException) e).getErrorCode()).isEqualTo(AuditErrorCode.AUDIT_INVALID_DATE_RANGE));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void query_validFilters_returnsPageResponse() {
+        AuditLog log = new AuditLog(1L, "login.failed", "127.0.0.1", "FAILED", null, 500L);
+        when(repository.findAll(any(Specification.class), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(log)));
+
+        PageResponse<?> result = service.query(1L, "login.failed", null, null, null, PageRequest.of(0, 20));
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(1);
+    }
+}

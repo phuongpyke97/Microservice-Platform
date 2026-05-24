@@ -1,0 +1,85 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      forwarded:
+        enabled: true
+      x-forwarded:
+        enabled: true
+        for-enabled: true
+        host-enabled: true
+        port-enabled: true
+        proto-enabled: true
+        prefix-enabled: true
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+  crbt:
+    shared-secret: ${CRBT_SHARED_SECRET}
+    verify-endpoint: ${CRBT_VERIFY_ENDPOINT}
+  rate-limit:
+    replenish-rate: 10
+    burst-capacity: 20
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://${EUREKA_USER:eureka}:${EUREKA_PASSWORD:eureka-secret}@${EUREKA_HOST:localhost}:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /auth-service/v3/api-docs
+      - name: credit-wallet-service
+        url: /credit-wallet-service/v3/api-docs
+      - name: notification-service
+        url: /notification-service/v3/api-docs
+      - name: file-service
+        url: /file-service/v3/api-docs
+      - name: audit-log-service
+        url: /audit-log-service/v3/api-docs
+      - name: payment-gateway-service
+        url: /payment-gateway-service/v3/api-docs
+      - name: crbt-campaign-service
+        url: /crbt-campaign-service/v3/api-docs
+      - name: crbt-community-library
+        url: /crbt-community-library/v3/api-docs
+      - name: audio-generation-service
+        url: /audio-generation-service/v3/api-docs
+      - name: crbt-credit-transaction-service
+        url: /crbt-credit-transaction-service/v3/api-docs
+      - name: crbt-core-adapter
+        url: /crbt-core-adapter/v3/api-docs

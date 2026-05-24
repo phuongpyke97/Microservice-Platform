@@ -1,0 +1,51 @@
+package com.platform.fileservice.controller;
+
+import com.platform.common.core.response.ApiResponse;
+import com.platform.common.security.SecurityUtils;
+import com.platform.fileservice.dto.request.ConfirmFileRequest;
+import com.platform.fileservice.dto.response.FileMetadataResponse;
+import com.platform.fileservice.dto.response.PresignedUrlResponse;
+import com.platform.fileservice.service.FileService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/files")
+public class FileController {
+
+    private final FileService fileService;
+
+    public FileController(FileService fileService) {
+        this.fileService = fileService;
+    }
+
+    @PostMapping(value = "/upload", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<FileMetadataResponse>> upload(@RequestPart("file") MultipartFile file) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success("File uploaded", fileService.uploadTemp(userId, file)));
+    }
+
+    @GetMapping("/presigned/upload")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getUploadUrl(@RequestParam String originalName,
+                                                                          @RequestParam String contentType) {
+        return ResponseEntity.ok(ApiResponse.success(fileService.getUploadUrl(originalName, contentType)));
+    }
+
+    @GetMapping("/{fileId}/presigned/download")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getDownloadUrl(@PathVariable Long fileId) {
+        return ResponseEntity.ok(ApiResponse.success(fileService.getDownloadUrl(fileId)));
+    }
+
+    @PostMapping("/{fileId}/confirm")
+    public ResponseEntity<ApiResponse<FileMetadataResponse>> confirm(@PathVariable Long fileId,
+                                                                     @Valid @RequestBody ConfirmFileRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("File confirmed", fileService.confirm(fileId, request.targetBucket())));
+    }
+
+    @DeleteMapping("/{fileId}")
+    public ResponseEntity<ApiResponse<FileMetadataResponse>> delete(@PathVariable Long fileId) {
+        return ResponseEntity.ok(ApiResponse.success("File deleted", fileService.softDelete(fileId)));
+    }
+}

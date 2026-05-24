@@ -1,0 +1,20 @@
+groups:
+  - name: crbt-alerts
+    rules:
+    - alert: HighAICost
+      expr: sum(rate(crbt_ai_api_cost_total[5m])) by (model) > 10 # Example: $10 cost in 5 minutes
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High AI API cost detected on {{ $labels.model }}"
+        description: "AI API cost for model {{ $labels.model }} has exceeded $10 in the last 5 minutes. Current cost: {{ $value | humanize }}"
+
+    - alert: HighServiceErrorRate
+      expr: sum(rate(http_server_requests_seconds_count{status="5xx", application!="api-gateway"}[5m])) by (application) / sum(rate(http_server_requests_seconds_count{application!="api-gateway"}[5m])) by (application) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate (5xx) detected on {{ $labels.application }} service"
+        description: "{{ $labels.application }} service has an error rate above 10% in the last 5 minutes. Current error rate: {{ $value | humanizePercentage }}"
