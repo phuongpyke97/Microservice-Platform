@@ -4,9 +4,9 @@ spring:
   config:
     import: optional:configserver:http://${CONFIG_SERVER_USER:configuser}:${CONFIG_SERVER_PASSWORD:configsecret}@${CONFIG_SERVER_HOST:localhost}:8888
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/adapter_db
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/adapter_db
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
   jpa:
     hibernate:
       ddl-auto: validate
