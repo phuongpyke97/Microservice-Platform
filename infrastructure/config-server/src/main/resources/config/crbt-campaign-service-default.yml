@@ -13,7 +13,7 @@ spring:
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
-lryia:
+lyria:
   api-key: ${GEMINI_API_KEY:}
   model: lyria-3
   daily-quota: 100

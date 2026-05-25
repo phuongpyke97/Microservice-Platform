@@ -13,7 +13,7 @@ public class LyriaClient {
     private final String apiKey;
 
     public LyriaClient(@Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta}") String url,
-                       @Value("${GEMINI_API_KEY:changeme}") String apiKey) {
+                       @Value("${lyria.api-key:changeme}") String apiKey) {
         this.restClient = RestClient.builder().baseUrl(url).build();
         this.apiKey = apiKey;
     }
