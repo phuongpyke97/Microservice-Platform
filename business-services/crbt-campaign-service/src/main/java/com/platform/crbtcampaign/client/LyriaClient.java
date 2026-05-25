@@ -20,9 +20,16 @@ public class LyriaClient {
 
     @CircuitBreaker(name = "lyria")
     public byte[] generateMusic(String prompt) {
+        if (apiKey == null || apiKey.isBlank() || "changeme".equals(apiKey)) {
+            throw new IllegalArgumentException("GEMINI_API_KEY is not configured or is empty");
+        }
+
         // Google Gemini Lyria 3 API endpoint
         return restClient.post()
-            .uri("/models/lyria-3-clip-preview:generateContent?key=" + apiKey)
+            .uri(uriBuilder -> uriBuilder
+                .path("/models/lyria-3-clip-preview:generateContent")
+                .queryParam("key", apiKey)
+                .build())
             .body(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt))))))
             .retrieve()
             .body(byte[].class);
