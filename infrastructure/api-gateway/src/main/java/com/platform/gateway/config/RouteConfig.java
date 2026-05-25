@@ -1,5 +1,6 @@
 package com.platform.gateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
@@ -9,7 +10,13 @@ import org.springframework.context.annotation.Configuration;
 public class RouteConfig {
 
     @Bean
-    public RouteLocator routeLocator(RouteLocatorBuilder builder) {
+    public RouteLocator routeLocator(
+            RouteLocatorBuilder builder,
+            @Value("${ai-media.worker.url}") String aiMediaWorkerUrl) {
+
+        // ws:// scheme required for WebSocket proxying — Gateway does not upgrade http:// connections
+        String aiMediaWorkerWsUrl = aiMediaWorkerUrl.replace("https://", "wss://").replace("http://", "ws://");
+
         return builder.routes()
                 // API Routes (Rewrite to match exact Controller paths)
                 .route("auth-service", r -> r.path("/api/auth/**").uri("lb://auth-service"))
@@ -24,6 +31,10 @@ public class RouteConfig {
                 .route("crbt-credit-transaction-service", r -> r.path("/api/credits/**").filters(f -> f.rewritePath("/api/credits/(?<segment>.*)", "/credit-transactions/${segment}")).uri("lb://crbt-credit-transaction-service"))
                 .route("crbt-core-adapter", r -> r.path("/api/core-adapter/**").filters(f -> f.rewritePath("/api/core-adapter/(?<segment>.*)", "/ringtone-assignments/${segment}")).uri("lb://crbt-core-adapter"))
 
+                // AI Media Worker — WebSocket routes MUST come before catch-all HTTP routes
+                .route("ai-media-worker-ws", r -> r.path("/api/ai-media/ws/**").filters(f -> f.rewritePath("/api/ai-media/(?<segment>.*)", "/${segment}")).uri(aiMediaWorkerWsUrl))
+                .route("ai-media-worker", r -> r.path("/api/ai-media/**").filters(f -> f.rewritePath("/api/ai-media/(?<segment>.*)", "/${segment}")).uri(aiMediaWorkerUrl))
+
                 // Swagger UI & Direct Service Routes
                 // These handle both /v3/api-docs AND calls made directly from Swagger UI
                 .route("auth-swagger", r -> r.path("/auth-service/**").filters(f -> f.rewritePath("/auth-service/(?<segment>.*)", "/${segment}")).uri("lb://auth-service"))
@@ -37,6 +48,8 @@ public class RouteConfig {
                 .route("audio-swagger", r -> r.path("/audio-generation-service/**").filters(f -> f.rewritePath("/audio-generation-service/(?<segment>.*)", "/${segment}")).uri("lb://audio-generation-service"))
                 .route("credit-transaction-swagger", r -> r.path("/crbt-credit-transaction-service/**").filters(f -> f.rewritePath("/crbt-credit-transaction-service/(?<segment>.*)", "/${segment}")).uri("lb://crbt-credit-transaction-service"))
                 .route("core-adapter-swagger", r -> r.path("/crbt-core-adapter/**").filters(f -> f.rewritePath("/crbt-core-adapter/(?<segment>.*)", "/${segment}")).uri("lb://crbt-core-adapter"))
+                .route("ai-media-swagger-ws", r -> r.path("/ai-media-worker/ws/**").filters(f -> f.rewritePath("/ai-media-worker/(?<segment>.*)", "/${segment}")).uri(aiMediaWorkerWsUrl))
+                .route("ai-media-swagger", r -> r.path("/ai-media-worker/**").filters(f -> f.rewritePath("/ai-media-worker/(?<segment>.*)", "/${segment}")).uri(aiMediaWorkerUrl))
 
                 .build();
     }

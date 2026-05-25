@@ -25,12 +25,16 @@ spring:
 
 security:
   jwt:
-    secret: ${JWT_SECRET:changeme_at_least_256bit_secret_key_here_padding}
+    secret: ${JWT_SECRET}
   crbt:
-    shared-secret: ${CRBT_SHARED_SECRET:changeme}
+    shared-secret: ${CRBT_SHARED_SECRET}
   rate-limit:
     replenish-rate: 10
     burst-capacity: 20
+
+ai-media:
+  worker:
+    url: http://${AI_WORKER_HOST:ai-media-worker}:${AI_WORKER_HTTP_PORT:8765}
 
 eureka:
   client:
