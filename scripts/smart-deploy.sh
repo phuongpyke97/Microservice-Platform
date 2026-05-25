@@ -35,6 +35,7 @@ fi
 # docker-compose.yml changed → recreate containers with new config (no rebuild)
 if echo "$CHANGED" | grep -q "^docker-compose.yml"; then
   warn "docker-compose.yml changed — recreating all containers"
+  docker compose down --remove-orphans # Add this line to stop and remove old containers
   docker compose up -d
   ok "Containers recreated"
   exit 0
