@@ -28,12 +28,19 @@ public class SecurityConfig {
     }
 
     @Bean
+    public MDCFilter mdcFilter() {
+        return new MDCFilter();
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                                                   JwtAuthenticationFilter jwtAuthenticationFilter,
+                                                   MDCFilter mdcFilter) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(mdcFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
