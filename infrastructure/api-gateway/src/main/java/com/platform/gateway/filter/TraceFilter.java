@@ -16,6 +16,9 @@ public class TraceFilter implements GlobalFilter, Ordered {
 
     public static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
     private static final String MDC_TRACE_ID = "traceId";
+    private static final String[] INTERNAL_HEADERS = {
+            "X-User-Id", "X-User-Email", "X-User-Roles", "X-MSISDN", "X-Subscription-Type"
+    };
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -30,9 +33,14 @@ public class TraceFilter implements GlobalFilter, Ordered {
         // Put in MDC for Gateway logs
         MDC.put(MDC_TRACE_ID, finalCorrelationId);
 
-        // Mutate request to include the header for downstream
+        // Mutate request: strip spoofable internal headers, propagate correlation ID
         ServerWebExchange mutatedExchange = exchange.mutate()
-                .request(r -> r.header(CORRELATION_ID_HEADER, finalCorrelationId))
+                .request(r -> {
+                    r.header(CORRELATION_ID_HEADER, finalCorrelationId);
+                    for (String h : INTERNAL_HEADERS) {
+                        r.headers(headers -> headers.remove(h));
+                    }
+                })
                 .build();
 
         exchange.getResponse().beforeCommit(() -> {
