@@ -35,12 +35,28 @@
         </encoder>
     </appender>
 
+    <!-- File Appender — /logs/{service-name}/app.log -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>/logs/${applicationName}/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>/logs/${applicationName}/app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p ${PID:- } --- [%15.15t] %-40.40logger{39} : [%X{traceId:-},%X{spanId:-}] %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}</pattern>
+        </encoder>
+    </appender>
+
     <root level="INFO">
         <springProfile name="dev">
             <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
         </springProfile>
         <springProfile name="!dev">
             <appender-ref ref="JSON"/>
+            <appender-ref ref="FILE"/>
         </springProfile>
     </root>
 </configuration>
