@@ -27,9 +27,6 @@ jwt:
   expiration-ms: 3600000
   refresh-expiration-ms: 86400000
 
-crbt:
-  shared-secret: ${CRBT_SHARED_SECRET}
-
 eureka:
   client:
     service-url:

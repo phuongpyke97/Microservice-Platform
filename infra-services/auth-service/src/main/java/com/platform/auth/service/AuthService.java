@@ -15,6 +15,8 @@ import com.platform.common.rmq.RmqExchanges;
 import com.platform.common.rmq.RmqRoutingKeys;
 import com.platform.common.rmq.event.UserPasswordResetEvent;
 import com.platform.common.rmq.event.UserRegisteredEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,8 @@ import java.util.UUID;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -96,6 +100,7 @@ public class AuthService {
     @Transactional
     public User lazyCreateSubscriber(String msisdn) {
         return userRepository.findByMsisdn(msisdn).orElseGet(() -> {
+            log.info("[CRBT] New subscriber, auto-creating account msisdn={}", mask(msisdn));
             User user = new User(msisdn, null, null, Set.of("USER"), 2);
             User saved = userRepository.save(user);
             rabbitTemplate.convertAndSend(
@@ -103,8 +108,14 @@ public class AuthService {
                     RmqRoutingKeys.USER_REGISTERED,
                     new UserRegisteredEvent(saved.getId(), saved.getEmail(), saved.getMsisdn(), Instant.now().toEpochMilli())
             );
+            log.info("[CRBT] Auto-created userId={} msisdn={}", saved.getId(), mask(msisdn));
             return saved;
         });
+    }
+
+    private String mask(String msisdn) {
+        if (msisdn == null || msisdn.length() <= 4) return "***";
+        return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
 
     private void ensureActive(User user) {
