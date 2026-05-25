@@ -22,6 +22,17 @@ step "Detecting changed files ($PREV_HEAD...$CURR_HEAD)"
 CHANGED=$(git diff --name-only "$PREV_HEAD" "$CURR_HEAD")
 echo "$CHANGED"
 
+# --- Load Docker images from tar files ---
+step "Load MinIO image from minio.tar"
+minio_tar_path="$PROJECT_DIR/minio.tar"
+if [[ -f "$minio_tar_path" ]]; then
+    echo "Loading minio.tar..."
+    docker load -i "$minio_tar_path" || fail "Khong the tai anh tu minio.tar"
+    ok "Tai anh MinIO thanh cong"
+else
+    warn "Khong tim thay file minio.tar o $minio_tar_path. Se pull tu network."
+fi
+
 # common/* changed → must rebuild everything (all services depend on common JARs)
 if echo "$CHANGED" | grep -q "^common/"; then
   warn "common/* changed — rebuilding ALL services"

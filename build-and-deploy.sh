@@ -102,6 +102,17 @@ if [[ ${#missing[@]} -gt 0 ]]; then
     fail "${#missing[@]} module thieu JAR. Chay lai khong co --skip-build."
 fi
 
+# --- 2a. Load Docker images from tar files ---
+step "Load MinIO image from minio.tar"
+minio_tar_path="$ROOT/minio.tar"
+if [[ -f "$minio_tar_path" ]]; then
+    info "Loading minio.tar..."
+    docker load -i "$minio_tar_path" || fail "Khong the tai anh tu minio.tar"
+    ok "Tai anh MinIO thanh cong"
+else
+    fail "Khong tim thay file minio.tar o $minio_tar_path"
+fi
+
 # --- 3. Docker Compose build & up ---
 step "Docker Compose build + up"
 cd "$ROOT"

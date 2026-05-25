@@ -76,11 +76,6 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.platform</groupId>
-            <artifactId>common-security</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>

@@ -100,6 +100,30 @@ if ($missing.Count -gt 0) {
     Write-Fail "$($missing.Count) module thieu JAR. Chay lai khong co -SkipBuild."
 }
 
+# --- 2a. Load Docker images from tar files ---
+Write-Step "Load MinIO image from minio.tar"
+$minioTarPath = Join-Path $ROOT "minio.tar"
+if (Test-Path $minioTarPath) {
+    Write-Host "  Loading minio.tar..." -ForegroundColor DarkGray
+    & docker load -i $minioTarPath
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Khong the tai anh tu minio.tar" }
+    Write-OK "Tai anh MinIO thanh cong"
+} else {
+    Write-Fail "Khong tim thay file minio.tar o $minioTarPath"
+}
+
+# --- 2a. Load Docker images from tar files ---
+Write-Step "Load MinIO image from minio.tar"
+$minioTarPath = Join-Path $ROOT "minio.tar"
+if (Test-Path $minioTarPath) {
+    Write-Host "  Loading minio.tar..." -ForegroundColor DarkGray
+    & docker load -i $minioTarPath
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Khong the tai anh tu minio.tar" }
+    Write-OK "Tai anh MinIO thanh cong"
+} else {
+    Write-Fail "Khong tim thay file minio.tar o $minioTarPath"
+}
+
 # --- 3. Docker Compose build & up ---
 Write-Step "Docker Compose build + up"
 Push-Location $ROOT

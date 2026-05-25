@@ -1,4 +1,4 @@
-package com.platform.common.core.logging;
+package com.platform.common.security.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
