@@ -39,11 +39,11 @@ public class CrbtTokenFilter implements GlobalFilter, Ordered {
 
         try {
             byte[] secretBytes = props.crbt().sharedSecret().getBytes(StandardCharsets.UTF_8);
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(Keys.hmacShaKeyFor(secretBytes))
+            Claims claims = Jwts.parser()
+                    .verifyWith(Keys.hmacShaKeyFor(secretBytes))
                     .build()
-                    .parseClaimsJws(crbtToken)
-                    .getBody();
+                    .parseSignedClaims(crbtToken)
+                    .getPayload();
 
             // Extract based on payload: { "phone", "status": 1, "id": 24, "sub", "loginType" }
             Integer status = claims.get("status", Integer.class);
