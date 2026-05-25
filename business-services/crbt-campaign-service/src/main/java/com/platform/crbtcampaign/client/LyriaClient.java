@@ -22,7 +22,7 @@ public class LyriaClient {
     public byte[] generateMusic(String prompt) {
         // Google Gemini Lyria 3 API endpoint
         return restClient.post()
-            .uri("/models/lyria-3:generateContent?key=" + apiKey)
+            .uri("/models/lyria-3-clip-preview:generateContent?key=" + apiKey)
             .body(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt))))))
             .retrieve()
             .body(byte[].class);

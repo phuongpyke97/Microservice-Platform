@@ -15,7 +15,7 @@ spring:
 
 lyria:
   api-key: ${GEMINI_API_KEY:}
-  model: lyria-3
+  model: lyria-3-clip-preview
   daily-quota: 100
 
 eureka:
