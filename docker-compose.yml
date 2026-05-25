@@ -92,6 +92,8 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/monitoring-server/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./infrastructure/monitoring-server/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/grafana-dashboards.yaml
+      - ./infrastructure/monitoring-server/dashboards:/etc/grafana/provisioning/dashboards
     depends_on:
       - prometheus
       - loki
