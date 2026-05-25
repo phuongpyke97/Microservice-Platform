@@ -3,27 +3,27 @@ version: '3.8'
 services:
   # Data Stores
   postgres:
-    image: postgres:16.2
+    image: postgres:${POSTGRES_VERSION:-16.2}
     environment:
-      POSTGRES_DB: platform_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-platform_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres-init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:7.2.4-alpine
-    command: redis-server --appendonly yes
+    image: redis:${REDIS_VERSION:-7.2.4-alpine}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,13 +33,13 @@ services:
       retries: 5
 
   rabbitmq:
-    image: rabbitmq:3.12-management-alpine
+    image: rabbitmq:${RABBITMQ_VERSION:-3.12-management-alpine}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -49,13 +49,13 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio
+    image: minio/minio:${MINIO_VERSION:-latest}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -67,7 +67,7 @@ services:
 
   # Monitoring
   prometheus:
-    image: prom/prometheus:v2.51.0
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v2.51.0}
     ports:
       - "9090:9090"
     volumes:
@@ -81,12 +81,12 @@ services:
       - loki
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:${GRAFANA_VERSION:-10.4.2}
     ports:
       - "3001:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
     volumes:
       - grafana_data:/var/lib/grafana
@@ -96,7 +96,7 @@ services:
       - loki
 
   loki:
-    image: grafana/loki:2.9.4
+    image: grafana/loki:${LOKI_VERSION:-2.9.4}
     ports:
       - "3100:3100"
     entrypoint: sh -c "mkdir -p /loki/index /loki/index_cache /loki/chunks && /usr/bin/loki -config.file=/etc/loki/local-config.yaml"
@@ -105,7 +105,7 @@ services:
       - ./infrastructure/monitoring-server/loki-config.yaml:/etc/loki/local-config.yaml
 
   promtail:
-    image: grafana/promtail:2.9.4
+    image: grafana/promtail:${PROMTAIL_VERSION:-2.9.4}
     command: -config.file=/etc/promtail/config.yaml
     volumes:
       - /var/log:/var/log
@@ -120,9 +120,11 @@ services:
       context: ./infrastructure/eureka-server
       dockerfile: Dockerfile
     ports:
-      - "8761:8761"
+      - "${EUREKA_PORT:-8761}:8761"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -137,10 +139,14 @@ services:
       context: ./infrastructure/config-server
       dockerfile: Dockerfile
     ports:
-      - "8889:8888"
+      - "${CONFIG_SERVER_PORT:-8889}:8888"
     environment:
-      SPRING_PROFILES_ACTIVE: native,docker
-      EUREKA_HOST: eureka-server
+      SPRING_PROFILES_ACTIVE: native,${SPRING_PROFILES_ACTIVE:-docker}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -155,15 +161,21 @@ services:
       context: ./infrastructure/api-gateway
       dockerfile: Dockerfile
     ports:
-      - "18080:8080"
+      - "${API_GATEWAY_PORT_EXTERNAL:-18080}:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      REDIS_HOST: redis
-      JWT_SECRET: platform-jwt-secret-for-dev-only-change-in-production
-      CRBT_SHARED_SECRET: crbt-shared-secret-dev
-      CRBT_VERIFY_ENDPOINT: http://localhost/crbt/verify
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET}
+      CRBT_SHARED_SECRET: ${CRBT_SHARED_SECRET}
+      CRBT_VERIFY_ENDPOINT: ${CRBT_VERIFY_ENDPOINT}
     depends_on:
       config-server:
         condition: service_healthy
@@ -178,18 +190,24 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      JWT_SECRET: platform-jwt-secret-for-dev-only-change-in-production
-      CRBT_SHARED_SECRET: crbt-shared-secret-dev
-      CRBT_VERIFY_ENDPOINT: http://localhost/crbt/verify
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      JWT_SECRET: ${JWT_SECRET}
+      CRBT_SHARED_SECRET: ${CRBT_SHARED_SECRET}
+      CRBT_VERIFY_ENDPOINT: ${CRBT_VERIFY_ENDPOINT}
     depends_on:
       config-server:
         condition: service_healthy
@@ -205,12 +223,17 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -224,13 +247,20 @@ services:
     ports:
       - "8083:8083"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      MINIO_ENDPOINT: http://minio:9000
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     depends_on:
       config-server:
         condition: service_healthy
@@ -246,15 +276,21 @@ services:
     ports:
       - "8084:8084"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -270,15 +306,21 @@ services:
     ports:
       - "8085:8085"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -294,16 +336,24 @@ services:
     ports:
       - "8086:8086"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -322,15 +372,21 @@ services:
     ports:
       - "8090:8090"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -346,13 +402,20 @@ services:
     ports:
       - "8091:8091"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -368,21 +431,25 @@ services:
     ports:
       - "8092:8092"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      RABBIT_HOST: rabbitmq
-      RABBIT_USER: guest
-      RABBIT_PASSWORD: guest
-      REDIS_HOST: redis
-      AI_WORKER_HOST: ai-media-worker
-      AUDIO_GEN_DB: audio_gen_db
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      AI_WORKER_HOST: ${AI_WORKER_HOST:-ai-media-worker}
     depends_on:
       config-server:
         condition: service_healthy
@@ -400,15 +467,21 @@ services:
     ports:
       - "8093:8093"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -424,18 +497,21 @@ services:
     ports:
       - "8094:8094"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      EUREKA_HOST: eureka-server
-      CONFIG_SERVER_HOST: config-server
-      RABBIT_HOST: rabbitmq
-      RABBIT_USER: guest
-      RABBIT_PASSWORD: guest
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_HOST: ${EUREKA_HOST:-eureka-server}
+      EUREKA_USER: ${EUREKA_USER:-eureka}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
+      CONFIG_SERVER_HOST: ${CONFIG_SERVER_HOST:-config-server}
+      CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
+      CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       config-server:
         condition: service_healthy
@@ -450,8 +526,8 @@ services:
       context: ./python-services/ai-media-worker
       dockerfile: Dockerfile
     ports:
-      - "8765:8765"
-      - "50051:50051"
+      - "${AI_WORKER_HTTP_PORT:-8765}:8765"
+      - "${AI_WORKER_GRPC_PORT:-50051}:50051"
     environment:
       AI_WORKER_HTTP_PORT: 8765
       AI_WORKER_GRPC_PORT: 50051
