@@ -128,10 +128,14 @@ Ví dụ cụ thể:
 - `PageResponse<T>` — list API có phân trang
 - `GlobalExceptionHandler` — bắt toàn bộ exception → trả ErrorResponse đúng format
 - Resilience4j config beans
+- `DebugLoggingAspect` — AOP aspect tự động log `Start/End/Error` (DEBUG level) cho Controller/Service
+- `AutoAuditLogAspect` — AOP aspect tự động publish `AuditLogEvent` (SUCCESS/FAILED) lên RabbitMQ cho mọi API call
 
 ### common-security
 - `JwtAuthenticationFilter` — đọc X-User-Id, X-User-Email, X-User-Roles từ header
 - `SecurityUtils.getCurrentUserId()` — lấy userId từ SecurityContext
+- `MDCFilter` — Spring filter bóc `X-Correlation-ID` từ header vào MDC (`traceId`)
+- `FeignCorrelationInterceptor` — Feign interceptor propagate `X-Correlation-ID` khi gọi Feign client
 - Không validate JWT lại (Gateway đã validate)
 
 ### common-ai-sdk
@@ -227,9 +231,11 @@ uvicorn main:app --host 0.0.0.0 --port 8765 --reload
 
 12. **notification-service**: Không mở HTTP endpoint ra ngoài. Chỉ nhận message từ RabbitMQ.
 
-13. **audit-log-service**: Không gọi đồng bộ từ luồng chính. Luôn qua RabbitMQ async.
+13. **audit-log-service**: Không gọi đồng bộ từ luồng chính. Luôn qua RabbitMQ async. (Đã được cover tự động bởi `AutoAuditLogAspect` ở `common-core`).
 
 14. **Immutable records**: crbt-credit-transaction-service không được UPDATE/DELETE record sau khi INSERT.
+
+15. **Request Tracing**: Request qua Gateway tự động sinh `X-Correlation-ID`. Header này truyền xuyên suốt các service qua Feign và được lưu vào MDC để log. Mọi log mới tự động in kèm traceId. Cấm ghi đè MDC traceId thủ công.
 
 ## CodeGraph
 
