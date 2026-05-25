@@ -6,16 +6,18 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Verifies a CRBT subscriber token with the telco via shared secret, then injects
- * X-User-Id / X-MSISDN / X-Subscription-Type headers. Runs only when the request
- * carries an X-CRBT-Token header (no Authorization Bearer).
+ * Verifies a CRBT subscriber token via its JWT signature using the shared secret,
+ * then injects X-User-Id / X-MSISDN / X-Subscription-Type headers.
+ * Runs only when the request carries an X-CRBT-Token header.
  */
 @Component
 public class CrbtTokenFilter implements GlobalFilter, Ordered {
@@ -23,11 +25,9 @@ public class CrbtTokenFilter implements GlobalFilter, Ordered {
     private static final String CRBT_TOKEN_HEADER = "X-CRBT-Token";
 
     private final SecurityProperties props;
-    private final WebClient webClient;
 
-    public CrbtTokenFilter(SecurityProperties props, WebClient.Builder builder) {
+    public CrbtTokenFilter(SecurityProperties props) {
         this.props = props;
-        this.webClient = builder.build();
     }
 
     @Override
@@ -37,38 +37,47 @@ public class CrbtTokenFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        return webClient.post()
-                .uri(props.crbt().verifyEndpoint())
-                .header("X-Shared-Secret", props.crbt().sharedSecret())
-                .bodyValue(Map.of("token", crbtToken))
-                .retrieve()
-                .bodyToMono(CrbtVerifyResponse.class)
-                .flatMap(verified -> {
-                    if (verified == null || !verified.valid()) {
-                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                        return exchange.getResponse().setComplete();
-                    }
-                    ServerWebExchange mutated = exchange.mutate().request(r -> r
-                            .header("X-User-Id", String.valueOf(verified.userId()))
-                            .header("X-MSISDN", verified.msisdn() == null ? "" : verified.msisdn())
-                            .header("X-Subscription-Type",
-                                    verified.subscriptionType() == null ? "" : verified.subscriptionType())
-                            .header("X-User-Roles", "USER")
-                            .header(CRBT_TOKEN_HEADER, "")
-                    ).build();
-                    return chain.filter(mutated);
-                })
-                .onErrorResume(err -> {
-                    exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
-                    return exchange.getResponse().setComplete();
-                });
+        try {
+            byte[] secretBytes = props.crbt().sharedSecret().getBytes(StandardCharsets.UTF_8);
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(Keys.hmacShaKeyFor(secretBytes))
+                    .build()
+                    .parseClaimsJws(crbtToken)
+                    .getBody();
+
+            // Extract based on payload: { "phone", "status": 1, "id": 24, "sub", "loginType" }
+            Integer status = claims.get("status", Integer.class);
+            if (status == null || status != 1) {
+                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                return exchange.getResponse().setComplete();
+            }
+
+            String msisdn = claims.get("phone", String.class);
+            if (msisdn == null) {
+                msisdn = claims.getSubject();
+            }
+            Integer userId = claims.get("id", Integer.class);
+            Integer loginType = claims.get("loginType", Integer.class);
+
+            ServerWebExchange mutated = exchange.mutate().request(r -> r
+                    .header("X-User-Id", userId != null ? String.valueOf(userId) : "")
+                    .header("X-MSISDN", msisdn != null ? msisdn : "")
+                    .header("X-Subscription-Type", loginType != null ? String.valueOf(loginType) : "")
+                    .header("X-User-Roles", "USER")
+                    .header(CRBT_TOKEN_HEADER, "")
+            ).build();
+
+            return chain.filter(mutated);
+
+        } catch (Exception err) {
+            // Catches ExpiredJwtException, SignatureException, MalformedJwtException, etc.
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
+        }
     }
 
     @Override
     public int getOrder() {
         return -150;
-    }
-
-    public record CrbtVerifyResponse(boolean valid, Long userId, String msisdn, String subscriptionType) {
     }
 }

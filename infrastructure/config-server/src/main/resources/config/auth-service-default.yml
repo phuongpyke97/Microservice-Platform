@@ -29,7 +29,6 @@ jwt:
 
 crbt:
   shared-secret: ${CRBT_SHARED_SECRET}
-  verify-endpoint: ${CRBT_VERIFY_ENDPOINT}
 
 eureka:
   client:

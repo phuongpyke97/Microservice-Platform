@@ -8,7 +8,7 @@ public record SecurityProperties(Jwt jwt, Crbt crbt, RateLimit rateLimit) {
     public record Jwt(String secret) {
     }
 
-    public record Crbt(String sharedSecret, String verifyEndpoint) {
+    public record Crbt(String sharedSecret) {
     }
 
     public record RateLimit(int replenishRate, int burstCapacity) {

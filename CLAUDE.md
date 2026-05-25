@@ -23,7 +23,7 @@
 | AI music | Google Gemini Lyria 3 |
 | TTS | Microsoft Edge TTS (WebSocket stream) |
 | Audio separation | Spleeter / Demucs |
-| Auth model | CRBT Token (từ nhà mạng) → verify bằng shared secret → inject X-User-Id header nội bộ |
+| Auth model | CRBT Token (JWT từ nhà mạng) → verify local bằng shared secret → bóc tách X-MSISDN, X-Subscription-Type |
 
 ---
 
@@ -209,7 +209,7 @@ uvicorn main:app --host 0.0.0.0 --port 8765 --reload
 
 3. **Package**: Đúng `com.platform.{service}.{layer}`. Không đặt sai package.
 
-4. **JWT**: Không validate JWT trong service nội bộ. Chỉ đọc header X-User-Id do Gateway inject.
+4. **JWT**: Không validate JWT trong service nội bộ. Gateway chịu trách nhiệm validate Admin/CMS JWT và CRBT JWT, rồi inject header nội bộ.
 
 5. **Redisson Lock**: credit-wallet-service PHẢI dùng Redisson Lock key `wallet:{userId}` khi trừ/cộng credit. Không bỏ qua.
 
@@ -231,12 +231,11 @@ uvicorn main:app --host 0.0.0.0 --port 8765 --reload
 
 14. **Immutable records**: crbt-credit-transaction-service không được UPDATE/DELETE record sau khi INSERT.
 
-## graphify
+## CodeGraph
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This project uses CodeGraph as the local semantic code graph for AI-assisted navigation.
 
 Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- For codebase questions, prefer CodeGraph queries before broad file browsing.
+- Keep the CodeGraph index current after code changes.
+- CodeGraph is local-only and used through its Claude Code/MCP integration.

@@ -33,7 +33,6 @@ security:
     secret: ${JWT_SECRET}
   crbt:
     shared-secret: ${CRBT_SHARED_SECRET}
-    verify-endpoint: ${CRBT_VERIFY_ENDPOINT}
   rate-limit:
     replenish-rate: 10
     burst-capacity: 20

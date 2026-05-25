@@ -175,7 +175,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
       CRBT_SHARED_SECRET: ${CRBT_SHARED_SECRET}
-      CRBT_VERIFY_ENDPOINT: ${CRBT_VERIFY_ENDPOINT}
     depends_on:
       config-server:
         condition: service_healthy
@@ -207,7 +206,6 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       JWT_SECRET: ${JWT_SECRET}
       CRBT_SHARED_SECRET: ${CRBT_SHARED_SECRET}
-      CRBT_VERIFY_ENDPOINT: ${CRBT_VERIFY_ENDPOINT}
     depends_on:
       config-server:
         condition: service_healthy

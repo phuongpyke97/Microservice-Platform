@@ -28,7 +28,6 @@ security:
     secret: ${JWT_SECRET:changeme_at_least_256bit_secret_key_here_padding}
   crbt:
     shared-secret: ${CRBT_SHARED_SECRET:changeme}
-    verify-endpoint: ${CRBT_VERIFY_ENDPOINT:http://localhost:9999/verify}
   rate-limit:
     replenish-rate: 10
     burst-capacity: 20

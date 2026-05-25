@@ -18,3 +18,4 @@ claude
 .claude/
 .serena/
 graphify-out/
+.mcp.json
