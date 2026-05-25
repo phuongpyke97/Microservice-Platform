@@ -386,6 +386,7 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     depends_on:
       config-server:
         condition: service_healthy
