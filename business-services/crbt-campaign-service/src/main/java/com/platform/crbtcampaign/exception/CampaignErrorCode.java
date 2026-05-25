@@ -6,7 +6,9 @@ import org.springframework.http.HttpStatus;
 public enum CampaignErrorCode implements ErrorCode {
     CAMPAIGN_NOT_FOUND("CAMPAIGN_NOT_FOUND", "Campaign not found", HttpStatus.NOT_FOUND),
     CAMPAIGN_PACKAGE_NOT_FOUND("CAMPAIGN_PACKAGE_NOT_FOUND", "Package not found", HttpStatus.NOT_FOUND),
-    CAMPAIGN_SUBSCRIPTION_NOT_FOUND("CAMPAIGN_SUBSCRIPTION_NOT_FOUND", "Subscription not found", HttpStatus.NOT_FOUND);
+    CAMPAIGN_SUBSCRIPTION_NOT_FOUND("CAMPAIGN_SUBSCRIPTION_NOT_FOUND", "Subscription not found", HttpStatus.NOT_FOUND),
+    CAMPAIGN_INSUFFICIENT_CREDIT("CAMPAIGN_INSUFFICIENT_CREDIT", "Insufficient credits to generate music", HttpStatus.PAYMENT_REQUIRED),
+    CAMPAIGN_FILE_UPLOAD_FAILED("CAMPAIGN_FILE_UPLOAD_FAILED", "Failed to upload generated audio", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final String code;
     private final String message;

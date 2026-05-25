@@ -1,6 +1,7 @@
 package com.platform.auth.service;
 
 import com.platform.auth.dto.request.ForgotPasswordRequest;
+import com.platform.auth.dto.response.UserCreditInternalResponse;
 import com.platform.auth.dto.request.LoginRequest;
 import com.platform.auth.dto.request.RefreshTokenRequest;
 import com.platform.auth.dto.request.RegisterRequest;
@@ -111,6 +112,13 @@ public class AuthService {
             log.info("[CRBT] Auto-created userId={} msisdn={}", saved.getId(), mask(msisdn));
             return saved;
         });
+    }
+
+    @Transactional(readOnly = true)
+    public UserCreditInternalResponse getUserCredit(String msisdn) {
+        User user = userRepository.findByMsisdn(msisdn)
+                .orElseThrow(() -> new BaseException(AuthErrorCode.AUTH_USER_NOT_FOUND));
+        return new UserCreditInternalResponse(user.getId(), user.getCreditBalance());
     }
 
     private String mask(String msisdn) {

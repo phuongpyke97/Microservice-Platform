@@ -48,4 +48,12 @@ public class FileController {
     public ResponseEntity<ApiResponse<FileMetadataResponse>> delete(@PathVariable Long fileId) {
         return ResponseEntity.ok(ApiResponse.success("File deleted", fileService.softDelete(fileId)));
     }
+
+    @PostMapping(value = "/internal/upload-audio", consumes = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<ApiResponse<String>> uploadAudio(
+            @RequestBody byte[] audioBytes,
+            @RequestParam(defaultValue = "media-audio") String bucket) {
+        String url = fileService.uploadAudioBytes(audioBytes, bucket);
+        return ResponseEntity.ok(ApiResponse.success(url));
+    }
 }

@@ -160,6 +160,23 @@ public class FileService {
         }
     }
 
+    public String uploadAudioBytes(byte[] bytes, String bucket) {
+        String objectName = "lyria-" + UUID.randomUUID() + ".mp3";
+        try (java.io.InputStream is = new java.io.ByteArrayInputStream(bytes)) {
+            minioClient.putObject(
+                io.minio.PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectName)
+                    .stream(is, bytes.length, -1)
+                    .contentType("audio/mpeg")
+                    .build()
+            );
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
+        }
+        return properties.endpoint() + "/" + bucket + "/" + objectName;
+    }
+
     private String buildObjectKey(String originalName) {
         return UUID.randomUUID() + "-" + originalName;
     }
