@@ -35,11 +35,12 @@ public class TraceFilter implements GlobalFilter, Ordered {
                 .request(r -> r.header(CORRELATION_ID_HEADER, finalCorrelationId))
                 .build();
 
-        return chain.filter(mutatedExchange).then(Mono.fromRunnable(() -> {
-            // Add to response header
+        exchange.getResponse().beforeCommit(() -> {
             exchange.getResponse().getHeaders().add(CORRELATION_ID_HEADER, finalCorrelationId);
-            MDC.remove(MDC_TRACE_ID);
-        }));
+            return Mono.empty();
+        });
+
+        return chain.filter(mutatedExchange).doFinally(signalType -> MDC.remove(MDC_TRACE_ID));
     }
 
     @Override
