@@ -52,12 +52,10 @@ public class CrbtTokenFilter implements GlobalFilter, Ordered {
                 return exchange.getResponse().setComplete();
             }
 
-            String msisdn = claims.get("phone", String.class);
-            if (msisdn == null) {
-                msisdn = claims.getSubject();
-            }
-            Integer userId = claims.get("id", Integer.class);
-            Integer loginType = claims.get("loginType", Integer.class);
+            String phone = claims.get("phone", String.class);
+            final String msisdn = phone != null ? phone : claims.getSubject();
+            final Integer userId = claims.get("id", Integer.class);
+            final Integer loginType = claims.get("loginType", Integer.class);
 
             ServerWebExchange mutated = exchange.mutate().request(r -> r
                     .header("X-User-Id", userId != null ? String.valueOf(userId) : "")
