@@ -19,7 +19,13 @@ public class LyriaClient {
     public LyriaClient(@Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta}") String url,
                        @Value("${lyria.api-key:changeme}") String apiKey,
                        ObjectMapper objectMapper) {
-        this.restClient = RestClient.builder().baseUrl(url).build();
+        org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(5000);
+        requestFactory.setReadTimeout(20000);
+        this.restClient = RestClient.builder()
+            .baseUrl(url)
+            .requestFactory(requestFactory)
+            .build();
         this.apiKey = apiKey;
         this.objectMapper = objectMapper;
     }
