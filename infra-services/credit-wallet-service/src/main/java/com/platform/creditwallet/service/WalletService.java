@@ -11,6 +11,9 @@ import com.platform.creditwallet.repository.WalletRepository;
 import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class WalletService {
 
+    private static final Logger log = LoggerFactory.getLogger(WalletService.class);
     private static final String LOCK_KEY_PREFIX = "wallet:";
     private static final long LOCK_TIMEOUT_SECONDS = 3;
 
@@ -38,7 +42,7 @@ public class WalletService {
     }
 
     private RBucket<String> getBalanceBucket(Long userId) {
-        return redissonClient.getBucket("wallet:balance:" + userId, org.redisson.client.codec.StringCodec.INSTANCE);
+        return redissonClient.getBucket("wallet:balance:" + userId, StringCodec.INSTANCE);
     }
 
     private void updateCacheAfterCommit(Long userId, int balance) {
@@ -47,10 +51,12 @@ public class WalletService {
                 @Override
                 public void afterCommit() {
                     getBalanceBucket(userId).set(String.valueOf(balance), 1, TimeUnit.HOURS);
+                    log.info("[WALLET-CACHE-UPDATED] Redis cache updated after DB commit: userId={}, newBalance={}", userId, balance);
                 }
             });
         } else {
             getBalanceBucket(userId).set(String.valueOf(balance), 1, TimeUnit.HOURS);
+            log.info("[WALLET-CACHE-UPDATED] Redis cache updated (no active tx): userId={}, newBalance={}", userId, balance);
         }
     }
 
