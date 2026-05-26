@@ -8,6 +8,9 @@ SUPPORTED_VOICES = [
     "vi-VN-HoaiMyNeural",
     "vi-VN-NamMinhNeural",
     "my-MM-ThihaNeural",
+    "my-MM-NilarNeural",
+    "en-US-JennyNeural",
+    "en-US-GuyNeural",
 ]
 
 
