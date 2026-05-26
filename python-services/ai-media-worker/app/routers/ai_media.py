@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.services.audio_separator import separate_audio
 from app.services.chorus_detector import detect_chorus
 from app.services.tts_service import SUPPORTED_VOICES, stream_tts
+from app.services.audio_mixer import mix_audio_tracks
 
 router = APIRouter()
 
@@ -30,7 +31,22 @@ async def separate_audio_endpoint(file: UploadFile):
     return {
         "vocals": base64.b64encode(result["vocals"]).decode(),
         "accompaniment": base64.b64encode(result["accompaniment"]).decode(),
+        "has_vocal": result["has_vocal"],
+        "vocal_rms": result["vocal_rms"],
     }
+
+
+@router.post("/mix-audio")
+async def mix_audio_endpoint(vocal: UploadFile, accompaniment: UploadFile, mode: str = "v2"):
+    vocal_bytes = await vocal.read()
+    accompaniment_bytes = await accompaniment.read()
+    if mode not in ["v1", "v2", "v3"]:
+        raise HTTPException(status_code=400, detail="Invalid mode, choose from v1, v2, v3")
+    try:
+        mixed_bytes = mix_audio_tracks(vocal_bytes, accompaniment_bytes, mode)
+        return Response(content=mixed_bytes, media_type="audio/mpeg")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post("/generate-tts")

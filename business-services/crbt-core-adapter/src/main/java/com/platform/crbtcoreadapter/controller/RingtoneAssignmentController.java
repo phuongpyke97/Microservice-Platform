@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/ringtone-assignments")
+@RequestMapping
 public class RingtoneAssignmentController {
 
     private final RingtoneAssignmentService service;
@@ -23,19 +23,19 @@ public class RingtoneAssignmentController {
         this.service = service;
     }
 
-    @PostMapping
+    @PostMapping({"/ringtone-assignments", "/set-crbt"})
     public ResponseEntity<ApiResponse<AssignmentResponse>> assign(@Valid @RequestBody AssignRingtoneRequest request) {
         Long userId = requireUserId();
         AssignmentResponse response = service.assign(userId, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(response));
     }
 
-    @GetMapping
+    @GetMapping("/ringtone-assignments")
     public ApiResponse<List<AssignmentResponse>> list() {
         return ApiResponse.success(service.listByUser(requireUserId()));
     }
 
-    @DeleteMapping("/{assignmentId}")
+    @DeleteMapping("/ringtone-assignments/{assignmentId}")
     public ApiResponse<AssignmentResponse> remove(@PathVariable Long assignmentId) {
         return ApiResponse.success(service.remove(requireUserId(), assignmentId));
     }

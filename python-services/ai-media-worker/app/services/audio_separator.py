@@ -20,8 +20,10 @@ def _get_separator():
 def separate_audio(audio_data: bytes, fmt: str = "wav") -> dict:
     """
     Split audio into vocals + accompaniment using Spleeter (2 stems).
-    Returns {'vocals': bytes, 'accompaniment': bytes}.
+    Returns {'vocals': bytes, 'accompaniment': bytes, 'has_vocal': bool, 'vocal_rms': float}.
     """
+    import librosa
+    import numpy as np
     work_dir = os.path.join(settings.tmp_dir, uuid.uuid4().hex)
     os.makedirs(work_dir, exist_ok=True)
     input_path = os.path.join(work_dir, f"input.{fmt}")
@@ -34,9 +36,22 @@ def separate_audio(audio_data: bytes, fmt: str = "wav") -> dict:
 
         # Spleeter writes <work_dir>/input/{vocals,accompaniment}.wav
         stem_dir = os.path.join(work_dir, "input")
-        vocals = _read_bytes(os.path.join(stem_dir, "vocals.wav"))
+        vocals_path = os.path.join(stem_dir, "vocals.wav")
+        vocals = _read_bytes(vocals_path)
         accompaniment = _read_bytes(os.path.join(stem_dir, "accompaniment.wav"))
-        return {"vocals": vocals, "accompaniment": accompaniment}
+
+        # Calculate RMS of vocals to detect if there is vocal
+        v_audio, sr = librosa.load(vocals_path, sr=16000)
+        rms = librosa.feature.rms(y=v_audio)
+        mean_rms = float(np.mean(rms))
+        has_vocal = mean_rms > 0.02
+
+        return {
+            "vocals": vocals,
+            "accompaniment": accompaniment,
+            "has_vocal": has_vocal,
+            "vocal_rms": mean_rms
+        }
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
 

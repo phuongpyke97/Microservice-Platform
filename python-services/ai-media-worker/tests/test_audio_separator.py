@@ -26,6 +26,10 @@ def test_separate_audio_returns_stems_and_cleans_tmp(monkeypatch, tmp_path):
     monkeypatch.setattr(
         audio_separator, "_get_separator", lambda: FakeSeparator("spleeter:2stems")
     )
+    import numpy as np
+    import librosa
+    monkeypatch.setattr(librosa, "load", lambda *args, **kwargs: (np.zeros(16000), 16000))
+    monkeypatch.setattr(librosa.feature, "rms", lambda *args, **kwargs: np.zeros((1, 10)))
 
     result = audio_separator.separate_audio(b"raw-audio", fmt="wav")
 

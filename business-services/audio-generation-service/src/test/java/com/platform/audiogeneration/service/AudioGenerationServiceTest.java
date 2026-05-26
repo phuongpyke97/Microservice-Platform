@@ -28,9 +28,11 @@ import java.util.Optional;
 class AudioGenerationServiceTest {
     @Mock AudioJobRepository jobRepository;
     @Mock AiMediaWorkerClient aiClient;
+    @Mock com.platform.audiogeneration.client.FileServiceClient fileServiceClient;
     @Mock RabbitTemplate rabbitTemplate;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOperations;
+    @Mock com.platform.audiogeneration.client.CreditWalletClient creditWalletClient;
     @InjectMocks AudioGenerationService service;
 
     @Test
@@ -38,7 +40,7 @@ class AudioGenerationServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(6L);
         assertThrows(BaseException.class,
-            () -> service.submitJob(1L, new GenerateAudioRequest("hello", "vi-VN-HoaiMyNeural")));
+            () -> service.submitJob(1L, new GenerateAudioRequest("hello", "vi-VN-HoaiMyNeural", null, null, null, null)));
     }
 
     @Test
@@ -65,7 +67,7 @@ class AudioGenerationServiceTest {
             } catch (Exception ignored) {}
             return Optional.of(j);
         });
-        AudioJobResponse resp = service.submitJob(1L, new GenerateAudioRequest("hello", "vi-VN-HoaiMyNeural"));
+        AudioJobResponse resp = service.submitJob(1L, new GenerateAudioRequest("hello", "vi-VN-HoaiMyNeural", null, null, null, null));
         assertEquals(JobStatus.PENDING, resp.status());
         assertEquals("hello", resp.prompt());
     }
@@ -78,5 +80,88 @@ class AudioGenerationServiceTest {
         String progress = service.getJobProgress(1L);
 
         assertEquals("PROCESSING", progress);
+    }
+
+    @Test
+    void submit_diyShouldRejectWhenInvalidPrompt() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
+
+        // Prompt too long
+        String longPrompt = "a".repeat(101);
+        assertThrows(BaseException.class, () ->
+            service.submitJob(1L, new GenerateAudioRequest(longPrompt, "voice", "DIY", "key", 0.0, 50.0))
+        );
+
+        // Non-ASCII prompt
+        String nonAsciiPrompt = "xin chào";
+        assertThrows(BaseException.class, () ->
+            service.submitJob(1L, new GenerateAudioRequest(nonAsciiPrompt, "voice", "DIY", "key", 0.0, 50.0))
+        );
+    }
+
+    @Test
+    void submit_diyShouldRejectWhenInvalidDuration() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
+
+        // Duration too short (30s)
+        assertThrows(BaseException.class, () ->
+            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 10.0, 40.0))
+        );
+
+        // Duration too long (70s)
+        assertThrows(BaseException.class, () ->
+            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 0.0, 70.0))
+        );
+    }
+
+    @Test
+    void submit_diyShouldRejectWhenInsufficientCredit() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
+        when(creditWalletClient.getBalance(any())).thenReturn(
+            new com.platform.common.core.response.ApiResponse<>(true, "SUCCESS", new com.platform.audiogeneration.client.dto.WalletResponse(1L, 0), System.currentTimeMillis())
+        );
+
+        assertThrows(BaseException.class, () ->
+            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 0.0, 50.0))
+        );
+    }
+
+    @Test
+    void submit_diyShouldSucceedAndDeductCredit() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
+        when(creditWalletClient.getBalance(any())).thenReturn(
+            new com.platform.common.core.response.ApiResponse<>(true, "SUCCESS", new com.platform.audiogeneration.client.dto.WalletResponse(1L, 5), System.currentTimeMillis())
+        );
+        when(creditWalletClient.deduct(eq(1L), any())).thenReturn(
+            new com.platform.common.core.response.ApiResponse<>(true, "SUCCESS", new com.platform.audiogeneration.client.dto.WalletResponse(1L, 4), System.currentTimeMillis())
+        );
+        when(jobRepository.save(any(AudioJob.class))).thenAnswer(inv -> {
+            AudioJob j = inv.getArgument(0);
+            j.setStatus(AudioJob.JobStatus.PENDING);
+            try {
+                java.lang.reflect.Field f = AudioJob.class.getDeclaredField("id");
+                f.setAccessible(true);
+                f.set(j, 1L);
+            } catch (Exception ignored) {}
+            return j;
+        });
+        when(jobRepository.findById(any())).thenAnswer(inv -> {
+            AudioJob j = new AudioJob(1L, "hello", "voice");
+            j.setStatus(AudioJob.JobStatus.PENDING);
+            j.setJobType("DIY");
+            try {
+                java.lang.reflect.Field f = AudioJob.class.getDeclaredField("id");
+                f.setAccessible(true);
+                f.set(j, 1L);
+            } catch (Exception ignored) {}
+            return Optional.of(j);
+        });
+
+        AudioJobResponse resp = service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 0.0, 50.0));
+        assertEquals(JobStatus.PENDING, resp.status());
     }
 }

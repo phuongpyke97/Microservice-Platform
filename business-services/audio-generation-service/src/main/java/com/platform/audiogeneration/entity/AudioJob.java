@@ -25,6 +25,16 @@ public class AudioJob {
     @Column(length = 50)
     private String voiceId;
 
+    @Column(nullable = false, length = 10)
+    private String jobType = "AI";
+
+    @Column(length = 255)
+    private String audioFileKey;
+
+    private Double vocalStart;
+
+    private Double vocalEnd;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private JobStatus status;

@@ -30,6 +30,12 @@ public class AudioGenerationController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(response));
     }
 
+    @PostMapping("/analyze")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> analyze(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        java.util.Map<String, Object> result = service.analyzeAudio(file);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @GetMapping
     public ApiResponse<List<AudioJobResponse>> list() {
         return ApiResponse.success(service.getUserJobs(requireUserId()));
