@@ -25,6 +25,11 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.success(walletService.getBalance(userId)));
     }
 
+    @GetMapping("/internal/{userId}/balance")
+    public ResponseEntity<ApiResponse<WalletResponse>> getBalanceInternal(@PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(walletService.getBalance(userId)));
+    }
+
     @PostMapping("/{userId}/deduct")
     public ResponseEntity<ApiResponse<WalletResponse>> deduct(@PathVariable Long userId,
                                                               @Valid @RequestBody AmountRequest request) {

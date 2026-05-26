@@ -36,8 +36,7 @@ public class DataInitializer implements ApplicationRunner {
                 null,
                 ADMIN_EMAIL,
                 passwordEncoder.encode(ADMIN_PASSWORD),
-                Set.of("ROLE_ADMIN"),
-                0
+                Set.of("ROLE_ADMIN")
         );
         userRepository.save(admin);
         log.info("Admin user created: {}", ADMIN_EMAIL);

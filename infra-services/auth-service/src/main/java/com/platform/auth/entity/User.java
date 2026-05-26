@@ -32,8 +32,6 @@ public class User {
     @Column(name = "role")
     private Set<String> roles;
 
-    @Column(name = "credit_balance", nullable = false)
-    private int creditBalance = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -50,12 +48,11 @@ public class User {
     protected User() {
     }
 
-    public User(String msisdn, String email, String passwordHash, Set<String> roles, int creditBalance) {
+    public User(String msisdn, String email, String passwordHash, Set<String> roles) {
         this.msisdn = msisdn;
         this.email = email;
         this.passwordHash = passwordHash;
         this.roles = roles;
-        this.creditBalance = creditBalance;
         this.status = UserStatus.ACTIVE;
     }
 
@@ -64,12 +61,12 @@ public class User {
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public Set<String> getRoles() { return roles; }
-    public int getCreditBalance() { return creditBalance; }
+
     public UserStatus getStatus() { return status; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public void setEmail(String email) { this.email = email; }
     public void setStatus(UserStatus status) { this.status = status; }
-    public void setCreditBalance(int creditBalance) { this.creditBalance = creditBalance; }
+
 }

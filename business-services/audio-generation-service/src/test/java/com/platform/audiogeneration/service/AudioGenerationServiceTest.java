@@ -22,6 +22,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class AudioGenerationServiceTest {
@@ -46,7 +47,23 @@ class AudioGenerationServiceTest {
         when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
         when(jobRepository.save(any(AudioJob.class))).thenAnswer(inv -> {
             AudioJob j = inv.getArgument(0);
+            j.setStatus(AudioJob.JobStatus.PENDING);
+            try {
+                java.lang.reflect.Field f = AudioJob.class.getDeclaredField("id");
+                f.setAccessible(true);
+                f.set(j, 1L);
+            } catch (Exception ignored) {}
             return j;
+        });
+        when(jobRepository.findById(any())).thenAnswer(inv -> {
+            AudioJob j = new AudioJob(1L, "hello", "vi-VN-HoaiMyNeural");
+            j.setStatus(AudioJob.JobStatus.PENDING);
+            try {
+                java.lang.reflect.Field f = AudioJob.class.getDeclaredField("id");
+                f.setAccessible(true);
+                f.set(j, 1L);
+            } catch (Exception ignored) {}
+            return Optional.of(j);
         });
         AudioJobResponse resp = service.submitJob(1L, new GenerateAudioRequest("hello", "vi-VN-HoaiMyNeural"));
         assertEquals(JobStatus.PENDING, resp.status());

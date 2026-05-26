@@ -184,19 +184,18 @@ class AuthServiceTest {
     void lazyCreateSubscriber_newMsisdn_createsWithTrialCredit() {
         when(userRepository.findByMsisdn("+959000000001")).thenReturn(Optional.empty());
         User created = makeUser(8L, "+959000000001", null, "USER");
-        created.setCreditBalance(2);
         when(userRepository.save(any(User.class))).thenReturn(created);
 
         User result = authService.lazyCreateSubscriber("+959000000001");
 
-        assertThat(result.getCreditBalance()).isEqualTo(2);
+        assertThat(result.getId()).isEqualTo(8L);
         verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     // --- helpers ---
 
     private User makeUser(Long id, String msisdn, String email, String role) {
-        User u = new User(msisdn, email, null, Set.of(role), 0);
+        User u = new User(msisdn, email, null, Set.of(role));
         try {
             var f = User.class.getDeclaredField("id");
             f.setAccessible(true);

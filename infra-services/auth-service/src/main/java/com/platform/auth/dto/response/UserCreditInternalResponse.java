@@ -1,3 +1,3 @@
 package com.platform.auth.dto.response;
 
-public record UserCreditInternalResponse(Long userId, int creditBalance) {}
+public record UserCreditInternalResponse(Long userId, String msisdn) {}

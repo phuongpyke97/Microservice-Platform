@@ -34,6 +34,11 @@ public class RabbitConfig {
     }
 
     @Bean
+    public Binding creditTransactionHistoryDeductedBinding() {
+        return BindingBuilder.bind(creditTransactionHistoryQueue()).to(creditEventsExchange()).with(RmqRoutingKeys.CREDIT_DEDUCTED);
+    }
+
+    @Bean
     public Jackson2JsonMessageConverter jackson2JsonMessageConverter(ObjectMapper objectMapper) {
         return new Jackson2JsonMessageConverter(objectMapper);
     }

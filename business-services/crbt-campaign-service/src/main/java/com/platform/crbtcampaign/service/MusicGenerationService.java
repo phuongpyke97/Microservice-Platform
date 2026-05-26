@@ -10,7 +10,10 @@ import com.platform.common.rmq.event.CreditChangedEvent;
 import com.platform.crbtcampaign.client.AuthServiceClient;
 import com.platform.crbtcampaign.client.FileServiceClient;
 import com.platform.crbtcampaign.client.LyriaClient;
+import com.platform.crbtcampaign.client.CreditWalletClient;
 import com.platform.crbtcampaign.client.dto.UserCreditResponse;
+import com.platform.crbtcampaign.client.dto.WalletResponse;
+import com.platform.common.core.response.ApiResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
 import com.platform.crbtcampaign.exception.CampaignErrorCode;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +42,7 @@ public class MusicGenerationService {
     private final AuthServiceClient authServiceClient;
     private final FileServiceClient fileServiceClient;
     private final LyriaClient lyriaClient;
+    private final CreditWalletClient creditWalletClient;
     private final LyriaSystemPromptConfig promptConfig;
     private final RedisTemplate<String, String> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
@@ -48,6 +52,7 @@ public class MusicGenerationService {
     public MusicGenerationService(AuthServiceClient authServiceClient,
                                   FileServiceClient fileServiceClient,
                                   LyriaClient lyriaClient,
+                                  CreditWalletClient creditWalletClient,
                                   LyriaSystemPromptConfig promptConfig,
                                   RedisTemplate<String, String> redisTemplate,
                                   RabbitTemplate rabbitTemplate,
@@ -55,6 +60,7 @@ public class MusicGenerationService {
         this.authServiceClient = authServiceClient;
         this.fileServiceClient = fileServiceClient;
         this.lyriaClient = lyriaClient;
+        this.creditWalletClient = creditWalletClient;
         this.promptConfig = promptConfig;
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
@@ -65,65 +71,72 @@ public class MusicGenerationService {
         log.info("[GENERATE-START] Starting music generation request for msisdn={}, genre={}, mood={}, instrument={}", 
             mask(msisdn), genre, mood, instrument);
 
-        UserCreditResponse credit;
+        UserCreditResponse userInfo;
         try {
-            log.info("[GENERATE-CREDIT-CHECK] Fetching credit for msisdn={}", mask(msisdn));
-            credit = authServiceClient.getUserCredit(msisdn);
-            log.info("[GENERATE-CREDIT-CHECK-OK] msisdn={} has userId={}, creditBalance={}", 
-                mask(msisdn), credit.userId(), credit.creditBalance());
+            log.info("[GENERATE-USER-CHECK] Fetching userId for msisdn={}", mask(msisdn));
+            userInfo = authServiceClient.getUserCredit(msisdn);
+            log.info("[GENERATE-USER-CHECK-OK] msisdn={} has userId={}", mask(msisdn), userInfo.userId());
         } catch (Exception e) {
-            log.error("[GENERATE-CREDIT-ERROR] Failed to check credit for msisdn={}: {}", mask(msisdn), e.getMessage(), e);
+            log.error("[GENERATE-USER-ERROR] Failed to check user for msisdn={}: {}", mask(msisdn), e.getMessage(), e);
             throw e;
         }
 
-        if (credit.creditBalance() < 1) {
-            log.warn("[GENERATE-CREDIT-INSUFFICIENT] msisdn={} credit balance {} is insufficient", mask(msisdn), credit.creditBalance());
+        Long userId = userInfo.userId();
+        log.info("[GENERATE-CREDIT-CHECK] Querying credit-wallet-service for userId={}", userId);
+        ApiResponse<WalletResponse> walletResp = creditWalletClient.getBalance(userId);
+        if (walletResp == null || !walletResp.success() || walletResp.data() == null) {
+            log.error("[GENERATE-CREDIT-ERROR] Failed to retrieve wallet balance for userId={}", userId);
             throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
         }
-        Long userId = credit.userId();
 
-        // Step 3: cache lookup
-        String hashKey = sha256(genre + ":" + mood + ":" + instrument);
-        String poolKey = POOL_KEY_PREFIX + hashKey;
-        String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;
+        int creditBalance = walletResp.data().balance();
+        if (creditBalance < 1) {
+            log.warn("[GENERATE-CREDIT-INSUFFICIENT] userId={} credit balance {} is insufficient", userId, creditBalance);
+            throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
+        }
 
-        log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
-        List<String> poolEntries;
-        Set<String> seenUrls;
+        // Deduct first before generation to prevent Double Spending
+        log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}", userId);
+        deductCreditSynchronously(userId, genre, mood, instrument);
+
         try {
-            poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
-            seenUrls = redisTemplate.opsForSet().members(seenKey);
+            // Step 3: cache lookup
+            String hashKey = sha256(genre + ":" + mood + ":" + instrument);
+            String poolKey = POOL_KEY_PREFIX + hashKey;
+            String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;
+
+            log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
+            List<String> poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
+            Set<String> seenUrls = redisTemplate.opsForSet().members(seenKey);
             if (seenUrls == null) seenUrls = Set.of();
             log.info("[GENERATE-CACHE-STATS] Redis poolEntries size={}, seenUrls size={}", 
                 poolEntries != null ? poolEntries.size() : 0, seenUrls.size());
-        } catch (Exception e) {
-            log.error("[GENERATE-CACHE-ERROR] Failed to query Redis cache: {}", e.getMessage(), e);
-            throw e;
-        }
 
-        List<String> available = buildAvailable(poolEntries, seenUrls, msisdn);
-        log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
+            List<String> available = buildAvailable(poolEntries, seenUrls, msisdn);
+            log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
 
-        String url;
-        if (!available.isEmpty()) {
-            url = available.get(random.nextInt(available.size()));
-            log.info("[LYRIA-CACHE-HIT] msisdn={} hashKey={} url={}", mask(msisdn), hashKey, url);
-        } else {
-            log.info("[LYRIA-CACHE-MISS] No available tracks in cache pool for hashKey={}. Calling AI generation...", hashKey);
-            url = generateAndCache(msisdn, genre, mood, instrument, poolKey);
-        }
+            String url;
+            if (!available.isEmpty()) {
+                url = available.get(random.nextInt(available.size()));
+                log.info("[LYRIA-CACHE-HIT] msisdn={} hashKey={} url={}", mask(msisdn), hashKey, url);
+            } else {
+                log.info("[LYRIA-CACHE-MISS] No available tracks in cache pool for hashKey={}. Calling AI generation...", hashKey);
+                url = generateAndCache(msisdn, genre, mood, instrument, poolKey);
+            }
 
-        try {
-            log.info("[GENERATE-FINAL-STEPS] Marking url as seen and publishing credit deduction for userId={}", userId);
             redisTemplate.opsForSet().add(seenKey, url);
-            publishCreditDeduction(userId, genre, mood, instrument);
             log.info("[GENERATE-SUCCESS] Successfully processed request for msisdn={}, returned url={}", mask(msisdn), url);
+            return new GenerateMusicResponse(url);
+
         } catch (Exception e) {
-            log.error("[GENERATE-FINAL-ERROR] Failed during final steps (Redis seen / RabbitMQ publish): {}", e.getMessage(), e);
+            log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit...", userId, e);
+            try {
+                refundCreditSynchronously(userId, genre, mood, instrument);
+            } catch (Exception ex) {
+                log.error("[REFUND-ERROR] Failed to refund credit for userId={}: {}", userId, ex.getMessage(), ex);
+            }
             throw e;
         }
-
-        return new GenerateMusicResponse(url);
     }
 
     private String generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
@@ -183,22 +196,41 @@ public class MusicGenerationService {
         return available;
     }
 
-    private void publishCreditDeduction(Long userId, String genre, String mood, String instrument) {
-        CreditChangedEvent event = new CreditChangedEvent(
-                userId,
-                1,
-                "OUT",
-                "AI Music: " + genre + "/" + mood + "/" + instrument,
-                "MUSIC-" + UUID.randomUUID(),
-                System.currentTimeMillis()
-        );
-        log.info("[RABBITMQ-PUBLISH] Publishing CreditChangedEvent for userId={} through RabbitMQ...", userId);
+    private void deductCreditSynchronously(Long userId, String genre, String mood, String instrument) {
+        log.info("[WALLET-DEDUCT] Deducting credit synchronously for userId={}", userId);
         try {
-            rabbitTemplate.convertAndSend(RmqExchanges.CREDIT_EVENTS, RmqRoutingKeys.CREDIT_CHANGED, event);
-            log.info("[RABBITMQ-PUBLISH-OK] CreditChangedEvent published successfully.");
+            var request = new com.platform.crbtcampaign.client.dto.WalletAmountRequest(
+                    1,
+                    "AI Music: " + genre + "/" + mood + "/" + instrument,
+                    "MUSIC-" + UUID.randomUUID()
+            );
+            ApiResponse<WalletResponse> response = creditWalletClient.deduct(userId, request);
+            if (response == null || !response.success() || response.data() == null) {
+                throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
+            }
+            log.info("[WALLET-DEDUCT-OK] Credit deducted successfully. New balance={}", response.data().balance());
         } catch (Exception e) {
-            log.error("[RABBITMQ-PUBLISH-ERROR] Failed to publish CreditChangedEvent to RabbitMQ: {}", e.getMessage(), e);
+            log.error("[WALLET-DEDUCT-ERROR] Failed to deduct credit for userId={}: {}", userId, e.getMessage(), e);
             throw e;
+        }
+    }
+
+    private void refundCreditSynchronously(Long userId, String genre, String mood, String instrument) {
+        log.info("[WALLET-REFUND] Refunding credit synchronously for userId={}", userId);
+        try {
+            var request = new com.platform.crbtcampaign.client.dto.WalletAmountRequest(
+                    1,
+                    "Refund: AI Music Generation failed (" + genre + "/" + mood + "/" + instrument + ")",
+                    "REFUND-" + UUID.randomUUID()
+            );
+            ApiResponse<WalletResponse> response = creditWalletClient.add(userId, request);
+            if (response == null || !response.success() || response.data() == null) {
+                log.error("[WALLET-REFUND-FAILED] Failed response from credit-wallet-service during refund.");
+            } else {
+                log.info("[WALLET-REFUND-OK] Credit refunded successfully. New balance={}", response.data().balance());
+            }
+        } catch (Exception e) {
+            log.error("[WALLET-REFUND-ERROR] Failed to call refund API for userId={}: {}", userId, e.getMessage(), e);
         }
     }
 

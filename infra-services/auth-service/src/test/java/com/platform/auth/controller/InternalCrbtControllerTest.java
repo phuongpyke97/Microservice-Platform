@@ -75,7 +75,7 @@ class InternalCrbtControllerTest {
 
     private User makeUser(Long id, String msisdn, String email, String role) {
         try {
-            User user = new User(msisdn, email, null, Set.of(role), 2);
+            User user = new User(msisdn, email, null, Set.of(role));
             Field idField = User.class.getDeclaredField("id");
             idField.setAccessible(true);
             idField.set(user, id);

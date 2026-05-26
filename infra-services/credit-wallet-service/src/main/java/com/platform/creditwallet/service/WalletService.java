@@ -8,11 +8,14 @@ import com.platform.creditwallet.dto.response.WalletResponse;
 import com.platform.creditwallet.entity.Wallet;
 import com.platform.creditwallet.exception.WalletErrorCode;
 import com.platform.creditwallet.repository.WalletRepository;
+import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
@@ -34,10 +37,34 @@ public class WalletService {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    @Transactional(readOnly = true)
+    private RBucket<Integer> getBalanceBucket(Long userId) {
+        return redissonClient.getBucket("wallet:balance:" + userId);
+    }
+
+    private void evictCacheAfterCommit(Long userId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    getBalanceBucket(userId).delete();
+                }
+            });
+        } else {
+            getBalanceBucket(userId).delete();
+        }
+    }
+
+    @Transactional
     public WalletResponse getBalance(Long userId) {
+        RBucket<Integer> bucket = getBalanceBucket(userId);
+        Integer cachedBalance = bucket.get();
+        if (cachedBalance != null) {
+            return new WalletResponse(userId, cachedBalance);
+        }
+
         Wallet wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new BaseException(WalletErrorCode.WALLET_NOT_FOUND));
+                .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
+        bucket.set(wallet.getBalance(), 1, TimeUnit.HOURS);
         return new WalletResponse(userId, wallet.getBalance());
     }
 
@@ -52,12 +79,14 @@ public class WalletService {
 
             try {
                 Wallet wallet = walletRepository.findByUserIdForUpdate(userId)
-                        .orElseThrow(() -> new BaseException(WalletErrorCode.WALLET_NOT_FOUND));
+                        .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
                 if (wallet.getBalance() < amount) {
                     throw new BaseException(WalletErrorCode.WALLET_INSUFFICIENT_CREDIT);
                 }
                 wallet.deductBalance(amount);
                 walletRepository.save(wallet);
+
+                evictCacheAfterCommit(userId);
 
                 rabbitTemplate.convertAndSend(
                         RmqExchanges.CREDIT_EVENTS,
@@ -86,9 +115,11 @@ public class WalletService {
 
             try {
                 Wallet wallet = walletRepository.findByUserId(userId)
-                        .orElseGet(() -> walletRepository.save(new Wallet(userId, 0)));
+                        .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
                 wallet.addBalance(amount);
                 walletRepository.save(wallet);
+
+                evictCacheAfterCommit(userId);
 
                 rabbitTemplate.convertAndSend(
                         RmqExchanges.CREDIT_EVENTS,

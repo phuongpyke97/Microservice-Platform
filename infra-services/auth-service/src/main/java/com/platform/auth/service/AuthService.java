@@ -53,7 +53,7 @@ public class AuthService {
             throw new BaseException(AuthErrorCode.AUTH_EMAIL_ALREADY_EXISTS);
         }
 
-        User user = new User(null, request.email(), passwordEncoder.encode(request.password()), Set.of("ADMIN"), 0);
+        User user = new User(null, request.email(), passwordEncoder.encode(request.password()), Set.of("ADMIN"));
         User saved = userRepository.save(user);
         rabbitTemplate.convertAndSend(
                 RmqExchanges.USER_EVENTS,
@@ -102,7 +102,7 @@ public class AuthService {
     public User lazyCreateSubscriber(String msisdn) {
         return userRepository.findByMsisdn(msisdn).orElseGet(() -> {
             log.info("[CRBT] New subscriber, auto-creating account msisdn={}", mask(msisdn));
-            User user = new User(msisdn, null, null, Set.of("USER"), 2);
+            User user = new User(msisdn, null, null, Set.of("USER"));
             User saved = userRepository.save(user);
             rabbitTemplate.convertAndSend(
                     RmqExchanges.USER_EVENTS,
@@ -118,7 +118,7 @@ public class AuthService {
     public UserCreditInternalResponse getUserCredit(String msisdn) {
         User user = userRepository.findByMsisdn(msisdn)
                 .orElseThrow(() -> new BaseException(AuthErrorCode.AUTH_USER_NOT_FOUND));
-        return new UserCreditInternalResponse(user.getId(), user.getCreditBalance());
+        return new UserCreditInternalResponse(user.getId(), user.getMsisdn());
     }
 
     private String mask(String msisdn) {

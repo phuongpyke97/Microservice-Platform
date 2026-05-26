@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -29,12 +30,14 @@ class WalletServiceTest {
     @Mock private RedissonClient redissonClient;
     @Mock private RabbitTemplate rabbitTemplate;
     @Mock private RLock rLock;
+    @Mock private RBucket rBucket;
 
     private WalletService walletService;
 
     @BeforeEach
     void setUp() {
         walletService = new WalletService(walletRepository, redissonClient, rabbitTemplate);
+        lenient().when(redissonClient.getBucket(anyString())).thenReturn(rBucket);
     }
 
     private void lockAcquired() throws InterruptedException {
@@ -51,6 +54,7 @@ class WalletServiceTest {
 
     @Test
     void getBalance_existing_returnsBalance() {
+        when(rBucket.get()).thenReturn(null);
         Wallet w = new Wallet(1L, 100);
         when(walletRepository.findByUserId(1L)).thenReturn(Optional.of(w));
 
@@ -58,16 +62,31 @@ class WalletServiceTest {
 
         assertThat(response.balance()).isEqualTo(100);
         assertThat(response.userId()).isEqualTo(1L);
+        verify(rBucket).set(eq(100), anyLong(), any(TimeUnit.class));
     }
 
     @Test
-    void getBalance_notFound_throws() {
+    void getBalance_notFound_createsWalletWithDefaultCredits() {
+        when(rBucket.get()).thenReturn(null);
         when(walletRepository.findByUserId(99L)).thenReturn(Optional.empty());
+        Wallet newWallet = new Wallet(99L, 2);
+        when(walletRepository.save(any(Wallet.class))).thenReturn(newWallet);
 
-        assertThatThrownBy(() -> walletService.getBalance(99L))
-                .isInstanceOf(BaseException.class)
-                .satisfies(e -> assertThat(((BaseException) e).getErrorCode())
-                        .isEqualTo(WalletErrorCode.WALLET_NOT_FOUND));
+        WalletResponse response = walletService.getBalance(99L);
+
+        assertThat(response.balance()).isEqualTo(2);
+        assertThat(response.userId()).isEqualTo(99L);
+        verify(rBucket).set(eq(2), anyLong(), any(TimeUnit.class));
+    }
+
+    @Test
+    void getBalance_cacheHit_returnsCachedBalance() {
+        when(rBucket.get()).thenReturn(50);
+
+        WalletResponse response = walletService.getBalance(1L);
+
+        assertThat(response.balance()).isEqualTo(50);
+        verifyNoInteractions(walletRepository);
     }
 
     // --- deductCredit ---
@@ -82,6 +101,7 @@ class WalletServiceTest {
         WalletResponse response = walletService.deductCredit(1L, 20, "consume", "ref-1");
 
         assertThat(response.balance()).isEqualTo(30);
+        verify(rBucket).delete();
         verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
         verify(rLock).unlock();
     }
@@ -118,14 +138,16 @@ class WalletServiceTest {
     }
 
     @Test
-    void deductCredit_walletNotFound_throws() throws InterruptedException {
+    void deductCredit_walletNotFound_createsAndChecksBalance() throws InterruptedException {
         lockAcquired();
         when(walletRepository.findByUserIdForUpdate(1L)).thenReturn(Optional.empty());
+        Wallet newWallet = new Wallet(1L, 2);
+        when(walletRepository.save(any(Wallet.class))).thenReturn(newWallet);
 
         assertThatThrownBy(() -> walletService.deductCredit(1L, 5, "r", "ref"))
                 .isInstanceOf(BaseException.class)
                 .satisfies(e -> assertThat(((BaseException) e).getErrorCode())
-                        .isEqualTo(WalletErrorCode.WALLET_NOT_FOUND));
+                        .isEqualTo(WalletErrorCode.WALLET_INSUFFICIENT_CREDIT));
         verify(rLock).unlock();
     }
 
@@ -141,6 +163,7 @@ class WalletServiceTest {
         WalletResponse response = walletService.addCredit(2L, 5, "top_up", "txn-1");
 
         assertThat(response.balance()).isEqualTo(15);
+        verify(rBucket).delete();
         verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
         verify(rLock).unlock();
     }
@@ -148,13 +171,14 @@ class WalletServiceTest {
     @Test
     void addCredit_noWallet_createsAndAdds() throws InterruptedException {
         lockAcquired();
-        Wallet emptyWallet = new Wallet(3L, 0);
         when(walletRepository.findByUserId(3L)).thenReturn(Optional.empty());
-        when(walletRepository.save(any(Wallet.class))).thenReturn(emptyWallet);
+        Wallet newWallet = new Wallet(3L, 2);
+        when(walletRepository.save(any(Wallet.class))).thenReturn(newWallet);
 
         WalletResponse response = walletService.addCredit(3L, 2, "trial", null);
 
-        assertThat(response.balance()).isEqualTo(2);
+        assertThat(response.balance()).isEqualTo(4);
+        verify(rBucket).delete();
         verify(rLock).unlock();
     }
 
@@ -176,3 +200,4 @@ class WalletServiceTest {
                         .isEqualTo(WalletErrorCode.WALLET_LOCK_TIMEOUT));
     }
 }
+
