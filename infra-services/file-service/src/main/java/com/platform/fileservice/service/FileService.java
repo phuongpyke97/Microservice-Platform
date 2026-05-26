@@ -174,7 +174,7 @@ public class FileService {
         } catch (Exception e) {
             throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
         }
-        return properties.endpoint() + "/" + bucket + "/" + objectName;
+        return properties.publicEndpoint() + "/" + bucket + "/" + objectName;
     }
 
     private String buildObjectKey(String originalName) {
