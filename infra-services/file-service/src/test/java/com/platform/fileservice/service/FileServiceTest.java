@@ -36,7 +36,7 @@ class FileServiceTest {
         fileService = new FileService(
                 repository,
                 minioClient,
-                new MinioProperties("http://localhost:9000", "minio", "minio123", "temp", "audio", "image")
+                new MinioProperties("http://localhost:9000", "http://localhost:9000", "minio", "minio123", "temp", "audio", "image")
         );
     }
 
