@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 public enum CommonErrorCode implements ErrorCode {
     COMMON_INTERNAL_ERROR("COMMON_INTERNAL_ERROR", "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR),
+    SYSTEM_BUSY("SYSTEM_BUSY", "Hệ thống đang bận. Vui lòng thử lại sau!", HttpStatus.INTERNAL_SERVER_ERROR),
     COMMON_VALIDATION_FAILED("COMMON_VALIDATION_FAILED", "Validation failed", HttpStatus.BAD_REQUEST),
     COMMON_DOWNSTREAM_ERROR("COMMON_DOWNSTREAM_ERROR", "Downstream service error", HttpStatus.BAD_GATEWAY),
     COMMON_NOT_FOUND("COMMON_NOT_FOUND", "Resource not found", HttpStatus.NOT_FOUND),

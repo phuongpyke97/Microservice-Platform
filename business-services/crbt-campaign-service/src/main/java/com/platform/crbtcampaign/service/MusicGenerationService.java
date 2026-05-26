@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.common.ai.LyriaSystemPromptConfig;
 import com.platform.common.core.exception.BaseException;
+import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.rmq.RmqExchanges;
 import com.platform.common.rmq.RmqRoutingKeys;
 import com.platform.common.rmq.event.CreditChangedEvent;
@@ -12,6 +13,7 @@ import com.platform.crbtcampaign.client.FileServiceClient;
 import com.platform.crbtcampaign.client.LyriaClient;
 import com.platform.crbtcampaign.client.CreditWalletClient;
 import com.platform.crbtcampaign.client.dto.UserCreditResponse;
+import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
 import com.platform.crbtcampaign.client.dto.WalletResponse;
 import com.platform.common.core.response.ApiResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
@@ -95,9 +97,10 @@ public class MusicGenerationService {
             throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
         }
 
+        String txnRef = "MUSIC-" + UUID.randomUUID();
         // Deduct first before generation to prevent Double Spending
-        log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}", userId);
-        deductCreditSynchronously(userId, genre, mood, instrument);
+        log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}, txnRef={}", userId, txnRef);
+        deductCreditSynchronously(userId, genre, mood, instrument, txnRef);
 
         try {
             // Step 3: cache lookup
@@ -129,13 +132,13 @@ public class MusicGenerationService {
             return new GenerateMusicResponse(url);
 
         } catch (Exception e) {
-            log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit...", userId, e);
+            log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit with txnRef={}", userId, txnRef, e);
             try {
-                refundCreditSynchronously(userId, genre, mood, instrument);
+                refundCreditSynchronously(userId, genre, mood, instrument, txnRef);
             } catch (Exception ex) {
                 log.error("[REFUND-ERROR] Failed to refund credit for userId={}: {}", userId, ex.getMessage(), ex);
             }
-            throw e;
+            throw new BaseException(CommonErrorCode.SYSTEM_BUSY);
         }
     }
 
@@ -196,13 +199,13 @@ public class MusicGenerationService {
         return available;
     }
 
-    private void deductCreditSynchronously(Long userId, String genre, String mood, String instrument) {
-        log.info("[WALLET-DEDUCT] Deducting credit synchronously for userId={}", userId);
+    private void deductCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef) {
+        log.info("[WALLET-DEDUCT] Deducting credit synchronously for userId={}, txnRef={}", userId, txnRef);
         try {
-            var request = new com.platform.crbtcampaign.client.dto.WalletAmountRequest(
+            var request = new WalletAmountRequest(
                     1,
                     "AI Music: " + genre + "/" + mood + "/" + instrument,
-                    "MUSIC-" + UUID.randomUUID()
+                    txnRef
             );
             ApiResponse<WalletResponse> response = creditWalletClient.deduct(userId, request);
             if (response == null || !response.success() || response.data() == null) {
@@ -215,13 +218,14 @@ public class MusicGenerationService {
         }
     }
 
-    private void refundCreditSynchronously(Long userId, String genre, String mood, String instrument) {
-        log.info("[WALLET-REFUND] Refunding credit synchronously for userId={}", userId);
+    private void refundCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef) {
+        String refundRef = "REFUND-" + txnRef;
+        log.info("[WALLET-REFUND] Refunding credit synchronously for userId={}, refundRef={}", userId, refundRef);
         try {
-            var request = new com.platform.crbtcampaign.client.dto.WalletAmountRequest(
+            var request = new WalletAmountRequest(
                     1,
                     "Refund: AI Music Generation failed (" + genre + "/" + mood + "/" + instrument + ")",
-                    "REFUND-" + UUID.randomUUID()
+                    refundRef
             );
             ApiResponse<WalletResponse> response = creditWalletClient.add(userId, request);
             if (response == null || !response.success() || response.data() == null) {

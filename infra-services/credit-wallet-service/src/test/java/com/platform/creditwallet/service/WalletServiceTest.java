@@ -38,6 +38,7 @@ class WalletServiceTest {
     void setUp() {
         walletService = new WalletService(walletRepository, redissonClient, rabbitTemplate);
         lenient().when(redissonClient.getBucket(anyString())).thenReturn(rBucket);
+        lenient().when(redissonClient.getBucket(anyString(), any())).thenReturn(rBucket);
     }
 
     private void lockAcquired() throws InterruptedException {
@@ -62,7 +63,7 @@ class WalletServiceTest {
 
         assertThat(response.balance()).isEqualTo(100);
         assertThat(response.userId()).isEqualTo(1L);
-        verify(rBucket).set(eq(100), anyLong(), any(TimeUnit.class));
+        verify(rBucket).set(eq("100"), anyLong(), any(TimeUnit.class));
     }
 
     @Test
@@ -76,12 +77,12 @@ class WalletServiceTest {
 
         assertThat(response.balance()).isEqualTo(2);
         assertThat(response.userId()).isEqualTo(99L);
-        verify(rBucket).set(eq(2), anyLong(), any(TimeUnit.class));
+        verify(rBucket).set(eq("2"), anyLong(), any(TimeUnit.class));
     }
 
     @Test
     void getBalance_cacheHit_returnsCachedBalance() {
-        when(rBucket.get()).thenReturn(50);
+        when(rBucket.get()).thenReturn("50");
 
         WalletResponse response = walletService.getBalance(1L);
 
@@ -95,13 +96,13 @@ class WalletServiceTest {
     void deductCredit_valid_reducesBalance() throws InterruptedException {
         lockAcquired();
         Wallet w = new Wallet(1L, 50);
-        when(walletRepository.findByUserIdForUpdate(1L)).thenReturn(Optional.of(w));
+        when(walletRepository.findByUserId(1L)).thenReturn(Optional.of(w));
         when(walletRepository.save(w)).thenReturn(w);
 
         WalletResponse response = walletService.deductCredit(1L, 20, "consume", "ref-1");
 
         assertThat(response.balance()).isEqualTo(30);
-        verify(rBucket).delete();
+        verify(rBucket).set(eq("30"), anyLong(), any(TimeUnit.class));
         verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
         verify(rLock).unlock();
     }
@@ -128,7 +129,7 @@ class WalletServiceTest {
     void deductCredit_insufficientBalance_throws() throws InterruptedException {
         lockAcquired();
         Wallet w = new Wallet(1L, 3);
-        when(walletRepository.findByUserIdForUpdate(1L)).thenReturn(Optional.of(w));
+        when(walletRepository.findByUserId(1L)).thenReturn(Optional.of(w));
 
         assertThatThrownBy(() -> walletService.deductCredit(1L, 10, "r", "ref"))
                 .isInstanceOf(BaseException.class)
@@ -140,7 +141,7 @@ class WalletServiceTest {
     @Test
     void deductCredit_walletNotFound_createsAndChecksBalance() throws InterruptedException {
         lockAcquired();
-        when(walletRepository.findByUserIdForUpdate(1L)).thenReturn(Optional.empty());
+        when(walletRepository.findByUserId(1L)).thenReturn(Optional.empty());
         Wallet newWallet = new Wallet(1L, 2);
         when(walletRepository.save(any(Wallet.class))).thenReturn(newWallet);
 
@@ -163,7 +164,7 @@ class WalletServiceTest {
         WalletResponse response = walletService.addCredit(2L, 5, "top_up", "txn-1");
 
         assertThat(response.balance()).isEqualTo(15);
-        verify(rBucket).delete();
+        verify(rBucket).set(eq("15"), anyLong(), any(TimeUnit.class));
         verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
         verify(rLock).unlock();
     }
@@ -178,7 +179,7 @@ class WalletServiceTest {
         WalletResponse response = walletService.addCredit(3L, 2, "trial", null);
 
         assertThat(response.balance()).isEqualTo(4);
-        verify(rBucket).delete();
+        verify(rBucket).set(eq("4"), anyLong(), any(TimeUnit.class));
         verify(rLock).unlock();
     }
 

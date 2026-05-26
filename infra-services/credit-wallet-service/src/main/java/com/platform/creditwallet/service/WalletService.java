@@ -37,37 +37,50 @@ public class WalletService {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    private RBucket<Integer> getBalanceBucket(Long userId) {
-        return redissonClient.getBucket("wallet:balance:" + userId);
+    private RBucket<String> getBalanceBucket(Long userId) {
+        return redissonClient.getBucket("wallet:balance:" + userId, org.redisson.client.codec.StringCodec.INSTANCE);
     }
 
-    private void evictCacheAfterCommit(Long userId) {
+    private void updateCacheAfterCommit(Long userId, int balance) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    getBalanceBucket(userId).delete();
+                    getBalanceBucket(userId).set(String.valueOf(balance), 1, TimeUnit.HOURS);
                 }
             });
         } else {
-            getBalanceBucket(userId).delete();
+            getBalanceBucket(userId).set(String.valueOf(balance), 1, TimeUnit.HOURS);
         }
     }
 
-    @Transactional
+    /**
+     * Read balance: cache-first, fallback to DB.
+     * readOnly = true → no unnecessary transaction overhead on cache hits.
+     */
+    @Transactional(readOnly = true)
     public WalletResponse getBalance(Long userId) {
-        RBucket<Integer> bucket = getBalanceBucket(userId);
-        Integer cachedBalance = bucket.get();
+        RBucket<String> bucket = getBalanceBucket(userId);
+        String cachedBalance = bucket.get();
         if (cachedBalance != null) {
-            return new WalletResponse(userId, cachedBalance);
+            try {
+                return new WalletResponse(userId, Integer.parseInt(cachedBalance));
+            } catch (NumberFormatException e) {
+                // Corrupted cache entry — fall through to DB
+            }
         }
 
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
-        bucket.set(wallet.getBalance(), 1, TimeUnit.HOURS);
+        bucket.set(String.valueOf(wallet.getBalance()), 1, TimeUnit.HOURS);
         return new WalletResponse(userId, wallet.getBalance());
     }
 
+    /**
+     * Deduct credit.
+     * Concurrency: Redisson distributed lock per userId — single lock strategy, no DB-level pessimistic lock.
+     * Cache: updated only after DB commit via TransactionSynchronization.
+     */
     @Transactional
     public WalletResponse deductCredit(Long userId, int amount, String reason, String referenceId) {
         if (amount <= 0) throw new BaseException(WalletErrorCode.WALLET_INVALID_AMOUNT);
@@ -78,15 +91,16 @@ public class WalletService {
             if (!acquired) throw new BaseException(WalletErrorCode.WALLET_LOCK_TIMEOUT);
 
             try {
-                Wallet wallet = walletRepository.findByUserIdForUpdate(userId)
+                Wallet wallet = walletRepository.findByUserId(userId)
                         .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
+
                 if (wallet.getBalance() < amount) {
                     throw new BaseException(WalletErrorCode.WALLET_INSUFFICIENT_CREDIT);
                 }
                 wallet.deductBalance(amount);
                 walletRepository.save(wallet);
 
-                evictCacheAfterCommit(userId);
+                updateCacheAfterCommit(userId, wallet.getBalance());
 
                 rabbitTemplate.convertAndSend(
                         RmqExchanges.CREDIT_EVENTS,
@@ -104,6 +118,11 @@ public class WalletService {
         }
     }
 
+    /**
+     * Add credit (e.g. top-up, refund).
+     * Same lock strategy as deductCredit for consistency.
+     * Cache: updated only after DB commit via TransactionSynchronization.
+     */
     @Transactional
     public WalletResponse addCredit(Long userId, int amount, String reason, String referenceId) {
         if (amount <= 0) throw new BaseException(WalletErrorCode.WALLET_INVALID_AMOUNT);
@@ -119,7 +138,7 @@ public class WalletService {
                 wallet.addBalance(amount);
                 walletRepository.save(wallet);
 
-                evictCacheAfterCommit(userId);
+                updateCacheAfterCommit(userId, wallet.getBalance());
 
                 rabbitTemplate.convertAndSend(
                         RmqExchanges.CREDIT_EVENTS,

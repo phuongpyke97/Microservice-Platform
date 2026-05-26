@@ -39,12 +39,20 @@ public class Wallet {
     public int getBalance() { return balance; }
 
     public void addBalance(int amount) {
+        if (amount <= 0) throw new IllegalArgumentException("addBalance: amount must be positive");
         this.balance += amount;
     }
 
+    /**
+     * Guard for entity invariant: balance must never go negative.
+     * Service layer MUST check balance before calling this; if this throws,
+     * it means a concurrency bug bypassed the service-level check.
+     */
     public void deductBalance(int amount) {
+        if (amount <= 0) throw new IllegalArgumentException("deductBalance: amount must be positive");
         if (this.balance < amount) {
-            throw new IllegalArgumentException("Insufficient credit");
+            throw new IllegalStateException(
+                "Balance invariant violated: balance=" + this.balance + ", requested=" + amount);
         }
         this.balance -= amount;
     }
