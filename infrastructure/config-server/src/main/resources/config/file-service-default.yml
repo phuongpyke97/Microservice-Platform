@@ -25,6 +25,7 @@ minio:
   bucket-temp: ${MINIO_BUCKET_TEMP:temp}
   bucket-audio: ${MINIO_BUCKET_AUDIO:audio}
   bucket-image: ${MINIO_BUCKET_IMAGES:image}
+  bucket-audio-lib: ${MINIO_BUCKET_AUDIO_LIB:media-audio-lib}
 
 eureka:
   client:

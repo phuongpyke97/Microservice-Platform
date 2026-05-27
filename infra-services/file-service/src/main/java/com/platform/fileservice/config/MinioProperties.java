@@ -10,7 +10,8 @@ public record MinioProperties(
         String secretKey,
         String bucketTemp,
         String bucketAudio,
-        String bucketImage
+        String bucketImage,
+        String bucketAudioLib
 ) {
     public String publicEndpoint() {
         return (externalEndpoint != null && !externalEndpoint.isBlank()) ? externalEndpoint : endpoint;

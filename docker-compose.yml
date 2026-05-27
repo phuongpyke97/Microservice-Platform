@@ -280,6 +280,7 @@ services:
       MINIO_BUCKET_TEMP: ${MINIO_BUCKET_TEMP}
       MINIO_BUCKET_AUDIO: ${MINIO_BUCKET_AUDIO}
       MINIO_BUCKET_IMAGES: ${MINIO_BUCKET_IMAGES}
+      MINIO_BUCKET_AUDIO_LIB: ${MINIO_BUCKET_AUDIO_LIB}
     volumes:
       - ./logs:/logs
     depends_on:

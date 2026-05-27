@@ -86,7 +86,9 @@ public class FileService {
         if (metadata.getStatus() != FileStatus.UPLOADED || !properties.bucketTemp().equals(metadata.getBucket())) {
             throw new BaseException(FileErrorCode.FILE_NOT_IN_TEMP);
         }
-        if (!targetBucket.equals(properties.bucketAudio()) && !targetBucket.equals(properties.bucketImage())) {
+        if (!targetBucket.equals(properties.bucketAudio()) 
+                && !targetBucket.equals(properties.bucketImage())
+                && !targetBucket.equals(properties.bucketAudioLib())) {
             throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET);
         }
 
