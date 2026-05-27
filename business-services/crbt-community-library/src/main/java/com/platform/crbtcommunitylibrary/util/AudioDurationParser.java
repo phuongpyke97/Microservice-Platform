@@ -36,6 +36,12 @@ public class AudioDurationParser {
     @Value("${AI_WORKER_HOST:localhost}")
     private String aiWorkerHost;
 
+    @Value("${minio.endpoint:http://localhost:9000}")
+    private String minioEndpoint;
+
+    @Value("${minio.external-endpoint:}")
+    private String minioExternalEndpoint;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     /**
@@ -47,6 +53,20 @@ public class AudioDurationParser {
             return new AudioAnalysisResult(DEFAULT_DURATION, 0L, false);
         }
 
+        // Rewrite external MinIO endpoint to internal endpoint for cluster network resolution
+        String downloadUrl = audioUrl;
+        if (minioExternalEndpoint != null && !minioExternalEndpoint.isBlank()) {
+            if (audioUrl.startsWith(minioExternalEndpoint)) {
+                downloadUrl = minioEndpoint + audioUrl.substring(minioExternalEndpoint.length());
+                log.info("Rewrote external MinIO URL {} to internal URL {}", audioUrl, downloadUrl);
+            }
+        } else if (audioUrl.startsWith("http://localhost:9000")) {
+            if (!minioEndpoint.startsWith("http://localhost:9000")) {
+                downloadUrl = minioEndpoint + audioUrl.substring("http://localhost:9000".length());
+                log.info("Fallback rewrote localhost MinIO URL {} to internal URL {}", audioUrl, downloadUrl);
+            }
+        }
+
         File tempFile = null;
         long sizeBytes = 0L;
         int durationSeconds = DEFAULT_DURATION;
@@ -54,7 +74,7 @@ public class AudioDurationParser {
 
         try {
             // Establish connection and download the file content
-            URL url = new URL(audioUrl);
+            URL url = new URL(downloadUrl);
             URLConnection connection = url.openConnection();
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(5000);
