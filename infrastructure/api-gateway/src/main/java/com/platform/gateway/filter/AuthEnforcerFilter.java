@@ -30,7 +30,8 @@ public class AuthEnforcerFilter implements GlobalFilter, Ordered {
             "/v3/api-docs",
             "/swagger-ui",
             "/webjars",
-            "/api/auth"
+            "/api/auth",
+            "/auth-service/api/auth"   // gateway path: /auth-service/** → rewrite → /api/auth/**
     };
 
     @Override
