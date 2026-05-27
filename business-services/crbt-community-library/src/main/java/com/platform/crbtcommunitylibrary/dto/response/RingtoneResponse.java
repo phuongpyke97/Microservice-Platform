@@ -10,6 +10,9 @@ public record RingtoneResponse(
     String coverImageUrl,
     int durationSeconds,
     boolean featured,
+    String mood,
+    boolean status,
+    long selectionCount,
     CategoryResponse category,
     Instant createdAt,
     Instant updatedAt

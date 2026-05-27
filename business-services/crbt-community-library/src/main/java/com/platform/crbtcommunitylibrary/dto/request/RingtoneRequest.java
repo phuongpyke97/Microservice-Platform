@@ -10,8 +10,10 @@ public record RingtoneRequest(
     @NotBlank @Size(max = 100) String artistName,
     @NotBlank @Size(max = 500) String audioUrl,
     @Size(max = 500) String coverImageUrl,
-    @Min(1) int durationSeconds,
+    Integer durationSeconds,
     boolean featured,
+    @NotBlank @Size(max = 100) String mood,
+    Boolean status,
     @NotNull Long categoryId
 ) {
 }
