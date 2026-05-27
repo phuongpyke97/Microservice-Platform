@@ -2,10 +2,106 @@
   "info": {
     "_postman_id": "7f921f64-4e2b-426b-9528-98e35cf46ab1",
     "name": "CRBT_CMS_ADMIN",
-    "description": "Collection of APIs for CRBT CMS Admin Page including file uploads, categories management, ringtone management, statistics, and reports.",
+    "description": "Collection of APIs for CRBT CMS Admin Page including auth, file uploads, categories, moods, ringtone management, statistics, and reports.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin@platform.com\",\n  \"password\": \"Admin@123\",\n  \"fullName\": \"System Admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new admin account. No auth required."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin@platform.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login and auto-save accessToken + refreshToken to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Refresh access token. No auth required."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@platform.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "forgot-password"]
+            },
+            "description": "Forgot password endpoint. No auth required."
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints (no token required)."
+    },
     {
       "name": "File Upload Flow (MinIO)",
       "item": [
@@ -16,57 +112,29 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/file-service/api/files/presigned/upload?originalName=guitar_calm.mp3&contentType=audio/mpeg",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "file-service",
-                "api",
-                "files",
-                "presigned",
-                "upload"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["file-service", "api", "files", "presigned", "upload"],
               "query": [
-                {
-                  "key": "originalName",
-                  "value": "guitar_calm.mp3",
-                  "description": "Original file name of the audio"
-                },
-                {
-                  "key": "contentType",
-                  "value": "audio/mpeg",
-                  "description": "MIME type (audio/mpeg for MP3, audio/wav for WAV)"
-                }
+                { "key": "originalName", "value": "guitar_calm.mp3", "description": "Original file name of the audio" },
+                { "key": "contentType", "value": "audio/mpeg", "description": "MIME type (audio/mpeg for MP3, audio/wav for WAV)" }
               ]
             },
-            "description": "Request a presigned URL to upload a file directly to the MinIO temporary bucket. Returns the file ID and the upload URL."
+            "description": "Request a presigned URL to upload a file directly to the MinIO temporary bucket."
           },
           "response": []
         },
         {
           "name": "Upload File to MinIO (PUT)",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "audio/mpeg",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "file",
-              "file": {
-                "src": ""
-              }
-            },
+            "header": [{ "key": "Content-Type", "value": "audio/mpeg", "type": "text" }],
+            "body": { "mode": "file", "file": { "src": "" } },
             "url": {
               "raw": "{{presignedUrl}}",
-              "host": [
-                "{{presignedUrl}}"
-              ]
+              "host": ["{{presignedUrl}}"]
             },
-            "description": "Upload file directly to MinIO bucket via PUT using the presigned URL returned from the 'Get Presigned Upload URL' endpoint. Note: Do NOT use gatewy or Bearer token header for this request, it goes directly to MinIO."
+            "description": "Upload file directly to MinIO via PUT using the presigned URL. No auth token required."
           },
           "response": []
         },
@@ -74,70 +142,23 @@
           "name": "Confirm Upload Success",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"targetBucket\": \"audio\"\n}"
-            },
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"targetBucket\": \"audio\"\n}" },
             "url": {
               "raw": "{{baseUrl}}/file-service/api/files/{{fileId}}/confirm",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "file-service",
-                "api",
-                "files",
-                "{{fileId}}",
-                "confirm"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["file-service", "api", "files", "{{fileId}}", "confirm"]
             },
-            "description": "Confirm that upload was successful. Moves the file from the temporary bucket to the main 'audio' bucket and returns the public external URL."
+            "description": "Confirm upload success. Moves file from temp bucket to main audio bucket and returns public external URL."
           },
           "response": []
         }
       ],
-      "description": "Endpoints to get presigned upload URLs, upload files directly to MinIO, and confirm the upload completion."
+      "description": "Endpoints to get presigned upload URLs, upload files to MinIO, and confirm completion."
     },
     {
       "name": "Categories Management",
       "item": [
-        {
-          "name": "Create Category",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Acoustic\",\n  \"description\": \"Soft and calming acoustic guitar tracks\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/categories",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "categories"
-              ]
-            },
-            "description": "Create a new ringtone category."
-          },
-          "response": []
-        },
         {
           "name": "List Categories",
           "request": {
@@ -145,115 +166,138 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/crbt-community-library/library/categories",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "categories"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "categories"]
             },
             "description": "List all active ringtone categories."
           },
           "response": []
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acoustic\",\n  \"description\": \"Soft and calming acoustic guitar tracks\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "categories"]
+            },
+            "description": "Create a new ringtone category."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acoustic Pop\",\n  \"description\": \"Updated description\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "categories", "{{categoryId}}"]
+            },
+            "description": "Update an existing category name and description."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "categories", "{{categoryId}}"]
+            },
+            "description": "Delete a category. Returns 400 if the category is still used by active ringtones."
+          },
+          "response": []
         }
       ],
-      "description": "Category CRUD endpoints for grouping ringtones."
+      "description": "Full CRUD for Categories library table."
+    },
+    {
+      "name": "Moods Management",
+      "item": [
+        {
+          "name": "List Moods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/moods",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "moods"]
+            },
+            "description": "List all active moods (Vui, Buồn, Chill, Hype, Lãng mạn, Thư giãn, Năng động + custom)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Mood",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Mạo hiểm\",\n  \"description\": \"Nhạc nền phiêu lưu mạo hiểm\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/moods",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "moods"]
+            },
+            "description": "Create a new mood library item."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Mood",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Vui vẻ\",\n  \"description\": \"Vui vẻ, sôi động, tích cực\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/moods/{{moodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "moods", "{{moodId}}"]
+            },
+            "description": "Update an existing mood."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Mood",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/moods/{{moodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "moods", "{{moodId}}"]
+            },
+            "description": "Delete a mood. Returns 400 if the mood is still used by active ringtones."
+          },
+          "response": []
+        }
+      ],
+      "description": "Full CRUD for Moods library table (Tâm trạng)."
     },
     {
       "name": "Ringtones Management",
       "item": [
         {
-          "name": "Create Ringtone Metadata",
+          "name": "Statistics Dashboard",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Warm Morning Acoustic\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": true,\n  \"mood\": \"Calm\",\n  \"status\": true,\n  \"categoryId\": 1\n}"
-            },
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones"
-              ]
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "statistics"]
             },
-            "description": "Create ringtone metadata. The backend automatically performs validation on the audio file size (<50MB), duration (<5 mins), and checks for vocal presence (rejects vocal music)."
-          },
-          "response": []
-        },
-        {
-          "name": "Update Ringtone Metadata",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Warm Morning Acoustic (Updated)\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover-new.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": false,\n  \"mood\": \"Romantic\",\n  \"status\": true,\n  \"categoryId\": 1\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "{{ringtoneId}}"
-              ]
-            },
-            "description": "Update existing ringtone metadata. Trigger validation if audio URL changes."
-          },
-          "response": []
-        },
-        {
-          "name": "Update Ringtone Status",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": false\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "{{ringtoneId}}",
-                "status"
-              ]
-            },
-            "description": "Quickly toggle a ringtone's active status (active/inactive)."
+            "description": "Fetch statistics: total tracks, active, inactive, total selections."
           },
           "response": []
         },
@@ -263,90 +307,74 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/search?q=Morning&categoryId=1&status=true&page=0&size=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "search"
-              ],
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/search?q=Morning&categoryId=1&moodId=1&status=true&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "search"],
               "query": [
-                {
-                  "key": "q",
-                  "value": "Morning",
-                  "description": "Search keyword for title/artist name (real-time search)"
-                },
-                {
-                  "key": "categoryId",
-                  "value": "1",
-                  "description": "Filter by category ID"
-                },
-                {
-                  "key": "status",
-                  "value": "true",
-                  "description": "Filter by active status (true/false)"
-                },
-                {
-                  "key": "createdFrom",
-                  "value": "2026-05-01",
-                  "disabled": true,
-                  "description": "Filter upload start date (YYYY-MM-DD)"
-                },
-                {
-                  "key": "createdTo",
-                  "value": "2026-05-30",
-                  "disabled": true,
-                  "description": "Filter upload end date (YYYY-MM-DD)"
-                },
-                {
-                  "key": "selectionCountFrom",
-                  "value": "0",
-                  "disabled": true,
-                  "description": "Filter min download/selection count"
-                },
-                {
-                  "key": "selectionCountTo",
-                  "value": "1000",
-                  "disabled": true,
-                  "description": "Filter max download/selection count"
-                },
-                {
-                  "key": "page",
-                  "value": "0",
-                  "description": "Page index (0-based)"
-                },
-                {
-                  "key": "size",
-                  "value": "20",
-                  "description": "Page size"
-                }
+                { "key": "q", "value": "Morning", "description": "Search keyword for title/artist" },
+                { "key": "categoryId", "value": "1", "description": "Filter by category ID" },
+                { "key": "moodId", "value": "1", "description": "Filter by mood ID" },
+                { "key": "status", "value": "true", "description": "Filter by status (true=Hiển thị / false=Ẩn)" },
+                { "key": "createdFrom", "value": "2026-05-01", "disabled": true, "description": "Upload start date (YYYY-MM-DD)" },
+                { "key": "createdTo", "value": "2026-05-30", "disabled": true, "description": "Upload end date (YYYY-MM-DD)" },
+                { "key": "selectionCountFrom", "value": "0", "disabled": true, "description": "Min selection count" },
+                { "key": "selectionCountTo", "value": "1000", "disabled": true, "description": "Max selection count" },
+                { "key": "page", "value": "0", "description": "Page index (0-based)" },
+                { "key": "size", "value": "20", "description": "Page size" }
               ]
             },
-            "description": "Search ringtones with multiple criteria (keyword, category, status, date range, selection count range) and pagination."
+            "description": "Search ringtones by keyword, categoryId, moodId, status, date range, selection count, with pagination."
           },
           "response": []
         },
         {
-          "name": "Statistics Dashboard",
+          "name": "Create Ringtone Metadata",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/statistics",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "statistics"
-              ]
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Warm Morning Acoustic\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": true,\n  \"moodId\": 1,\n  \"status\": true,\n  \"categoryId\": 1\n}"
             },
-            "description": "Fetch overall statistics including total active tracks, total categories, and total selection count (including active and archived deleted tracks statistics)."
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones"]
+            },
+            "description": "Create ringtone metadata. moodId and categoryId must be valid library IDs. Backend auto-validates size, duration, vocals."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ringtone Metadata",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Warm Morning Acoustic (Updated)\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover-new.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": false,\n  \"moodId\": 2,\n  \"status\": true,\n  \"categoryId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}"]
+            },
+            "description": "Update ringtone metadata. Trigger audio validation only if audioUrl changes."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ringtone Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": false\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}", "status"]
+            },
+            "description": "Toggle Hiển thị / Ẩn status for a ringtone."
           },
           "response": []
         },
@@ -356,32 +384,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/export?q=Morning&categoryId=1&status=true",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "export"
-              ],
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/export?categoryId=1&status=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "export"],
               "query": [
-                {
-                  "key": "q",
-                  "value": "Morning"
-                },
-                {
-                  "key": "categoryId",
-                  "value": "1"
-                },
-                {
-                  "key": "status",
-                  "value": "true"
-                }
+                { "key": "categoryId", "value": "1" },
+                { "key": "moodId", "value": "1", "disabled": true },
+                { "key": "status", "value": "true" }
               ]
             },
-            "description": "Export the filtered ringtones list into a CSV format (supports UTF-8 with BOM for correct Excel rendering)."
+            "description": "Export filtered ringtones to UTF-8 BOM CSV (includes Category and Mood name columns)."
           },
           "response": []
         },
@@ -392,17 +404,10 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "{{ringtoneId}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}"]
             },
-            "description": "Safe deletes a ringtone. Before deleting the metadata row and physical MinIO audio files, it archives the downloads/selections count into 'ringtone_deleted_history' to preserve reporting statistics."
+            "description": "Safe-delete a ringtone. Archives selection count to history table and purges MinIO files."
           },
           "response": []
         },
@@ -412,87 +417,37 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/random?genre=Acoustic",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "crbt-community-library",
-                "library",
-                "ringtones",
-                "random"
-              ],
-              "query": [
-                {
-                  "key": "genre",
-                  "value": "Acoustic",
-                  "description": "Optional category name filter"
-                }
-              ]
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/random?genre=Pop",
+              "host": ["{{baseUrl}}"],
+              "path": ["crbt-community-library", "library", "ringtones", "random"],
+              "query": [{ "key": "genre", "value": "Pop", "description": "Optional category name filter" }]
             },
-            "description": "Get a random active ringtone (primarily used for user CRBT settings preview)."
+            "description": "Get a random active ringtone for CRBT preview."
           },
           "response": []
         }
       ],
-      "description": "Ringtone metadata management APIs including CRUD, search, statistics, CSV export, and safe-deletion."
+      "description": "Ringtone management: CRUD, search (with moodId filter), statistics, CSV export, safe-deletion."
     }
   ],
   "auth": {
     "type": "bearer",
     "bearer": [
-      {
-        "key": "token",
-        "value": "{{accessToken}}",
-        "type": "string"
-      }
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
     ]
   },
   "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          ""
-        ]
-      }
-    },
-    {
-      "listen": "test",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          ""
-        ]
-      }
-    }
+    { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [""] } },
+    { "listen": "test", "script": { "type": "text/javascript", "exec": [""] } }
   ],
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:18080",
-      "type": "string"
-    },
-    {
-      "key": "accessToken",
-      "value": "your_jwt_token_here",
-      "type": "string"
-    },
-    {
-      "key": "presignedUrl",
-      "value": "http://localhost:9000/media-temp/...",
-      "type": "string"
-    },
-    {
-      "key": "fileId",
-      "value": "1",
-      "type": "string"
-    },
-    {
-      "key": "ringtoneId",
-      "value": "1",
-      "type": "string"
-    }
+    { "key": "baseUrl", "value": "http://localhost:18080", "type": "string" },
+    { "key": "accessToken", "value": "your_jwt_token_here", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "presignedUrl", "value": "http://localhost:9000/media-temp/...", "type": "string" },
+    { "key": "fileId", "value": "1", "type": "string" },
+    { "key": "ringtoneId", "value": "1", "type": "string" },
+    { "key": "categoryId", "value": "1", "type": "string" },
+    { "key": "moodId", "value": "1", "type": "string" }
   ]
 }
