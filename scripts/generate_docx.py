@@ -91,11 +91,13 @@ def main():
     
     p_host = doc.add_paragraph()
     p_host.add_run("• API Gateway Endpoint: ").bold = True
-    p_host.add_run("http://localhost:18080\n")
+    p_host.add_run("http://103.154.62.118:18080 (hoặc http://localhost:18080)\n")
     p_host.add_run("• Base Path dịch vụ File (Upload): ").bold = True
-    p_host.add_run("/api/files\n")
+    p_host.add_run("/file-service/api/files\n")
     p_host.add_run("• Base Path dịch vụ Nhạc (Library): ").bold = True
-    p_host.add_run("/library\n")
+    p_host.add_run("/crbt-community-library/library\n")
+    p_host.add_run("• Các Bucket MinIO sử dụng: ").bold = True
+    p_host.add_run("media-temp (tạm thời), media-audio (nhạc cá nhân), media-audio-lib (thư viện nhạc nền admin), media-images (ảnh bìa)\n")
     p_host.add_run("• Định dạng dữ liệu mặc định: ").bold = True
     p_host.add_run("JSON (application/json)")
 
@@ -108,36 +110,36 @@ def main():
     p_flow.add_run("Bước 1: Lấy Presigned URL tải lên\n").bold = True
     p_flow.add_run("FE gửi request lên API gateway để đăng ký file và nhận Presigned URL:\n")
     p_flow.add_run("• API: ").italic = True
-    p_flow.add_run("GET /api/files/presigned/upload?originalName=ten_file.mp3&contentType=audio/mpeg\n")
+    p_flow.add_run("GET /file-service/api/files/presigned/upload?originalName=ten_file.mp3&contentType=audio/mpeg\n")
     p_flow.add_run("• Response nhận về gồm: ").italic = True
-    p_flow.add_run("fileId (ID file trong DB), uploadUrl (URL ký sẵn của MinIO), và storedKey.\n\n")
+    p_flow.add_run("fileId (ID file trong DB), objectKey, và url (URL ký sẵn của MinIO - đã được map với IP ngoại/localhost thực tế).\n\n")
 
     p_flow.add_run("Bước 2: Upload trực tiếp file lên MinIO\n").bold = True
     p_flow.add_run("FE thực hiện upload trực tiếp file âm thanh (MP3/WAV) từ trình duyệt lên MinIO bằng URL ký sẵn nhận ở Bước 1:\n")
     p_flow.add_run("• Method: ").italic = True
     p_flow.add_run("PUT\n")
     p_flow.add_run("• URL: ").italic = True
-    p_flow.add_run("Sử dụng chính xác giá trị 'uploadUrl' nhận ở Bước 1.\n")
+    p_flow.add_run("Sử dụng chính xác giá trị 'url' nhận ở Bước 1.\n")
     p_flow.add_run("• Header: ").italic = True
-    p_flow.add_run("Content-Type đặt là 'audio/mpeg' (MP3) hoặc 'audio/wav' (WAV) tương ứng.\n")
+    p_flow.add_run("Content-Type đặt là 'audio/mpeg' (MP3) hoặc 'audio/wav' (WAV) tương ứng. (Lưu ý chọn Authorization = No Auth).\n")
     p_flow.add_run("• Body: ").italic = True
     p_flow.add_run("Chứa file binary nhị phân của bài nhạc.\n\n")
 
     p_flow.add_run("Bước 3: Xác nhận tải file thành công (Confirm file)\n").bold = True
     p_flow.add_run("Sau khi MinIO trả về 200 OK, FE gọi API confirm để hệ thống chuyển file từ thư mục tạm sang thư mục lưu trữ chính thức:\n")
     p_flow.add_run("• API: ").italic = True
-    p_flow.add_run("POST /api/files/{fileId}/confirm\n")
+    p_flow.add_run("POST /file-service/api/files/{fileId}/confirm\n")
     p_flow.add_run("• Body: ").italic = True
-    p_flow.add_run("{\"targetBucket\": \"audio\"}\n")
+    p_flow.add_run("{\"targetBucket\": \"media-audio-lib\"} (hoặc \"media-audio\" đối với nhạc cá nhân của user)\n")
     p_flow.add_run("• Response trả về chứa: ").italic = True
-    p_flow.add_run("đường dẫn file cuối cùng ('audioUrl').\n\n")
+    p_flow.add_run("đường dẫn file cuối cùng ('storedKey').\n\n")
 
     p_flow.add_run("Bước 4: Lưu thông tin bài nhạc vào kho nhạc (Save Ringtone)\n").bold = True
     p_flow.add_run("FE gọi API tạo mới bài nhạc của thư viện nhạc hệ thống kèm các trường thông tin metadata:\n")
     p_flow.add_run("• API: ").italic = True
-    p_flow.add_run("POST /library/ringtones\n")
+    p_flow.add_run("POST /crbt-community-library/library/ringtones\n")
     p_flow.add_run("• Body: ").italic = True
-    p_flow.add_run("{\"title\": \"Tên bài nhạc\", \"artistName\": \"Ca sĩ/Tác giả\", \"audioUrl\": \"audioUrl_nhận_ở_bước_3\", \"mood\": \"Tâm trạng\", \"status\": true, \"categoryId\": 1}\n")
+    p_flow.add_run("{\"title\": \"Tên bài nhạc\", \"artistName\": \"Ca sĩ/Tác giả\", \"audioUrl\": \"Đường dẫn nhạc từ bước 3 hoặc full URL MinIO ngoại\", \"moodId\": 3, \"status\": true, \"categoryId\": 1}\n")
 
     # 3. Các ràng buộc dữ liệu (Validation)
     add_heading_styled(doc, "3. Ràng buộc dữ liệu & Mã lỗi cần bắt (Validation & Error Codes)", 1, NAVY)
@@ -196,10 +198,11 @@ def main():
     add_heading_styled(doc, "API 2: Tìm kiếm & Lọc Danh sách (Phân trang)", 2, SLATE)
     p_api2 = doc.add_paragraph()
     p_api2.add_run("• Method / Path: ").bold = True
-    p_api2.add_run("GET /library/ringtones/search\n")
+    p_api2.add_run("GET /crbt-community-library/library/ringtones/search\n")
     p_api2.add_run("• Query Parameters:\n").bold = True
     p_api2.add_run("  - q (string): Tìm kiếm real-time theo Tên bài nhạc hoặc Tên ca sĩ (so khớp tương đối).\n")
     p_api2.add_run("  - categoryId (long): Lọc theo Thể loại nhạc.\n")
+    p_api2.add_run("  - moodId (long): Lọc theo Tâm trạng nhạc.\n")
     p_api2.add_run("  - status (boolean): Lọc theo trạng thái (true = Hiển thị, false = Ẩn).\n")
     p_api2.add_run("  - createdFrom (string, format dd/MM/yyyy hoặc yyyy-MM-dd): Khoảng ngày tải lên (Từ ngày).\n")
     p_api2.add_run("  - createdTo (string, format dd/MM/yyyy hoặc yyyy-MM-dd): Khoảng ngày tải lên (Đến ngày).\n")
@@ -213,23 +216,36 @@ def main():
     p_api2_code.paragraph_format.left_indent = Inches(0.5)
     r2 = p_api2_code.add_run(
         "{\n"
-        "  \"code\": 0,\n"
-        "  \"message\": \"Success\",\n"
+        "  \"success\": true,\n"
+        "  \"message\": \"OK\",\n"
         "  \"data\": {\n"
         "    \"content\": [\n"
         "      {\n"
-        "        \"id\": 1,\n"
-        "        \"title\": \"Lạc Trôi\",\n"
-        "        \"artistName\": \"Sơn Tùng M-TP\",\n"
-        "        \"audioUrl\": \"http://minio:9000/audio/lac-troi.mp3\",\n"
-        "        \"coverImageUrl\": \"http://minio:9000/image/cover-1.jpg\",\n"
-        "        \"durationSeconds\": 30,\n"
+        "        \"id\": 6,\n"
+        "        \"title\": \"Warm Morning Acoustic\",\n"
+        "        \"artistName\": \"Sunny Vibes\",\n"
+        "        \"audioUrl\": \"http://103.154.62.118:9000/media-audio-lib/a33cb5e5-109a-4c41-ba39-9c4fbfa09666-zoluushka-guitar-type-beat.mp3\",\n"
+        "        \"coverImageUrl\": \"http://localhost:9000/media-images/cover.jpg\",\n"
+        "        \"durationSeconds\": 173,\n"
         "        \"featured\": true,\n"
-        "        \"mood\": \"Happy\",\n"
         "        \"status\": true,\n"
-        "        \"selectionCount\": 2500,\n"
-        "        \"category\": { \"id\": 5, \"name\": \"V-Pop\" },\n"
-        "        \"createdAt\": \"2026-05-27T10:00:00Z\"\n"
+        "        \"selectionCount\": 0,\n"
+        "        \"category\": {\n"
+        "          \"id\": 1,\n"
+        "          \"name\": \"Pop\",\n"
+        "          \"description\": \"Popular mainstream music\",\n"
+        "          \"createdAt\": \"2026-05-25T13:23:33.108Z\",\n"
+        "          \"updatedAt\": null\n"
+        "        },\n"
+        "        \"mood\": {\n"
+        "          \"id\": 3,\n"
+        "          \"name\": \"Chill\",\n"
+        "          \"description\": \"Thư giãn, nhẹ nhàng, êm dịu\",\n"
+        "          \"createdAt\": \"2026-05-27T15:15:21Z\",\n"
+        "          \"updatedAt\": null\n"
+        "        },\n"
+        "        \"createdAt\": \"2026-05-27T16:11:19Z\",\n"
+        "        \"updatedAt\": \"2026-05-27T16:11:19Z\"\n"
         "      }\n"
         "    ],\n"
         "    \"pageNumber\": 0,\n"
@@ -247,7 +263,7 @@ def main():
     add_heading_styled(doc, "API 3: Xuất báo cáo CSV (Export)", 2, SLATE)
     p_api3 = doc.add_paragraph()
     p_api3.add_run("• Method / Path: ").bold = True
-    p_api3.add_run("GET /library/ringtones/export\n")
+    p_api3.add_run("GET /crbt-community-library/library/ringtones/export\n")
     p_api3.add_run("• Query Parameters: ").bold = True
     p_api3.add_run("Giống hệt API tìm kiếm (để xuất đúng tập dữ liệu đang lọc) nhưng không truyền tham số phân trang 'page' và 'size'.\n")
     p_api3.add_run("• Tác dụng: ").bold = True
@@ -257,20 +273,20 @@ def main():
     add_heading_styled(doc, "API 4: Thêm nhạc mới vào kho", 2, SLATE)
     p_api4 = doc.add_paragraph()
     p_api4.add_run("• Method / Path: ").bold = True
-    p_api4.add_run("POST /library/ringtones\n")
+    p_api4.add_run("POST /crbt-community-library/library/ringtones\n")
     p_api4.add_run("• Request Body:\n").bold = True
     
     p_api4_code = doc.add_paragraph()
     p_api4_code.paragraph_format.left_indent = Inches(0.5)
     r4 = p_api4_code.add_run(
         "{\n"
-        "  \"title\": \"Animals\",\n"
-        "  \"artistName\": \"Martin Garrix\",\n"
-        "  \"audioUrl\": \"http://minio:9000/audio/animals.mp3\", // Lấy từ Bước 3\n"
-        "  \"coverImageUrl\": \"http://minio:9000/image/animals.jpg\",\n"
-        "  \"mood\": \"Energetic\",\n"
+        "  \"title\": \"Warm Morning Acoustic\",\n"
+        "  \"artistName\": \"Sunny Vibes\",\n"
+        "  \"audioUrl\": \"http://103.154.62.118:9000/media-audio-lib/a33cb5e5-109a-4c41-ba39-9c4fbfa09666-guitar.mp3\", // storedKey\n"
+        "  \"coverImageUrl\": \"http://localhost:9000/media-images/cover.jpg\",\n"
+        "  \"moodId\": 3, // ID Tâm trạng lấy từ API danh mục Mood (Ví dụ: 3 = Chill)\n"
         "  \"status\": true,\n"
-        "  \"categoryId\": 3\n"
+        "  \"categoryId\": 1 // ID Thể loại lấy từ API danh mục Category (Ví dụ: 1 = Pop)\n"
         "}"
     )
     r4.font.name = 'Consolas'
@@ -280,18 +296,18 @@ def main():
     add_heading_styled(doc, "API 5: Chỉnh sửa thông tin bài nhạc (Metadata)", 2, SLATE)
     p_api5 = doc.add_paragraph()
     p_api5.add_run("• Method / Path: ").bold = True
-    p_api5.add_run("PUT /library/ringtones/{id}\n")
+    p_api5.add_run("PUT /crbt-community-library/library/ringtones/{id}\n")
     p_api5.add_run("• Request Body:\n").bold = True
     
     p_api5_code = doc.add_paragraph()
     p_api5_code.paragraph_format.left_indent = Inches(0.5)
     r5 = p_api5_code.add_run(
         "{\n"
-        "  \"title\": \"Animals (Radio Edit)\",\n"
-        "  \"artistName\": \"Martin Garrix\",\n"
-        "  \"mood\": \"Dance\",\n"
+        "  \"title\": \"Warm Morning Acoustic (Guitar Edit)\",\n"
+        "  \"artistName\": \"Sunny Vibes\",\n"
+        "  \"moodId\": 3,\n"
         "  \"status\": true,\n"
-        "  \"categoryId\": 3\n"
+        "  \"categoryId\": 1\n"
         "}"
     )
     r5.font.name = 'Consolas'
@@ -301,7 +317,7 @@ def main():
     add_heading_styled(doc, "API 6: Bật/Tắt Trạng thái nhanh (Inline Toggle)", 2, SLATE)
     p_api6 = doc.add_paragraph()
     p_api6.add_run("• Method / Path: ").bold = True
-    p_api6.add_run("PATCH /library/ringtones/{id}/status\n")
+    p_api6.add_run("PATCH /crbt-community-library/library/ringtones/{id}/status\n")
     p_api6.add_run("• Request Body:\n").bold = True
     
     p_api6_code = doc.add_paragraph()
@@ -318,9 +334,53 @@ def main():
     add_heading_styled(doc, "API 7: Xóa bài nhạc khỏi kho quản lý", 2, SLATE)
     p_api7 = doc.add_paragraph()
     p_api7.add_run("• Method / Path: ").bold = True
-    p_api7.add_run("DELETE /library/ringtones/{id}\n")
+    p_api7.add_run("DELETE /crbt-community-library/library/ringtones/{id}\n")
     p_api7.add_run("• Tác dụng: ").bold = True
-    p_api7.add_run("Xóa hoàn toàn thông tin bài nhạc khỏi kho quản lý và gửi tín hiệu xóa file vật lý trên MinIO. Lượt sử dụng thống kê được sao lưu an toàn tự động ở phía DB để chạy báo cáo sau này.")
+    p_api7.add_run("Xóa hoàn toàn thông tin bài nhạc khỏi kho quản lý và gửi tín hiệu xóa file vật lý trên MinIO. Lượt sử dụng thống kê được sao lưu an toàn tự động ở phía DB để chạy báo cáo sau này.\n\n")
+
+    # API 8: Categories Management
+    add_heading_styled(doc, "API 8: Quản lý Thể loại (Categories CRUD)", 2, SLATE)
+    p_api8 = doc.add_paragraph()
+    p_api8.add_run("1. Lấy danh sách thể loại:\n").bold = True
+    p_api8.add_run("• Method / Path: ").italic = True
+    p_api8.add_run("GET /crbt-community-library/library/categories\n")
+    p_api8.add_run("2. Thêm mới thể loại:\n").bold = True
+    p_api8.add_run("• Method / Path: ").italic = True
+    p_api8.add_run("POST /crbt-community-library/library/categories\n")
+    p_api8.add_run("• Body: ").italic = True
+    p_api8.add_run("{\"name\": \"Thể loại mới\", \"description\": \"Mô tả\"}\n")
+    p_api8.add_run("3. Cập nhật thể loại:\n").bold = True
+    p_api8.add_run("• Method / Path: ").italic = True
+    p_api8.add_run("PUT /crbt-community-library/library/categories/{id}\n")
+    p_api8.add_run("• Body: ").italic = True
+    p_api8.add_run("{\"name\": \"Tên cập nhật\", \"description\": \"Mô tả mới\"}\n")
+    p_api8.add_run("4. Xóa thể loại:\n").bold = True
+    p_api8.add_run("• Method / Path: ").italic = True
+    p_api8.add_run("DELETE /crbt-community-library/library/categories/{id}\n")
+    p_api8.add_run("• Lưu ý: ").bold = True
+    p_api8.add_run("Không cho phép xóa nếu danh mục này đang có bài nhạc sử dụng (trả về lỗi validation).\n\n")
+
+    # API 9: Moods Management
+    add_heading_styled(doc, "API 9: Quản lý Tâm trạng (Moods CRUD)", 2, SLATE)
+    p_api9 = doc.add_paragraph()
+    p_api9.add_run("1. Lấy danh sách tâm trạng:\n").bold = True
+    p_api9.add_run("• Method / Path: ").italic = True
+    p_api9.add_run("GET /crbt-community-library/library/moods\n")
+    p_api9.add_run("2. Thêm mới tâm trạng:\n").bold = True
+    p_api9.add_run("• Method / Path: ").italic = True
+    p_api9.add_run("POST /crbt-community-library/library/moods\n")
+    p_api9.add_run("• Body: ").italic = True
+    p_api9.add_run("{\"name\": \"Tâm trạng mới\", \"description\": \"Mô tả\"}\n")
+    p_api9.add_run("3. Cập nhật tâm trạng:\n").bold = True
+    p_api9.add_run("• Method / Path: ").italic = True
+    p_api9.add_run("PUT /crbt-community-library/library/moods/{id}\n")
+    p_api9.add_run("• Body: ").italic = True
+    p_api9.add_run("{\"name\": \"Tên cập nhật\", \"description\": \"Mô tả mới\"}\n")
+    p_api9.add_run("4. Xóa tâm trạng:\n").bold = True
+    p_api9.add_run("• Method / Path: ").italic = True
+    p_api9.add_run("DELETE /crbt-community-library/library/moods/{id}\n")
+    p_api9.add_run("• Lưu ý: ").bold = True
+    p_api9.add_run("Không cho phép xóa nếu tâm trạng này đang được sử dụng bởi bài nhạc nào trong hệ thống.\n")
 
     # Save document
     output_path = "d:/Microservice-Platform/cms_admin_api_integration_guide.docx"
