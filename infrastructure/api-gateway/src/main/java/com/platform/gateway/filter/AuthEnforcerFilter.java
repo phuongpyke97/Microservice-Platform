@@ -29,7 +29,8 @@ public class AuthEnforcerFilter implements GlobalFilter, Ordered {
             "/actuator",
             "/v3/api-docs",
             "/swagger-ui",
-            "/webjars"
+            "/webjars",
+            "/api/auth"
     };
 
     @Override
