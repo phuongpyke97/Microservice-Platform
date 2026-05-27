@@ -32,10 +32,18 @@ def detect_chorus(audio_data: bytes, sample_rate: float = 22050.0) -> dict:
 
     if T <= min_frames:
         # Audio too short to find a chorus — return whole clip
+        duration = float(audio.shape[0] / sr)
+        proposals = [
+            {"start": 0.0, "end": round(duration, 1)},
+            {"start": 0.0, "end": round(duration, 1)},
+            {"start": 0.0, "end": round(duration, 1)}
+        ]
         return {
             "start_time": 0.0,
-            "end_time": float(audio.shape[0] / sr),
+            "end_time": duration,
             "confidence": 1.0,
+            "chorus_proposals": proposals,
+            "chours_proposals": proposals
         }
 
     # Score each lag: mean similarity along the k-th upper diagonal
@@ -52,5 +60,43 @@ def detect_chorus(audio_data: bytes, sample_rate: float = 22050.0) -> dict:
 
     start_time = float(chorus_start_frame * hop_s)
     end_time = float((chorus_start_frame + chorus_len_frames) * hop_s)
+    duration = float(audio.shape[0] / sr)
 
-    return {"start_time": start_time, "end_time": end_time, "confidence": confidence}
+    # Generate 3 proposals of 45 seconds duration
+    prop_duration = 45.0
+    if duration < prop_duration:
+        proposals = [
+            {"start": 0.0, "end": round(duration, 1)},
+            {"start": 0.0, "end": round(duration, 1)},
+            {"start": 0.0, "end": round(duration, 1)}
+        ]
+    else:
+        # Proposal 1: Primary detected chorus
+        s1 = start_time
+        if s1 + prop_duration > duration:
+            s1 = duration - prop_duration
+        s1 = max(0.0, s1)
+        e1 = s1 + prop_duration
+
+        # Proposal 2: Offset earlier
+        s2 = max(0.0, s1 - 20.0)
+        e2 = s2 + prop_duration
+
+        # Proposal 3: Offset later
+        s3 = min(duration - prop_duration, s1 + 20.0)
+        s3 = max(0.0, s3)
+        e3 = s3 + prop_duration
+
+        proposals = [
+            {"start": round(s1, 1), "end": round(e1, 1)},
+            {"start": round(s2, 1), "end": round(e2, 1)},
+            {"start": round(s3, 1), "end": round(e3, 1)}
+        ]
+
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        "confidence": confidence,
+        "chorus_proposals": proposals,
+        "chours_proposals": proposals
+    }

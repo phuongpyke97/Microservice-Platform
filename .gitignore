@@ -20,3 +20,9 @@ claude
 graphify-out/
 .mcp.json
 minio.tar
+
+# SDLC / Agent tools & states
+.agents/
+.cursor/
+AGENTS.md
+docs/sdlc/

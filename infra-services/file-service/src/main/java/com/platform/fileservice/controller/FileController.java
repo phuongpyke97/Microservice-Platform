@@ -30,7 +30,8 @@ public class FileController {
     @GetMapping("/presigned/upload")
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getUploadUrl(@RequestParam String originalName,
                                                                           @RequestParam String contentType) {
-        return ResponseEntity.ok(ApiResponse.success(fileService.getUploadUrl(originalName, contentType)));
+        Long userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(fileService.getUploadUrl(userId, originalName, contentType)));
     }
 
     @GetMapping("/{fileId}/presigned/download")

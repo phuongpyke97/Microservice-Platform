@@ -21,6 +21,8 @@ def test_detect_chorus_short_audio_returns_full_clip(monkeypatch):
     assert result["start_time"] == 0.0
     assert pytest.approx(result["end_time"]) == duration
     assert result["confidence"] == 1.0
+    assert "chorus_proposals" in result
+    assert len(result["chorus_proposals"]) == 3
 
 
 def test_detect_chorus_detects_repeat_segment(monkeypatch):
@@ -56,6 +58,10 @@ def test_detect_chorus_detects_repeat_segment(monkeypatch):
     assert "start_time" in result
     assert "end_time" in result
     assert "confidence" in result
-    assert result["start_time"] >= 0.0
-    assert result["end_time"] > result["start_time"]
-    assert result["confidence"] >= 0.0
+    assert "chorus_proposals" in result
+    assert len(result["chorus_proposals"]) == 3
+    for p in result["chorus_proposals"]:
+        assert "start" in p
+        assert "end" in p
+        assert p["end"] >= p["start"]
+

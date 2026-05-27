@@ -70,4 +70,6 @@ public class FileMetadata {
     public void setStatus(FileStatus status) { this.status = status; }
     public void setBucket(String bucket) { this.bucket = bucket; }
     public void setStoredKey(String storedKey) { this.storedKey = storedKey; }
+    public void setSizeBytes(long sizeBytes) { this.sizeBytes = sizeBytes; }
 }
+

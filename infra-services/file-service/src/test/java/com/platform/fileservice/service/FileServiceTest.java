@@ -79,9 +79,15 @@ class FileServiceTest {
     @Test
     void getUploadUrl_returnsPresignedUrlWith300SecondTtl() throws Exception {
         when(minioClient.getPresignedObjectUrl(any())).thenReturn("http://minio/upload");
+        when(repository.save(any(FileMetadata.class))).thenAnswer(invocation -> {
+            FileMetadata metadata = invocation.getArgument(0);
+            setId(metadata, 5L);
+            return metadata;
+        });
 
-        PresignedUrlResponse response = fileService.getUploadUrl("a.png", "image/png");
+        PresignedUrlResponse response = fileService.getUploadUrl(10L, "a.png", "image/png");
 
+        assertThat(response.fileId()).isEqualTo(5L);
         assertThat(response.url()).isEqualTo("http://minio/upload");
         assertThat(response.expiresInSeconds()).isEqualTo(300L);
     }
@@ -92,6 +98,10 @@ class FileServiceTest {
         setId(metadata, 3L);
         when(repository.findById(3L)).thenReturn(Optional.of(metadata));
         when(repository.save(any(FileMetadata.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        
+        io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
+        when(statResponse.size()).thenReturn(10L);
+        when(minioClient.statObject(any())).thenReturn(statResponse);
 
         FileMetadataResponse response = fileService.confirm(3L, "image");
 

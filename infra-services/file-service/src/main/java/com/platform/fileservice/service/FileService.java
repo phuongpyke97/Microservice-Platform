@@ -86,6 +86,15 @@ public class FileService {
         }
 
         try {
+            // Get actual object size from MinIO first
+            var stat = minioClient.statObject(
+                    io.minio.StatObjectArgs.builder()
+                            .bucket(metadata.getBucket())
+                            .object(metadata.getStoredKey())
+                            .build()
+            );
+            metadata.setSizeBytes(stat.size());
+
             minioClient.copyObject(
                     CopyObjectArgs.builder()
                             .bucket(targetBucket)
@@ -115,14 +124,23 @@ public class FileService {
     public PresignedUrlResponse getDownloadUrl(Long fileId) {
         FileMetadata metadata = repository.findById(fileId)
                 .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));
-        return new PresignedUrlResponse(metadata.getStoredKey(), presign(metadata.getBucket(), metadata.getStoredKey(), Method.GET), PRESIGNED_TTL_SECONDS);
+        return new PresignedUrlResponse(metadata.getId(), metadata.getStoredKey(), presign(metadata.getBucket(), metadata.getStoredKey(), Method.GET), PRESIGNED_TTL_SECONDS);
     }
 
-    @Transactional(readOnly = true)
-    public PresignedUrlResponse getUploadUrl(String originalName, String contentType) {
+    @Transactional
+    public PresignedUrlResponse getUploadUrl(Long userId, String originalName, String contentType) {
         validate(1, contentType);
         String objectKey = buildObjectKey(originalName);
-        return new PresignedUrlResponse(objectKey, presign(properties.bucketTemp(), objectKey, Method.PUT), PRESIGNED_TTL_SECONDS);
+        FileMetadata metadata = repository.save(new FileMetadata(
+                userId,
+                originalName,
+                objectKey,
+                properties.bucketTemp(),
+                contentType,
+                0L,
+                FileStatus.UPLOADED
+        ));
+        return new PresignedUrlResponse(metadata.getId(), objectKey, presign(properties.bucketTemp(), objectKey, Method.PUT), PRESIGNED_TTL_SECONDS);
     }
 
     @Transactional

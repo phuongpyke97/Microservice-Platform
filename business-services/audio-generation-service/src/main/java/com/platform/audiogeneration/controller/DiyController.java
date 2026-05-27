@@ -25,13 +25,14 @@ public class DiyController {
     @PostMapping("/analyze")
     public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> analyze(
             @RequestParam(value = "file", required = false) org.springframework.web.multipart.MultipartFile file,
-            @RequestParam(value = "audioFileKey", required = false) String audioFileKey) {
+            @RequestParam(value = "audioFileKey", required = false) String audioFileKey,
+            @RequestParam(value = "skipVocal", required = false, defaultValue = "false") Boolean skipVocal) {
         
         if (file != null && !file.isEmpty()) {
-            java.util.Map<String, Object> result = service.analyzeAudio(file, false);
+            java.util.Map<String, Object> result = service.analyzeAudio(file, skipVocal);
             return ResponseEntity.ok(ApiResponse.success(result));
         } else if (audioFileKey != null && !audioFileKey.isBlank()) {
-            java.util.Map<String, Object> result = service.analyzeAudioFromKey(audioFileKey);
+            java.util.Map<String, Object> result = service.analyzeAudioFromKey(audioFileKey, skipVocal);
             return ResponseEntity.ok(ApiResponse.success(result));
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Either file or audioFileKey must be provided");

@@ -87,7 +87,7 @@ public class AudioGenerationService {
         return aiClient.detectChorus(file);
     }
 
-    public Map<String, Object> analyzeAudioFromKey(String audioFileKey) {
+    public Map<String, Object> analyzeAudioFromKey(String audioFileKey, boolean skipVocal) {
         File tempFile = null;
         try {
             Long fileId = Long.parseLong(audioFileKey);
@@ -105,8 +105,10 @@ public class AudioGenerationService {
             org.springframework.web.multipart.MultipartFile filePart =
                 new TempFileMultipartFile(tempFile, "file", "music.mp3", "audio/mpeg");
 
-            // Flow B: Skip vocal detection (skipVocal = true)
-            return analyzeAudio(filePart, true);
+            Map<String, Object> result = new java.util.HashMap<>(analyzeAudio(filePart, skipVocal));
+            result.put("audioFileKey", audioFileKey);
+            result.put("downloadUrl", downloadUrl);
+            return result;
         } catch (Exception e) {
             log.error("Failed to analyze audio from key {}", audioFileKey, e);
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Không thể tải và phân tích file nhạc từ kho hệ thống: " + e.getMessage());
