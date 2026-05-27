@@ -11,8 +11,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
-@Table(name = "categories")
-public class Category {
+@Table(name = "moods")
+public class Mood {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,10 +32,10 @@ public class Category {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    protected Category() {
+    protected Mood() {
     }
 
-    public Category(String name, String description) {
+    public Mood(String name, String description) {
         this.name = name;
         this.description = description;
     }

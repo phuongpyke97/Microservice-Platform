@@ -23,6 +23,9 @@ public class RingtoneDeletedHistory {
     @Column(name = "category_name", nullable = false, length = 50)
     private String categoryName;
 
+    @Column(name = "mood_name", nullable = false, length = 50)
+    private String moodName;
+
     @Column(name = "selection_count", nullable = false)
     private long selectionCount;
 
@@ -33,11 +36,12 @@ public class RingtoneDeletedHistory {
     protected RingtoneDeletedHistory() {
     }
 
-    public RingtoneDeletedHistory(Long id, String title, String artistName, String categoryName, long selectionCount) {
+    public RingtoneDeletedHistory(Long id, String title, String artistName, String categoryName, String moodName, long selectionCount) {
         this.id = id;
         this.title = title;
         this.artistName = artistName;
         this.categoryName = categoryName;
+        this.moodName = moodName;
         this.selectionCount = selectionCount;
     }
 
@@ -55,6 +59,10 @@ public class RingtoneDeletedHistory {
 
     public String getCategoryName() {
         return categoryName;
+    }
+
+    public String getMoodName() {
+        return moodName;
     }
 
     public long getSelectionCount() {

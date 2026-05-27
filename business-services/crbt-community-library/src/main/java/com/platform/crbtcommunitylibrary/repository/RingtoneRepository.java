@@ -23,4 +23,8 @@ public interface RingtoneRepository extends JpaRepository<Ringtone, Long>, JpaSp
 
     @Query("SELECT COALESCE(SUM(r.selectionCount), 0) FROM Ringtone r WHERE r.deleted = false")
     long sumSelectionCountByDeletedFalse();
+
+    long countByCategoryIdAndDeletedFalse(Long categoryId);
+
+    long countByMoodIdAndDeletedFalse(Long moodId);
 }

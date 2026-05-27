@@ -39,8 +39,9 @@ public class Ringtone {
     @Column(nullable = false)
     private boolean featured;
 
-    @Column(length = 100)
-    private String mood;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "mood_id", nullable = false)
+    private Mood mood;
 
     @Column(nullable = false)
     private boolean status = true;
@@ -66,11 +67,7 @@ public class Ringtone {
     protected Ringtone() {
     }
 
-    public Ringtone(String title, String artistName, String audioUrl, String coverImageUrl, int durationSeconds, boolean featured, Category category) {
-        this(title, artistName, audioUrl, coverImageUrl, durationSeconds, featured, "Calm", true, category);
-    }
-
-    public Ringtone(String title, String artistName, String audioUrl, String coverImageUrl, int durationSeconds, boolean featured, String mood, boolean status, Category category) {
+    public Ringtone(String title, String artistName, String audioUrl, String coverImageUrl, int durationSeconds, boolean featured, Mood mood, boolean status, Category category) {
         this.title = title;
         this.artistName = artistName;
         this.audioUrl = audioUrl;
@@ -136,11 +133,11 @@ public class Ringtone {
         this.featured = featured;
     }
 
-    public String getMood() {
+    public Mood getMood() {
         return mood;
     }
 
-    public void setMood(String mood) {
+    public void setMood(Mood mood) {
         this.mood = mood;
     }
 

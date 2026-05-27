@@ -4,17 +4,21 @@ import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.PageResponse;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
+import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneSearchRequest;
 import com.platform.crbtcommunitylibrary.dto.response.CategoryResponse;
+import com.platform.crbtcommunitylibrary.dto.response.MoodResponse;
 import com.platform.crbtcommunitylibrary.dto.response.RingtoneResponse;
 import com.platform.crbtcommunitylibrary.dto.response.RingtoneStatisticsResponse;
 import com.platform.crbtcommunitylibrary.entity.Category;
+import com.platform.crbtcommunitylibrary.entity.Mood;
 import com.platform.crbtcommunitylibrary.entity.Ringtone;
 import com.platform.crbtcommunitylibrary.entity.RingtoneDeletedHistory;
 import com.platform.crbtcommunitylibrary.repository.CategoryRepository;
-import com.platform.crbtcommunitylibrary.repository.RingtoneRepository;
+import com.platform.crbtcommunitylibrary.repository.MoodRepository;
 import com.platform.crbtcommunitylibrary.repository.RingtoneDeletedHistoryRepository;
+import com.platform.crbtcommunitylibrary.repository.RingtoneRepository;
 import com.platform.crbtcommunitylibrary.util.AudioAnalysisResult;
 import com.platform.crbtcommunitylibrary.util.AudioDurationParser;
 import io.minio.MinioClient;
@@ -41,6 +45,7 @@ public class RingtoneService {
 
     private final RingtoneRepository ringtoneRepository;
     private final CategoryRepository categoryRepository;
+    private final MoodRepository moodRepository;
     private final RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository;
     private final AudioDurationParser audioDurationParser;
     private final MinioClient minioClient;
@@ -48,16 +53,20 @@ public class RingtoneService {
     public RingtoneService(
         RingtoneRepository ringtoneRepository,
         CategoryRepository categoryRepository,
+        MoodRepository moodRepository,
         RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository,
         AudioDurationParser audioDurationParser,
         MinioClient minioClient
     ) {
         this.ringtoneRepository = ringtoneRepository;
         this.categoryRepository = categoryRepository;
+        this.moodRepository = moodRepository;
         this.ringtoneDeletedHistoryRepository = ringtoneDeletedHistoryRepository;
         this.audioDurationParser = audioDurationParser;
         this.minioClient = minioClient;
     }
+
+    // ─── Category CRUD ────────────────────────────────────────────────────────
 
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
@@ -70,11 +79,71 @@ public class RingtoneService {
         return categoryRepository.findAll().stream().map(this::toCategoryResponse).toList();
     }
 
+    @Transactional
+    public CategoryResponse updateCategory(Long id, CategoryRequest request) {
+        Category category = categoryRepository.findById(id)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        category.setName(request.name());
+        category.setDescription(request.description());
+        return toCategoryResponse(categoryRepository.save(category));
+    }
+
+    @Transactional
+    public void deleteCategory(Long id) {
+        Category category = categoryRepository.findById(id)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        long count = ringtoneRepository.countByCategoryIdAndDeletedFalse(id);
+        if (count > 0) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST,
+                "Không thể xóa thể loại đang được sử dụng bởi " + count + " bài nhạc.");
+        }
+        categoryRepository.delete(category);
+    }
+
+    // ─── Mood CRUD ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public MoodResponse createMood(MoodRequest request) {
+        Mood mood = new Mood(request.name(), request.description());
+        return toMoodResponse(moodRepository.save(mood));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MoodResponse> getAllMoods() {
+        return moodRepository.findAll().stream().map(this::toMoodResponse).toList();
+    }
+
+    @Transactional
+    public MoodResponse updateMood(Long id, MoodRequest request) {
+        Mood mood = moodRepository.findById(id)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        mood.setName(request.name());
+        mood.setDescription(request.description());
+        return toMoodResponse(moodRepository.save(mood));
+    }
+
+    @Transactional
+    public void deleteMood(Long id) {
+        Mood mood = moodRepository.findById(id)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        long count = ringtoneRepository.countByMoodIdAndDeletedFalse(id);
+        if (count > 0) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST,
+                "Không thể xóa tâm trạng đang được sử dụng bởi " + count + " bài nhạc.");
+        }
+        moodRepository.delete(mood);
+    }
+
+    // ─── Ringtone CRUD ────────────────────────────────────────────────────────
+
     @CacheEvict(value = "ringtones", allEntries = true)
     @Transactional
     public RingtoneResponse createRingtone(RingtoneRequest request) {
         Category category = categoryRepository.findById(request.categoryId())
-            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Thể loại không tồn tại."));
+
+        Mood mood = moodRepository.findById(request.moodId())
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng không tồn tại."));
 
         AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(request.audioUrl());
 
@@ -106,7 +175,7 @@ public class RingtoneService {
             request.coverImageUrl(),
             duration,
             request.featured(),
-            request.mood(),
+            mood,
             status,
             category
         );
@@ -123,14 +192,17 @@ public class RingtoneService {
         }
 
         Category category = categoryRepository.findById(request.categoryId())
-            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Thể loại không tồn tại."));
+
+        Mood mood = moodRepository.findById(request.moodId())
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng không tồn tại."));
 
         ringtone.setTitle(request.title());
         ringtone.setArtistName(request.artistName());
         ringtone.setCoverImageUrl(request.coverImageUrl());
         ringtone.setFeatured(request.featured());
         ringtone.setCategory(category);
-        ringtone.setMood(request.mood());
+        ringtone.setMood(mood);
         if (request.status() != null) {
             ringtone.setStatus(request.status());
         }
@@ -176,7 +248,7 @@ public class RingtoneService {
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
 
-    @Cacheable(value = "ringtones", key = "{#searchRequest.q(), #searchRequest.categoryId(), #searchRequest.status(), #searchRequest.createdFrom(), #searchRequest.createdTo(), #searchRequest.selectionCountFrom(), #searchRequest.selectionCountTo(), #pageable.pageNumber, #pageable.pageSize}")
+    @Cacheable(value = "ringtones", key = "{#searchRequest.q(), #searchRequest.categoryId(), #searchRequest.moodId(), #searchRequest.status(), #searchRequest.createdFrom(), #searchRequest.createdTo(), #searchRequest.selectionCountFrom(), #searchRequest.selectionCountTo(), #pageable.pageNumber, #pageable.pageSize}")
     @Transactional(readOnly = true)
     public PageResponse<RingtoneResponse> searchRingtones(
         RingtoneSearchRequest searchRequest,
@@ -199,7 +271,7 @@ public class RingtoneService {
             sb.append("\"").append(escapeCsv(r.getTitle())).append("\",");
             sb.append("\"").append(escapeCsv(r.getArtistName())).append("\",");
             sb.append("\"").append(escapeCsv(r.getCategory().getName())).append("\",");
-            sb.append("\"").append(escapeCsv(r.getMood())).append("\",");
+            sb.append("\"").append(escapeCsv(r.getMood().getName())).append("\",");
             sb.append(r.getDurationSeconds()).append(",");
             sb.append(r.getCreatedAt().toString().substring(0, 10)).append(",");
             sb.append(r.getSelectionCount()).append(",");
@@ -235,6 +307,7 @@ public class RingtoneService {
             ringtone.getTitle(),
             ringtone.getArtistName(),
             ringtone.getCategory().getName(),
+            ringtone.getMood().getName(),
             ringtone.getSelectionCount()
         );
         ringtoneDeletedHistoryRepository.save(archive);
@@ -276,6 +349,8 @@ public class RingtoneService {
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
     }
 
+    // ─── Internal helpers ─────────────────────────────────────────────────────
+
     private Specification<Ringtone> buildSearchSpecification(RingtoneSearchRequest searchRequest) {
         return (root, q, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -291,6 +366,9 @@ public class RingtoneService {
             }
             if (searchRequest.categoryId() != null) {
                 predicates.add(cb.equal(root.get("category").get("id"), searchRequest.categoryId()));
+            }
+            if (searchRequest.moodId() != null) {
+                predicates.add(cb.equal(root.get("mood").get("id"), searchRequest.moodId()));
             }
             if (searchRequest.status() != null) {
                 predicates.add(cb.equal(root.get("status"), searchRequest.status()));
@@ -349,6 +427,16 @@ public class RingtoneService {
         );
     }
 
+    private MoodResponse toMoodResponse(Mood mood) {
+        return new MoodResponse(
+            mood.getId(),
+            mood.getName(),
+            mood.getDescription(),
+            mood.getCreatedAt(),
+            mood.getUpdatedAt()
+        );
+    }
+
     private RingtoneResponse toRingtoneResponse(Ringtone ringtone) {
         return new RingtoneResponse(
             ringtone.getId(),
@@ -358,10 +446,10 @@ public class RingtoneService {
             ringtone.getCoverImageUrl(),
             ringtone.getDurationSeconds(),
             ringtone.isFeatured(),
-            ringtone.getMood(),
             ringtone.isStatus(),
             ringtone.getSelectionCount(),
             toCategoryResponse(ringtone.getCategory()),
+            toMoodResponse(ringtone.getMood()),
             ringtone.getCreatedAt(),
             ringtone.getUpdatedAt()
         );

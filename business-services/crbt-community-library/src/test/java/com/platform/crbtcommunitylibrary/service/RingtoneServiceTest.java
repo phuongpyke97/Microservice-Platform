@@ -8,13 +8,17 @@ import static org.mockito.Mockito.when;
 
 import com.platform.common.core.exception.BaseException;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
+import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
 import com.platform.crbtcommunitylibrary.dto.response.CategoryResponse;
+import com.platform.crbtcommunitylibrary.dto.response.MoodResponse;
 import com.platform.crbtcommunitylibrary.dto.response.RingtoneResponse;
 import com.platform.crbtcommunitylibrary.dto.response.RingtoneStatisticsResponse;
 import com.platform.crbtcommunitylibrary.entity.Category;
+import com.platform.crbtcommunitylibrary.entity.Mood;
 import com.platform.crbtcommunitylibrary.entity.Ringtone;
 import com.platform.crbtcommunitylibrary.repository.CategoryRepository;
+import com.platform.crbtcommunitylibrary.repository.MoodRepository;
 import com.platform.crbtcommunitylibrary.repository.RingtoneRepository;
 import com.platform.crbtcommunitylibrary.repository.RingtoneDeletedHistoryRepository;
 import com.platform.crbtcommunitylibrary.util.AudioDurationParser;
@@ -36,6 +40,9 @@ class RingtoneServiceTest {
     private CategoryRepository categoryRepository;
 
     @Mock
+    private MoodRepository moodRepository;
+
+    @Mock
     private RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository;
 
     @Mock
@@ -46,6 +53,8 @@ class RingtoneServiceTest {
 
     @InjectMocks
     private RingtoneService ringtoneService;
+
+    // ─── Category tests ────────────────────────────────────────────────────────
 
     @Test
     void createCategory_shouldReturnResponse() {
@@ -58,13 +67,58 @@ class RingtoneServiceTest {
         assertEquals("Pop music", response.description());
     }
 
+    // ─── Mood tests ────────────────────────────────────────────────────────────
+
+    @Test
+    void createMood_shouldReturnResponse() {
+        Mood saved = new Mood("Vui", "Vui vẻ, tích cực");
+        when(moodRepository.save(any(Mood.class))).thenReturn(saved);
+
+        MoodResponse response = ringtoneService.createMood(new MoodRequest("Vui", "Vui vẻ, tích cực"));
+
+        assertEquals("Vui", response.name());
+    }
+
+    @Test
+    void deleteMood_shouldThrowWhenUsedByRingtones() {
+        Mood mood = new Mood("Vui", "");
+        when(moodRepository.findById(1L)).thenReturn(Optional.of(mood));
+        when(ringtoneRepository.countByMoodIdAndDeletedFalse(1L)).thenReturn(3L);
+
+        assertThrows(BaseException.class, () -> ringtoneService.deleteMood(1L));
+    }
+
+    @Test
+    void deleteCategory_shouldThrowWhenUsedByRingtones() {
+        Category category = new Category("Pop", "Pop music");
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(ringtoneRepository.countByCategoryIdAndDeletedFalse(1L)).thenReturn(2L);
+
+        assertThrows(BaseException.class, () -> ringtoneService.deleteCategory(1L));
+    }
+
+    // ─── Ringtone tests ────────────────────────────────────────────────────────
+
     @Test
     void createRingtone_shouldThrowWhenCategoryNotFound() {
         when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(BaseException.class, () ->
             ringtoneService.createRingtone(
-                new RingtoneRequest("Title", "Artist", "http://audio.url", null, 180, false, "Calm", true, 99L)
+                new RingtoneRequest("Title", "Artist", "http://audio.url", null, 180, false, 1L, true, 99L)
+            )
+        );
+    }
+
+    @Test
+    void createRingtone_shouldThrowWhenMoodNotFound() {
+        Category category = new Category("Pop", "Pop music");
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(moodRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(BaseException.class, () ->
+            ringtoneService.createRingtone(
+                new RingtoneRequest("Title", "Artist", "http://audio.url", null, 180, false, 99L, true, 1L)
             )
         );
     }
@@ -72,24 +126,29 @@ class RingtoneServiceTest {
     @Test
     void createRingtone_shouldReturnResponse() {
         Category category = new Category("Pop", "Pop music");
-        Ringtone saved = new Ringtone("Song", "Artist", "http://url", null, 180, false, "Calm", true, category);
+        Mood mood = new Mood("Vui", "");
+        Ringtone saved = new Ringtone("Song", "Artist", "http://url", null, 180, false, mood, true, category);
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
         when(audioDurationParser.analyzeAudio("http://url")).thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(180, 1000L, false));
         when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(saved);
 
         RingtoneResponse response = ringtoneService.createRingtone(
-            new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, "Calm", true, 1L)
+            new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
         );
 
         assertEquals("Song", response.title());
         assertEquals("Artist", response.artistName());
         assertNotNull(response.category());
+        assertNotNull(response.mood());
+        assertEquals("Vui", response.mood().name());
     }
 
     @Test
     void getRandomRingtone_shouldReturnRingtoneByGenre() {
         Category category = new Category("Pop", "Pop music");
-        Ringtone ringtone = new Ringtone("Song", "Artist", "http://url", null, 180, false, "Calm", true, category);
+        Mood mood = new Mood("Vui", "");
+        Ringtone ringtone = new Ringtone("Song", "Artist", "http://url", null, 180, false, mood, true, category);
         when(ringtoneRepository.findRandomByGenre("Pop")).thenReturn(Optional.of(ringtone));
 
         RingtoneResponse response = ringtoneService.getRandomRingtone("Pop");
@@ -101,7 +160,8 @@ class RingtoneServiceTest {
     @Test
     void getRandomRingtone_shouldFallbackToGlobalRandomIfGenreNotFound() {
         Category category = new Category("Rock", "Rock music");
-        Ringtone ringtone = new Ringtone("Song", "Artist", "http://url", null, 180, false, "Calm", true, category);
+        Mood mood = new Mood("Hype", "");
+        Ringtone ringtone = new Ringtone("Song", "Artist", "http://url", null, 180, false, mood, true, category);
         when(ringtoneRepository.findRandomByGenre("Pop")).thenReturn(Optional.empty());
         when(ringtoneRepository.findRandom()).thenReturn(Optional.of(ringtone));
 
@@ -130,15 +190,17 @@ class RingtoneServiceTest {
     @Test
     void createRingtone_shouldThrowWhenFileSizeExceedsLimit() {
         Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        
+        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
+
         long largeSize = 51L * 1024 * 1024;
         when(audioDurationParser.analyzeAudio("http://url"))
             .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(180, largeSize, false));
 
         assertThrows(BaseException.class, () ->
             ringtoneService.createRingtone(
-                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, "Calm", true, 1L)
+                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
             )
         );
     }
@@ -146,14 +208,16 @@ class RingtoneServiceTest {
     @Test
     void createRingtone_shouldThrowWhenDurationExceedsLimit() {
         Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        
+        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
+
         when(audioDurationParser.analyzeAudio("http://url"))
             .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(300, 1000L, false));
 
         assertThrows(BaseException.class, () ->
             ringtoneService.createRingtone(
-                new RingtoneRequest("Song", "Artist", "http://url", null, 300, false, "Calm", true, 1L)
+                new RingtoneRequest("Song", "Artist", "http://url", null, 300, false, 2L, true, 1L)
             )
         );
     }
@@ -161,14 +225,16 @@ class RingtoneServiceTest {
     @Test
     void createRingtone_shouldThrowWhenVocalDetected() {
         Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        
+        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
+
         when(audioDurationParser.analyzeAudio("http://url"))
             .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(180, 1000L, true));
 
         assertThrows(BaseException.class, () ->
             ringtoneService.createRingtone(
-                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, "Calm", true, 1L)
+                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
             )
         );
     }

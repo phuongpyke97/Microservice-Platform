@@ -48,6 +48,19 @@ public class RingtoneController {
         return ApiResponse.success(ringtoneService.getAllCategories());
     }
 
+    @PutMapping("/categories/{id}")
+    public ApiResponse<CategoryResponse> updateCategory(
+            @PathVariable Long id,
+            @Valid @RequestBody CategoryRequest request) {
+        return ApiResponse.success(ringtoneService.updateCategory(id, request));
+    }
+
+    @DeleteMapping("/categories/{id}")
+    public ApiResponse<Void> deleteCategory(@PathVariable Long id) {
+        ringtoneService.deleteCategory(id);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/ringtones")
     public ApiResponse<RingtoneResponse> createRingtone(@Valid @RequestBody RingtoneRequest request) {
         return ApiResponse.success(ringtoneService.createRingtone(request));
