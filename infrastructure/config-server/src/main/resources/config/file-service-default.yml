@@ -22,9 +22,9 @@ minio:
   external-endpoint: ${MINIO_EXTERNAL_ENDPOINT:}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
-  bucket-temp: temp
-  bucket-audio: audio
-  bucket-image: image
+  bucket-temp: ${MINIO_BUCKET_TEMP:temp}
+  bucket-audio: ${MINIO_BUCKET_AUDIO:audio}
+  bucket-image: ${MINIO_BUCKET_IMAGES:image}
 
 eureka:
   client:
