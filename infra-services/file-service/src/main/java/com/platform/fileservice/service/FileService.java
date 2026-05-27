@@ -33,11 +33,16 @@ public class FileService {
 
     private final FileMetadataRepository repository;
     private final MinioClient minioClient;
+    private final MinioClient publicMinioClient;
     private final MinioProperties properties;
 
-    public FileService(FileMetadataRepository repository, MinioClient minioClient, MinioProperties properties) {
+    public FileService(FileMetadataRepository repository,
+                       MinioClient minioClient,
+                       @org.springframework.beans.factory.annotation.Qualifier("publicMinioClient") MinioClient publicMinioClient,
+                       MinioProperties properties) {
         this.repository = repository;
         this.minioClient = minioClient;
+        this.publicMinioClient = publicMinioClient;
         this.properties = properties;
     }
 
@@ -165,7 +170,7 @@ public class FileService {
 
     private String presign(String bucket, String objectKey, Method method) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            return publicMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(bucket)
                             .object(objectKey)

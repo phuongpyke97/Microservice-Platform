@@ -28,6 +28,7 @@ class FileServiceTest {
 
     @Mock private FileMetadataRepository repository;
     @Mock private MinioClient minioClient;
+    @Mock private MinioClient publicMinioClient;
 
     private FileService fileService;
 
@@ -36,6 +37,7 @@ class FileServiceTest {
         fileService = new FileService(
                 repository,
                 minioClient,
+                publicMinioClient,
                 new MinioProperties("http://localhost:9000", "http://localhost:9000", "minio", "minio123", "temp", "audio", "image")
         );
     }
@@ -78,7 +80,7 @@ class FileServiceTest {
 
     @Test
     void getUploadUrl_returnsPresignedUrlWith300SecondTtl() throws Exception {
-        when(minioClient.getPresignedObjectUrl(any())).thenReturn("http://minio/upload");
+        when(publicMinioClient.getPresignedObjectUrl(any())).thenReturn("http://minio/upload");
         when(repository.save(any(FileMetadata.class))).thenAnswer(invocation -> {
             FileMetadata metadata = invocation.getArgument(0);
             setId(metadata, 5L);
