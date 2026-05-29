@@ -76,21 +76,32 @@ def detect_chorus(audio_data: bytes, sample_rate: float = 22050.0) -> dict:
         if s1 + prop_duration > duration:
             s1 = duration - prop_duration
         s1 = max(0.0, s1)
-        e1 = s1 + prop_duration
 
-        # Proposal 2: Offset earlier
-        s2 = max(0.0, s1 - 20.0)
-        e2 = s2 + prop_duration
-
-        # Proposal 3: Offset later
-        s3 = min(duration - prop_duration, s1 + 20.0)
-        s3 = max(0.0, s3)
-        e3 = s3 + prop_duration
+        max_start = duration - prop_duration
+        if max_start > 0.0:
+            shift = min(20.0, max_start / 2.0)
+            
+            s2 = s1 - shift
+            s3 = s1 + shift
+            
+            if s2 < 0.0:
+                s2 = s1 + shift
+                s3 = s1 + 2.0 * shift
+                
+            if s3 + prop_duration > duration:
+                s3 = s1 - shift
+                s2 = s1 - 2.0 * shift
+                
+            s2 = max(0.0, min(max_start, s2))
+            s3 = max(0.0, min(max_start, s3))
+        else:
+            s2 = 0.0
+            s3 = 0.0
 
         proposals = [
-            {"start": round(s1, 1), "end": round(e1, 1)},
-            {"start": round(s2, 1), "end": round(e2, 1)},
-            {"start": round(s3, 1), "end": round(e3, 1)}
+            {"start": round(s1, 1), "end": round(s1 + prop_duration, 1)},
+            {"start": round(s2, 1), "end": round(s2 + prop_duration, 1)},
+            {"start": round(s3, 1), "end": round(s3 + prop_duration, 1)}
         ]
 
     return {
