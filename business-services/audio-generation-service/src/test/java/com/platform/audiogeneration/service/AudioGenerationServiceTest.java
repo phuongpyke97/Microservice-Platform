@@ -164,4 +164,59 @@ class AudioGenerationServiceTest {
         AudioJobResponse resp = service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 0.0, 50.0));
         assertEquals(JobStatus.PENDING, resp.status());
     }
+
+    @Test
+    void analyzeAudio_shouldReturnFormattedSuggestions() {
+        org.springframework.web.multipart.MultipartFile mockFile = org.mockito.Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+        
+        java.util.Map<String, Object> rawResult = new java.util.HashMap<>();
+        rawResult.put("confidence", 0.99);
+        
+        java.util.List<java.util.Map<String, Object>> proposals = new java.util.ArrayList<>();
+        
+        java.util.Map<String, Object> p1 = new java.util.HashMap<>();
+        p1.put("start", 0.0);
+        p1.put("end", 45.0);
+        proposals.add(p1);
+        
+        java.util.Map<String, Object> p2 = new java.util.HashMap<>();
+        p2.put("start", 20.0);
+        p2.put("end", 65.0);
+        proposals.add(p2);
+        
+        java.util.Map<String, Object> p3 = new java.util.HashMap<>();
+        p3.put("start", 80.0);
+        p3.put("end", 125.0);
+        proposals.add(p3);
+        
+        rawResult.put("chorus_proposals", proposals);
+        
+        when(aiClient.detectChorus(mockFile)).thenReturn(rawResult);
+        
+        java.util.Map<String, Object> result = service.analyzeAudio(mockFile, true);
+        
+        java.util.List<?> suggestions = (java.util.List<?>) result.get("suggestions");
+        assertEquals(3, suggestions.size());
+        
+        java.util.Map<?, ?> s1 = (java.util.Map<?, ?>) suggestions.get(0);
+        assertEquals(1, s1.get("rank"));
+        assertEquals(0.0, s1.get("start"));
+        assertEquals(45.0, s1.get("end"));
+        assertEquals(45.0, s1.get("duration"));
+        assertEquals(0.99, s1.get("confidence"));
+        
+        java.util.Map<?, ?> s2 = (java.util.Map<?, ?>) suggestions.get(1);
+        assertEquals(2, s2.get("rank"));
+        assertEquals(20.0, s2.get("start"));
+        assertEquals(65.0, s2.get("end"));
+        assertEquals(45.0, s2.get("duration"));
+        assertEquals(0.92, s2.get("confidence"));
+        
+        java.util.Map<?, ?> s3 = (java.util.Map<?, ?>) suggestions.get(2);
+        assertEquals(3, s3.get("rank"));
+        assertEquals(80.0, s3.get("start"));
+        assertEquals(125.0, s3.get("end"));
+        assertEquals(45.0, s3.get("duration"));
+        assertEquals(0.88, s3.get("confidence"));
+    }
 }
