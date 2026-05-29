@@ -22,7 +22,7 @@ MINIO_PASS=${MINIO_PASS:-Crbt2026}
 echo "Initializing MinIO Buckets..."
 
 # Run minio/mc client container to configure buckets
-docker run --rm --network host minio/mc sh -c "
+docker run --rm --network host --entrypoint=sh minio/mc -c "
   echo 'Setting up alias...'
   mc alias set myminio http://localhost:9000 ${MINIO_USER} ${MINIO_PASS}
 
