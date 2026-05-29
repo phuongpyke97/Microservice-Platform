@@ -67,9 +67,12 @@ public class AudioGenerationService {
     }
 
     public Map<String, Object> analyzeAudio(org.springframework.web.multipart.MultipartFile file, boolean skipVocal) {
+        long t0 = System.currentTimeMillis();
         if (!skipVocal) {
+            long tSep = System.currentTimeMillis();
             // Step 1: Detect vocal presence first using separate-audio
             Map<String, String> separation = aiClient.separateAudio(file);
+            log.info("[PERF] separateAudio took {} ms", System.currentTimeMillis() - tSep);
             Object hasVocalObj = separation.get("has_vocal");
             boolean hasVocal = false;
             if (hasVocalObj instanceof Boolean) {
@@ -84,8 +87,12 @@ public class AudioGenerationService {
         }
 
         // Step 2: Extract chorus timestamps
+        long tChorus = System.currentTimeMillis();
         Map<String, Object> rawResult = aiClient.detectChorus(file);
-        return formatAnalysisResult(rawResult);
+        log.info("[PERF] detectChorus took {} ms", System.currentTimeMillis() - tChorus);
+        Map<String, Object> formatted = formatAnalysisResult(rawResult);
+        log.info("[PERF] total analyzeAudio took {} ms", System.currentTimeMillis() - t0);
+        return formatted;
     }
 
     private Map<String, Object> formatAnalysisResult(Map<String, Object> rawResult) {
@@ -166,26 +173,34 @@ public class AudioGenerationService {
     }
 
     public Map<String, Object> analyzeAudioFromKey(String audioFileKey, boolean skipVocal) {
+        long t0 = System.currentTimeMillis();
         File tempFile = null;
         try {
             Long fileId = Long.parseLong(audioFileKey);
+            long tUrl = System.currentTimeMillis();
             ApiResponse<Map<String, Object>> downloadUrlResp = fileServiceClient.getDownloadUrl(fileId);
+            log.info("[PERF] getDownloadUrl took {} ms", System.currentTimeMillis() - tUrl);
             if (downloadUrlResp == null || downloadUrlResp.data() == null) {
                 throw new RuntimeException("Failed to get download URL from file service");
             }
             String downloadUrl = (String) downloadUrlResp.data().get("url");
 
             tempFile = File.createTempFile("lib-bg-", ".mp3");
+            long tDownload = System.currentTimeMillis();
             try (java.io.InputStream in = new java.net.URL(downloadUrl).openStream()) {
                 Files.copy(in, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
+            log.info("[PERF] Download file took {} ms", System.currentTimeMillis() - tDownload);
 
             org.springframework.web.multipart.MultipartFile filePart =
                 new TempFileMultipartFile(tempFile, "file", "music.mp3", "audio/mpeg");
 
+            long tAnalyze = System.currentTimeMillis();
             Map<String, Object> result = analyzeAudio(filePart, skipVocal);
+            log.info("[PERF] Inner analyzeAudio took {} ms", System.currentTimeMillis() - tAnalyze);
             result.put("audioFileKey", audioFileKey);
             result.put("downloadUrl", downloadUrl);
+            log.info("[PERF] total analyzeAudioFromKey took {} ms", System.currentTimeMillis() - t0);
             return result;
         } catch (Exception e) {
             log.error("Failed to analyze audio from key {}", audioFileKey, e);
