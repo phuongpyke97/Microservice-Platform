@@ -18,4 +18,5 @@ pandas>=2.0.0
 norbert>=0.2.1
 ffmpeg-python>=0.2.0
 typer>=0.9.0
+h2
 
