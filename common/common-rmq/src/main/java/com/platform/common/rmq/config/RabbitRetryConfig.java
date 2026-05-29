@@ -6,6 +6,8 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
 import org.aopalliance.aop.Advice;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,10 +31,12 @@ public class RabbitRetryConfig {
 
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory connectionFactory,
-                                                                               Advice retryInterceptor) {
+                                                                               Advice retryInterceptor,
+                                                                               ObjectProvider<MessageConverter> messageConverterProvider) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setAdviceChain(retryInterceptor);
+        messageConverterProvider.ifAvailable(factory::setMessageConverter);
         return factory;
     }
 }

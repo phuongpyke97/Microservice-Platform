@@ -64,7 +64,7 @@ public class WalletService {
      * Read balance: cache-first, fallback to DB.
      * readOnly = true → no unnecessary transaction overhead on cache hits.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public WalletResponse getBalance(Long userId) {
         RBucket<String> bucket = getBalanceBucket(userId);
         String cachedBalance = bucket.get();

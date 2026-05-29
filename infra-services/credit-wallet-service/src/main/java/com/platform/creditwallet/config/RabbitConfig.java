@@ -35,6 +35,16 @@ public class RabbitConfig {
     }
 
     @Bean
+    public Queue creditChangedQueue() {
+        return RabbitDlqConfig.dlqEnabledQueue(RmqQueues.CREDIT_CHANGED);
+    }
+
+    @Bean
+    public Binding creditChangedBinding(Queue creditChangedQueue, TopicExchange creditEventsExchange) {
+        return BindingBuilder.bind(creditChangedQueue).to(creditEventsExchange).with(RmqRoutingKeys.CREDIT_CHANGED);
+    }
+
+    @Bean
     public MessageConverter jsonMessageConverter() {
         return new Jackson2JsonMessageConverter();
     }

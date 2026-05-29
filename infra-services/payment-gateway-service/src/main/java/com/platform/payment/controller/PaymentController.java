@@ -23,6 +23,9 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<PaymentResponse>> charge(@Valid @RequestBody ChargeRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
         String msisdn = SecurityUtils.getCurrentMsisdn();
+        if (msisdn == null || msisdn.isBlank()) {
+            msisdn = "0944112233"; // Fallback for email-registered test/admin users
+        }
         return ResponseEntity.ok(ApiResponse.success("Payment processed", paymentService.charge(userId, msisdn, request)));
     }
 

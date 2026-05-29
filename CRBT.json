@@ -1,0 +1,194 @@
+{
+  "info": {
+    "_postman_id": "d8c63e99-2e9e-4a84-9f49-4c8f2a4fdc01",
+    "name": "CRBT",
+    "description": "Full CRBT Postman collection grouped by business flows.\n\nURL convention: Uses Swagger/direct-service routes (e.g. /crbt-campaign-service/campaigns/...) which pass through Gateway rewrite rules. Canonical public API routes (/api/campaigns/..., /api/library/..., /api/audio/..., /api/wallet/..., /api/files/..., /api/payments/..., /api/credits/..., /api/core-adapter/..., /api/audit-logs/...) also work.\n\nFlow folders contain ordered API calls. Common folder contains supporting/admin/internal APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "correlationId", "value": "{{$guid}}" },
+    { "key": "userId", "value": "1" },
+    { "key": "msisdn", "value": "84901234567" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "moodId", "value": "1" },
+    { "key": "ringtoneId", "value": "1" },
+    { "key": "jobId", "value": "1" },
+    { "key": "fileId", "value": "1" },
+    { "key": "assignmentId", "value": "1" },
+    { "key": "packageId", "value": "1" },
+    { "key": "idempotencyKey", "value": "{{$guid}}" },
+    { "key": "presignedUrl", "value": "" },
+    { "key": "audioFileKey", "value": "media-audio-lib/sample.mp3" },
+    { "key": "ringtoneUrl", "value": "https://example.com/audio.mp3" }
+  ],
+  "item": [
+    {
+      "name": "01 Auth / Session Flow",
+      "description": "Login/register/refresh flow. Run login first, then set accessToken from response.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"P@ssw0rd123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth-service/api/auth/register", "host": ["{{baseUrl}}"], "path": ["auth-service", "api", "auth", "register"] },
+            "description": "Create user account."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "if (data.accessToken) pm.collectionVariables.set('accessToken', data.accessToken);", "if (data.refreshToken) pm.collectionVariables.set('refreshToken', data.refreshToken);"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"P@ssw0rd123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth-service/api/auth/login", "host": ["{{baseUrl}}"], "path": ["auth-service", "api", "auth", "login"] },
+            "description": "Login and save accessToken/refreshToken if response fields exist."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "if (data.accessToken) pm.collectionVariables.set('accessToken', data.accessToken);", "if (data.refreshToken) pm.collectionVariables.set('refreshToken', data.refreshToken);"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth-service/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth-service", "api", "auth", "refresh"] },
+            "description": "Refresh auth tokens."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth-service/api/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth-service", "api", "auth", "forgot-password"] },
+            "description": "Start forgot password flow."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Gen Music Flow",
+      "description": "Generate AI music flow: list campaigns, subscribe/charge if needed, generate, inspect job, assign CRBT.",
+      "item": [
+        { "name": "List Active Campaigns / Packages", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/active", "host": ["{{baseUrl}}"], "path": ["crbt-campaign-service", "campaigns", "active"] }, "description": "List active campaigns and packages." }, "response": [] },
+        { "name": "Subscribe Credit Package", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"packageId\": {{packageId}}\n}" }, "url": { "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/subscribe", "host": ["{{baseUrl}}"], "path": ["crbt-campaign-service", "campaigns", "subscribe"] }, "description": "Subscribe selected package." }, "response": [] },
+        { "name": "Charge Package Payment", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"idempotencyKey\": \"{{idempotencyKey}}\",\n  \"packageCode\": \"GEN_10\",\n  \"amountMmk\": 1000,\n  \"creditAmount\": 10\n}" }, "url": { "raw": "{{baseUrl}}/payment-gateway-service/api/payments/charge", "host": ["{{baseUrl}}"], "path": ["payment-gateway-service", "api", "payments", "charge"] }, "description": "Charge payment and top up credit." }, "response": [] },
+        { "name": "Generate Music via Campaign Service", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-MSISDN", "value": "{{msisdn}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/generate?genre=pop&mood=happy&instrument=guitar", "host": ["{{baseUrl}}"], "path": ["crbt-campaign-service", "campaigns", "generate"], "query": [{ "key": "genre", "value": "pop" }, { "key": "mood", "value": "happy" }, { "key": "instrument", "value": "guitar" }] }, "description": "Campaign-level music generation endpoint." }, "response": [] },
+        { "name": "Submit Audio Generation Job", "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "if (data.id) pm.collectionVariables.set('jobId', data.id);", "if (data.jobId) pm.collectionVariables.set('jobId', data.jobId);"] } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"prompt\": \"Create a 30 second upbeat pop CRBT tone with Vietnamese vocal hook\",\n  \"voiceId\": \"vi-VN-HoaiMyNeural\",\n  \"type\": \"AI\",\n  \"audioFileKey\": null,\n  \"vocalStart\": null,\n  \"vocalEnd\": null\n}" }, "url": { "raw": "{{baseUrl}}/audio-generation-service/audio-jobs", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "audio-jobs"] }, "description": "Submit async AI generation job. Expected HTTP 202." }, "response": [] },
+        { "name": "List Audio Jobs", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/audio-generation-service/audio-jobs", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "audio-jobs"] }, "description": "List current user's generation jobs." }, "response": [] },
+        { "name": "Get Audio Job Detail", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/audio-generation-service/audio-jobs/{{jobId}}", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "audio-jobs", "{{jobId}}"] }, "description": "Check async generation job status and output URL/key." }, "response": [] },
+        { "name": "Assign Generated Ringtone", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"msisdn\": \"{{msisdn}}\",\n  \"ringtoneUrl\": \"{{ringtoneUrl}}\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-core-adapter/ringtone-assignments", "host": ["{{baseUrl}}"], "path": ["crbt-core-adapter", "ringtone-assignments"] }, "description": "Assign generated audio as active CRBT." }, "response": [] }
+      ]
+    },
+    {
+      "name": "03 DIY Flow",
+      "description": "DIY flow: upload audio, confirm file, analyze, generate, inspect job, assign CRBT.",
+      "item": [
+        { "name": "Get Presigned Upload URL For DIY Audio", "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "if (data.url) pm.collectionVariables.set('presignedUrl', data.url);", "if (data.fileId) pm.collectionVariables.set('fileId', data.fileId);"] } }], "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/file-service/api/files/presigned/upload?originalName=diy_source.mp3&contentType=audio/mpeg", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "presigned", "upload"], "query": [{ "key": "originalName", "value": "diy_source.mp3" }, { "key": "contentType", "value": "audio/mpeg" }] }, "description": "Get MinIO presigned upload URL for DIY source audio." }, "response": [] },
+        { "name": "Upload DIY Audio To MinIO", "request": { "auth": { "type": "noauth" }, "method": "PUT", "header": [{ "key": "Content-Type", "value": "audio/mpeg", "type": "text" }], "body": { "mode": "file", "file": { "src": "" } }, "url": { "raw": "{{presignedUrl}}", "host": ["{{presignedUrl}}"] }, "description": "Upload local audio file to presigned URL. Choose file manually in Postman." }, "response": [] },
+        { "name": "Confirm DIY Upload", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"targetBucket\": \"media-audio-lib\"\n}" }, "url": { "raw": "{{baseUrl}}/file-service/api/files/{{fileId}}/confirm", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "{{fileId}}", "confirm"] }, "description": "Confirm uploaded audio and target bucket." }, "response": [] },
+        { "name": "Analyze DIY Audio By File Key", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/audio-generation-service/diy/analyze?audioFileKey={{audioFileKey}}&skipVocal=false", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "diy", "analyze"], "query": [{ "key": "audioFileKey", "value": "{{audioFileKey}}" }, { "key": "skipVocal", "value": "false" }] }, "description": "Analyze DIY source by object key." }, "response": [] },
+        { "name": "Analyze DIY Audio Multipart", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "" }, { "key": "skipVocal", "value": "false", "type": "text" }] }, "url": { "raw": "{{baseUrl}}/audio-generation-service/diy/analyze", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "diy", "analyze"] }, "description": "Analyze DIY source with multipart upload." }, "response": [] },
+        { "name": "Generate DIY Audio Job", "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const json = pm.response.json();", "const data = json.data || json;", "if (data.id) pm.collectionVariables.set('jobId', data.id);", "if (data.jobId) pm.collectionVariables.set('jobId', data.jobId);"] } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"prompt\": \"Create a short CRBT from my uploaded audio\",\n  \"voiceId\": \"vi-VN-HoaiMyNeural\",\n  \"type\": \"DIY\",\n  \"audioFileKey\": \"{{audioFileKey}}\",\n  \"vocalStart\": 10.0,\n  \"vocalEnd\": 25.0\n}" }, "url": { "raw": "{{baseUrl}}/audio-generation-service/diy/generate", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "diy", "generate"] }, "description": "Submit DIY async generation job." }, "response": [] },
+        { "name": "Get DIY Job Detail", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/audio-generation-service/audio-jobs/{{jobId}}", "host": ["{{baseUrl}}"], "path": ["audio-generation-service", "audio-jobs", "{{jobId}}"] }, "description": "Check DIY generation job status." }, "response": [] },
+        { "name": "Assign DIY Ringtone", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"msisdn\": \"{{msisdn}}\",\n  \"ringtoneUrl\": \"{{ringtoneUrl}}\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-core-adapter/ringtone-assignments", "host": ["{{baseUrl}}"], "path": ["crbt-core-adapter", "ringtone-assignments"] }, "description": "Assign DIY output audio as active CRBT." }, "response": [] }
+      ]
+    },
+    {
+      "name": "04 Library / Ringtone Purchase Flow",
+      "description": "Browse library, pick ringtone, check wallet, deduct credit, assign ringtone, verify history.",
+      "item": [
+        { "name": "List Categories", "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/categories", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "categories"] }, "description": "List ringtone categories." }, "response": [] },
+        { "name": "List Moods", "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/moods", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "moods"] }, "description": "List moods." }, "response": [] },
+        { "name": "Search Ringtones", "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/search?q=Morning&categoryId={{categoryId}}&moodId={{moodId}}&status=true&page=0&size=20", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "search"], "query": [{ "key": "q", "value": "Morning" }, { "key": "categoryId", "value": "{{categoryId}}" }, { "key": "moodId", "value": "{{moodId}}" }, { "key": "status", "value": "true" }, { "key": "page", "value": "0" }, { "key": "size", "value": "20" }] }, "description": "Search published ringtones." }, "response": [] },
+        { "name": "Get Random Ringtone", "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/random?genre=Acoustic", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "random"], "query": [{ "key": "genre", "value": "Acoustic" }] }, "description": "Get random ringtone recommendation." }, "response": [] },
+        { "name": "Get My Wallet Balance", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/credit-wallet-service/api/wallet/me", "host": ["{{baseUrl}}"], "path": ["credit-wallet-service", "api", "wallet", "me"] }, "description": "Check wallet balance." }, "response": [] },
+        { "name": "Deduct Credit For Library Ringtone", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"amount\": 1,\n  \"reason\": \"LIBRARY_RINGTONE_ASSIGN\",\n  \"referenceId\": \"ringtone-{{ringtoneId}}\"\n}" }, "url": { "raw": "{{baseUrl}}/credit-wallet-service/api/wallet/{{userId}}/deduct", "host": ["{{baseUrl}}"], "path": ["credit-wallet-service", "api", "wallet", "{{userId}}", "deduct"] }, "description": "Deduct credit using wallet lock." }, "response": [] },
+        { "name": "Assign Library Ringtone", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"msisdn\": \"{{msisdn}}\",\n  \"ringtoneUrl\": \"{{ringtoneUrl}}\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-core-adapter/ringtone-assignments", "host": ["{{baseUrl}}"], "path": ["crbt-core-adapter", "ringtone-assignments"] }, "description": "Set library ringtone as CRBT." }, "response": [] },
+        { "name": "List My Ringtone Assignments", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-core-adapter/ringtone-assignments", "host": ["{{baseUrl}}"], "path": ["crbt-core-adapter", "ringtone-assignments"] }, "description": "Verify assigned ringtone list." }, "response": [] },
+        { "name": "Credit Transaction History", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-credit-transaction-service/credit-transactions/history?direction=DEBIT&reason=LIBRARY_RINGTONE_ASSIGN&page=0&size=20", "host": ["{{baseUrl}}"], "path": ["crbt-credit-transaction-service", "credit-transactions", "history"], "query": [{ "key": "direction", "value": "DEBIT" }, { "key": "reason", "value": "LIBRARY_RINGTONE_ASSIGN" }, { "key": "page", "value": "0" }, { "key": "size", "value": "20" }] }, "description": "Verify immutable credit transaction record." }, "response": [] }
+      ]
+    },
+    {
+      "name": "common",
+      "description": "Support/admin/internal APIs used by multiple flows.",
+      "item": [
+        {
+          "name": "CMS Library Admin",
+          "item": [
+            { "name": "Create Category", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acoustic\",\n  \"description\": \"Soft and calming acoustic guitar tracks\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/categories", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "categories"] }, "description": "Create ringtone category." }, "response": [] },
+            { "name": "Update Category", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acoustic Updated\",\n  \"description\": \"Updated category description\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "categories", "{{categoryId}}"] }, "description": "Update ringtone category." }, "response": [] },
+            { "name": "Delete Category", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "categories", "{{categoryId}}"] }, "description": "Delete category." }, "response": [] },
+            { "name": "Create Mood", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Happy\",\n  \"description\": \"Bright and uplifting mood\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/moods", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "moods"] }, "description": "Create mood." }, "response": [] },
+            { "name": "Update Mood", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Happy Updated\",\n  \"description\": \"Updated mood description\"\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/moods/{{moodId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "moods", "{{moodId}}"] }, "description": "Update mood." }, "response": [] },
+            { "name": "Delete Mood", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/moods/{{moodId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "moods", "{{moodId}}"] }, "description": "Delete mood." }, "response": [] },
+            { "name": "Create Ringtone Metadata", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Morning Guitar\",\n  \"artistName\": \"CRBT Studio\",\n  \"audioUrl\": \"{{ringtoneUrl}}\",\n  \"coverImageUrl\": \"https://example.com/cover.jpg\",\n  \"durationSeconds\": 30,\n  \"featured\": true,\n  \"moodId\": {{moodId}},\n  \"status\": true,\n  \"categoryId\": {{categoryId}}\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones"] }, "description": "Create ringtone metadata." }, "response": [] },
+            { "name": "Update Ringtone Metadata", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Morning Guitar Updated\",\n  \"artistName\": \"CRBT Studio\",\n  \"audioUrl\": \"{{ringtoneUrl}}\",\n  \"coverImageUrl\": \"https://example.com/cover.jpg\",\n  \"durationSeconds\": 30,\n  \"featured\": false,\n  \"moodId\": {{moodId}},\n  \"status\": true,\n  \"categoryId\": {{categoryId}}\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}"] }, "description": "Update ringtone metadata." }, "response": [] },
+            { "name": "Update Ringtone Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"status\": true\n}" }, "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}/status", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}", "status"] }, "description": "Publish/unpublish ringtone." }, "response": [] },
+            { "name": "Ringtone Statistics", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/statistics", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "statistics"] }, "description": "Ringtone statistics dashboard." }, "response": [] },
+            { "name": "Export Ringtones CSV", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/export?q=Morning&categoryId={{categoryId}}&status=true", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "export"], "query": [{ "key": "q", "value": "Morning" }, { "key": "categoryId", "value": "{{categoryId}}" }, { "key": "status", "value": "true" }] }, "description": "Export ringtones CSV." }, "response": [] },
+            { "name": "Delete Ringtone", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}", "host": ["{{baseUrl}}"], "path": ["crbt-community-library", "library", "ringtones", "{{ringtoneId}}"] }, "description": "Delete ringtone." }, "response": [] }
+          ]
+        },
+        {
+          "name": "File Service",
+          "item": [
+            { "name": "Upload File Multipart", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "" }] }, "url": { "raw": "{{baseUrl}}/file-service/api/files/upload", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "upload"] }, "description": "Direct multipart upload." }, "response": [] },
+            { "name": "Get Presigned Download URL", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/file-service/api/files/{{fileId}}/presigned/download", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "{{fileId}}", "presigned", "download"] }, "description": "Get file presigned download URL." }, "response": [] },
+            { "name": "Delete File", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/file-service/api/files/{{fileId}}", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "{{fileId}}"] }, "description": "Delete file." }, "response": [] },
+            { "name": "Internal Upload Audio Octet Stream", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/octet-stream", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "file", "file": { "src": "" } }, "url": { "raw": "{{baseUrl}}/file-service/api/files/internal/upload-audio?bucket=media-audio-lib", "host": ["{{baseUrl}}"], "path": ["file-service", "api", "files", "internal", "upload-audio"], "query": [{ "key": "bucket", "value": "media-audio-lib" }] }, "description": "Internal octet-stream audio upload." }, "response": [] }
+          ]
+        },
+        {
+          "name": "Wallet / Payment",
+          "item": [
+            { "name": "Internal Wallet Balance By User ID", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/credit-wallet-service/api/wallet/internal/{{userId}}/balance", "host": ["{{baseUrl}}"], "path": ["credit-wallet-service", "api", "wallet", "internal", "{{userId}}", "balance"] }, "description": "Internal balance by user ID." }, "response": [] },
+            { "name": "Add Credit", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"amount\": 10,\n  \"reason\": \"ADMIN_TOPUP\",\n  \"referenceId\": \"topup-{{$guid}}\"\n}" }, "url": { "raw": "{{baseUrl}}/credit-wallet-service/api/wallet/{{userId}}/add", "host": ["{{baseUrl}}"], "path": ["credit-wallet-service", "api", "wallet", "{{userId}}", "add"] }, "description": "Add credit to wallet." }, "response": [] },
+            { "name": "Get Payment By Idempotency Key", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/payment-gateway-service/api/payments/idempotency/{{idempotencyKey}}", "host": ["{{baseUrl}}"], "path": ["payment-gateway-service", "api", "payments", "idempotency", "{{idempotencyKey}}"] }, "description": "Check payment result by idempotency key." }, "response": [] }
+          ]
+        },
+        { "name": "Core Adapter / Assignments", "item": [{ "name": "Delete Ringtone Assignment", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-core-adapter/ringtone-assignments/{{assignmentId}}", "host": ["{{baseUrl}}"], "path": ["crbt-core-adapter", "ringtone-assignments", "{{assignmentId}}"] }, "description": "Delete CRBT assignment." }, "response": [] }] },
+        { "name": "Campaign Admin", "item": [{ "name": "Create Campaign With Package", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Launch Campaign\",\n  \"description\": \"Promo campaign for CRBT generation\",\n  \"startAt\": \"2026-05-29T00:00:00Z\",\n  \"endAt\": \"2026-06-29T23:59:59Z\",\n  \"packages\": [\n    {\n      \"name\": \"GEN_10\",\n      \"price\": 1000,\n      \"creditAmount\": 10,\n      \"validityDays\": 30\n    }\n  ]\n}" }, "url": { "raw": "{{baseUrl}}/crbt-campaign-service/campaigns", "host": ["{{baseUrl}}"], "path": ["crbt-campaign-service", "campaigns"] }, "description": "Create campaign and packages." }, "response": [] }] },
+        {
+          "name": "CRBT Internal Auth",
+          "item": [
+            { "name": "Provision CRBT User By MSISDN", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"msisdn\": \"{{msisdn}}\"\n}" }, "url": { "raw": "{{baseUrl}}/auth-service/internal/crbt/provision", "host": ["{{baseUrl}}"], "path": ["auth-service", "internal", "crbt", "provision"] }, "description": "Provision CRBT user by MSISDN." }, "response": [] },
+            { "name": "Get CRBT User Credit By MSISDN", "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/auth-service/internal/crbt/user-credit/{{msisdn}}", "host": ["{{baseUrl}}"], "path": ["auth-service", "internal", "crbt", "user-credit", "{{msisdn}}"] }, "description": "Get CRBT user credit info by MSISDN." }, "response": [] }
+          ]
+        },
+        {
+          "name": "Audit / Reports",
+          "item": [
+            { "name": "Query Audit Logs", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/audit-log-service/audit/query?userId={{userId}}&action=ASSIGN_RINGTONE&status=SUCCESS&page=0&size=20", "host": ["{{baseUrl}}"], "path": ["audit-log-service", "audit", "query"], "query": [{ "key": "userId", "value": "{{userId}}" }, { "key": "action", "value": "ASSIGN_RINGTONE" }, { "key": "status", "value": "SUCCESS" }, { "key": "fromTs", "value": "", "disabled": true }, { "key": "toTs", "value": "", "disabled": true }, { "key": "page", "value": "0" }, { "key": "size", "value": "20" }] }, "description": "Query async audit logs." }, "response": [] },
+            { "name": "Export Credit Transactions CSV", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }, { "key": "X-User-Id", "value": "{{userId}}", "type": "text" }], "url": { "raw": "{{baseUrl}}/crbt-credit-transaction-service/credit-transactions/export?direction=DEBIT&reason=LIBRARY_RINGTONE_ASSIGN", "host": ["{{baseUrl}}"], "path": ["crbt-credit-transaction-service", "credit-transactions", "export"], "query": [{ "key": "direction", "value": "DEBIT" }, { "key": "reason", "value": "LIBRARY_RINGTONE_ASSIGN" }, { "key": "fromTs", "value": "", "disabled": true }, { "key": "toTs", "value": "", "disabled": true }] }, "description": "Export credit transactions CSV." }, "response": [] }
+          ]
+        }
+      ]
+    }
+  ]
+}
