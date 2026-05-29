@@ -14,6 +14,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir spleeter==2.4.2 --no-deps
 
+# Pre-download spleeter 2stems model at build time.
+# Uses spleeter's own ModelProvider with httpx redirect fix applied,
+# so the tar extraction path matches exactly what spleeter expects.
+ENV MODEL_PATH=/app/pretrained_models
+COPY scripts/download_spleeter_model.py /tmp/download_spleeter_model.py
+RUN python /tmp/download_spleeter_model.py && rm /tmp/download_spleeter_model.py
+
 # Copy protobuf definitions and generate stubs
 COPY proto ./proto
 COPY scripts ./scripts

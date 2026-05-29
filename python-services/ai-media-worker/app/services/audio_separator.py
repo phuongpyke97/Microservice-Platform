@@ -4,18 +4,52 @@ import tempfile
 import uuid
 import httpx
 
-# Monkeypatch httpx to follow redirects by default (needed because spleeter's model downloader uses httpx without follow_redirects=True, which fails on modern httpx versions)
+# ---------------------------------------------------------------------------
+# Monkeypatch httpx to follow redirects by default.
+#
+# Spleeter's model downloader (github.py) uses TWO httpx call patterns:
+#   1. httpx.Client(http2=True)          → for downloading the model archive
+#   2. httpx.get(url)                    → for fetching checksum.json
+#
+# Modern httpx (>=0.20) defaults follow_redirects=False. GitHub releases
+# respond with 302→objects.githubusercontent.com, so both patterns fail
+# without this patch.
+# ---------------------------------------------------------------------------
+
+# Patch 1: httpx.Client.__init__  (covers pattern 1 — Client instances)
 _original_client_init = httpx.Client.__init__
 def _patched_client_init(self, *args, **kwargs):
-    kwargs['follow_redirects'] = True
+    kwargs.setdefault('follow_redirects', True)
     _original_client_init(self, *args, **kwargs)
 httpx.Client.__init__ = _patched_client_init
 
+# Patch 2: httpx.AsyncClient.__init__
 _original_async_client_init = httpx.AsyncClient.__init__
 def _patched_async_client_init(self, *args, **kwargs):
-    kwargs['follow_redirects'] = True
+    kwargs.setdefault('follow_redirects', True)
     _original_async_client_init(self, *args, **kwargs)
 httpx.AsyncClient.__init__ = _patched_async_client_init
+
+# Patch 3: httpx.get() — module-level function (covers pattern 2 — checksum)
+_original_httpx_get = httpx.get
+def _patched_httpx_get(*args, **kwargs):
+    kwargs.setdefault('follow_redirects', True)
+    return _original_httpx_get(*args, **kwargs)
+httpx.get = _patched_httpx_get
+
+# Patch 4: httpx.request() — underlying function for all module-level calls
+_original_httpx_request = httpx.request
+def _patched_httpx_request(*args, **kwargs):
+    kwargs.setdefault('follow_redirects', True)
+    return _original_httpx_request(*args, **kwargs)
+httpx.request = _patched_httpx_request
+
+# Patch 5: httpx.stream() — used by spleeter's Client.stream inside download()
+_original_httpx_stream = httpx.stream
+def _patched_httpx_stream(*args, **kwargs):
+    kwargs.setdefault('follow_redirects', True)
+    return _original_httpx_stream(*args, **kwargs)
+httpx.stream = _patched_httpx_stream
 
 
 from app.config import settings
