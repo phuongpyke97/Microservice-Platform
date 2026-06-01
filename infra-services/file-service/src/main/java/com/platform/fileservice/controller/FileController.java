@@ -39,6 +39,19 @@ public class FileController {
         return ResponseEntity.ok(ApiResponse.success(fileService.getDownloadUrl(fileId)));
     }
 
+    @GetMapping("/{fileId}/internal/presigned/download")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getInternalDownloadUrl(@PathVariable Long fileId) {
+        return ResponseEntity.ok(ApiResponse.success(fileService.getInternalDownloadUrl(fileId)));
+    }
+
+    @GetMapping("/{fileId}/internal/download")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long fileId) {
+        byte[] data = fileService.downloadFile(fileId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/octet-stream")
+                .body(data);
+    }
+
     @PostMapping("/{fileId}/confirm")
     public ResponseEntity<ApiResponse<FileMetadataResponse>> confirm(@PathVariable Long fileId,
                                                                      @Valid @RequestBody ConfirmFileRequest request) {

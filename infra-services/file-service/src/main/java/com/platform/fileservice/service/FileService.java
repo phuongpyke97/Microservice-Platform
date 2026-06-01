@@ -9,6 +9,7 @@ import com.platform.fileservice.entity.FileStatus;
 import com.platform.fileservice.exception.FileErrorCode;
 import com.platform.fileservice.repository.FileMetadataRepository;
 import io.minio.CopyObjectArgs;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
@@ -134,6 +135,28 @@ public class FileService {
         return new PresignedUrlResponse(metadata.getId(), metadata.getStoredKey(), presign(metadata.getBucket(), metadata.getStoredKey(), Method.GET), PRESIGNED_TTL_SECONDS);
     }
 
+    @Transactional(readOnly = true)
+    public PresignedUrlResponse getInternalDownloadUrl(Long fileId) {
+        FileMetadata metadata = repository.findById(fileId)
+                .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));
+        return new PresignedUrlResponse(metadata.getId(), metadata.getStoredKey(), presignInternal(metadata.getBucket(), metadata.getStoredKey(), Method.GET), PRESIGNED_TTL_SECONDS);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] downloadFile(Long fileId) {
+        FileMetadata metadata = repository.findById(fileId)
+                .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));
+        try (InputStream is = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(metadata.getBucket())
+                        .object(metadata.getStoredKey())
+                        .build())) {
+            return is.readAllBytes();
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND);
+        }
+    }
+
     @Transactional
     public PresignedUrlResponse getUploadUrl(Long userId, String originalName, String contentType) {
         validate(1, contentType);
@@ -173,6 +196,21 @@ public class FileService {
     private String presign(String bucket, String objectKey, Method method) {
         try {
             return publicMinioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .method(method)
+                            .expiry((int) PRESIGNED_TTL_SECONDS, TimeUnit.SECONDS)
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
+        }
+    }
+
+    private String presignInternal(String bucket, String objectKey, Method method) {
+        try {
+            return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(bucket)
                             .object(objectKey)

@@ -16,7 +16,10 @@ public interface AiMediaWorkerClient {
     Map<String, Object> detectChorus(@org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file);
 
     @PostMapping(value = "/separate-audio", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    Map<String, String> separateAudio(@org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file);
+    Map<String, Object> separateAudio(
+        @org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+        @org.springframework.web.bind.annotation.RequestParam("exclude_audio") boolean excludeAudio
+    );
 
     @PostMapping(value = "/mix-audio", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     byte[] mixAudio(
@@ -38,7 +41,7 @@ class AiMediaWorkerClientFallback implements AiMediaWorkerClient {
     }
 
     @Override
-    public Map<String, String> separateAudio(org.springframework.web.multipart.MultipartFile file) {
+    public Map<String, Object> separateAudio(org.springframework.web.multipart.MultipartFile file, boolean excludeAudio) {
         throw new RuntimeException("AI Media Worker separate-audio unavailable");
     }
 

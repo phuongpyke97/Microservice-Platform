@@ -39,6 +39,21 @@ public class DiyController {
         }
     }
 
+    @PostMapping("/confirm")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> confirmDiy(@RequestBody java.util.Map<String, Object> requestBody) {
+        Object fileIdObj = requestBody.get("fileId");
+        if (fileIdObj == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "fileId is required");
+        }
+        Long fileId = Long.parseLong(fileIdObj.toString());
+        String targetBucket = (String) requestBody.get("targetBucket");
+        if (targetBucket == null || targetBucket.isBlank()) {
+            targetBucket = "media-audio-lib";
+        }
+        java.util.Map<String, Object> result = service.confirmAndValidateDiyAudio(fileId, targetBucket);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @PostMapping("/generate")
     public ResponseEntity<ApiResponse<AudioJobResponse>> generate(@Valid @RequestBody GenerateAudioRequest request) {
         // Enforce DIY job type

@@ -24,16 +24,18 @@ async def detect_chorus_endpoint(file: UploadFile):
 
 
 @router.post("/separate-audio")
-async def separate_audio_endpoint(file: UploadFile):
+async def separate_audio_endpoint(file: UploadFile, exclude_audio: bool = False):
     audio_data = await file.read()
     fmt = (file.filename or "input.wav").rsplit(".", 1)[-1].lower()
     result = separate_audio(audio_data, fmt=fmt)
-    return {
-        "vocals": base64.b64encode(result["vocals"]).decode(),
-        "accompaniment": base64.b64encode(result["accompaniment"]).decode(),
+    response = {
         "has_vocal": result["has_vocal"],
         "vocal_rms": result["vocal_rms"],
     }
+    if not exclude_audio:
+        response["vocals"] = base64.b64encode(result["vocals"]).decode()
+        response["accompaniment"] = base64.b64encode(result["accompaniment"]).decode()
+    return response
 
 
 @router.post("/mix-audio")

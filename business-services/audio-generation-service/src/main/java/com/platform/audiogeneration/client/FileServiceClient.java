@@ -19,6 +19,18 @@ public interface FileServiceClient {
 
     @GetMapping("/api/files/{fileId}/presigned/download")
     ApiResponse<java.util.Map<String, Object>> getDownloadUrl(@PathVariable("fileId") Long fileId);
+
+    @GetMapping("/api/files/{fileId}/internal/presigned/download")
+    ApiResponse<java.util.Map<String, Object>> getInternalDownloadUrl(@PathVariable("fileId") Long fileId);
+
+    @GetMapping("/api/files/{fileId}/internal/download")
+    feign.Response downloadFile(@PathVariable("fileId") Long fileId);
+
+    @PostMapping("/api/files/{fileId}/confirm")
+    ApiResponse<java.util.Map<String, Object>> confirmFile(
+        @PathVariable("fileId") Long fileId,
+        @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> request
+    );
 }
 
 class FileServiceClientFallback implements FileServiceClient {
@@ -34,6 +46,21 @@ class FileServiceClientFallback implements FileServiceClient {
 
     @Override
     public ApiResponse<java.util.Map<String, Object>> getDownloadUrl(Long fileId) {
+        return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
+    }
+
+    @Override
+    public ApiResponse<java.util.Map<String, Object>> getInternalDownloadUrl(Long fileId) {
+        return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
+    }
+
+    @Override
+    public feign.Response downloadFile(Long fileId) {
+        throw new RuntimeException("File service is currently down");
+    }
+
+    @Override
+    public ApiResponse<java.util.Map<String, Object>> confirmFile(Long fileId, java.util.Map<String, String> request) {
         return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
     }
 }

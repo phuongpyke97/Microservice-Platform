@@ -62,6 +62,14 @@ def _get_separator():
     """Lazily build the Spleeter separator (heavy TensorFlow import)."""
     global _separator
     if _separator is None:
+        import sys
+        import tensorflow as tf
+        try:
+            import tensorflow_estimator.python.estimator.api._v1.estimator as estimator
+            tf.estimator = estimator
+            sys.modules['tensorflow.estimator'] = estimator
+        except Exception:
+            pass
         from spleeter.separator import Separator
         _separator = Separator(settings.spleeter_model)
     return _separator

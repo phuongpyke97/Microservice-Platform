@@ -20,6 +20,7 @@ import com.platform.common.rmq.RmqExchanges;
 import com.platform.common.rmq.RmqRoutingKeys;
 import com.platform.common.rmq.event.AudioGeneratedEvent;
 import java.io.File;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
@@ -71,7 +72,7 @@ public class AudioGenerationService {
         if (!skipVocal) {
             long tSep = System.currentTimeMillis();
             // Step 1: Detect vocal presence first using separate-audio
-            Map<String, String> separation = aiClient.separateAudio(file);
+            Map<String, Object> separation = aiClient.separateAudio(file, true);
             log.info("[PERF] separateAudio took {} ms", System.currentTimeMillis() - tSep);
             Object hasVocalObj = separation.get("has_vocal");
             boolean hasVocal = false;
@@ -177,20 +178,23 @@ public class AudioGenerationService {
         File tempFile = null;
         try {
             Long fileId = Long.parseLong(audioFileKey);
-            long tUrl = System.currentTimeMillis();
-            ApiResponse<Map<String, Object>> downloadUrlResp = fileServiceClient.getDownloadUrl(fileId);
-            log.info("[PERF] getDownloadUrl took {} ms", System.currentTimeMillis() - tUrl);
-            if (downloadUrlResp == null || downloadUrlResp.data() == null) {
-                throw new RuntimeException("Failed to get download URL from file service");
+            long tDownload = System.currentTimeMillis();
+            byte[] fileBytes;
+            try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
+                if (response.status() >= 400) {
+                    throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
+                }
+                if (response.body() == null) {
+                    throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service response body is null");
+                }
+                try (InputStream is = response.body().asInputStream()) {
+                    fileBytes = is.readAllBytes();
+                }
             }
-            String downloadUrl = (String) downloadUrlResp.data().get("url");
+            log.info("[PERF] downloadFile took {} ms", System.currentTimeMillis() - tDownload);
 
             tempFile = File.createTempFile("lib-bg-", ".mp3");
-            long tDownload = System.currentTimeMillis();
-            try (java.io.InputStream in = new java.net.URL(downloadUrl).openStream()) {
-                Files.copy(in, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-            log.info("[PERF] Download file took {} ms", System.currentTimeMillis() - tDownload);
+            Files.write(tempFile.toPath(), fileBytes);
 
             org.springframework.web.multipart.MultipartFile filePart =
                 new TempFileMultipartFile(tempFile, "file", "music.mp3", "audio/mpeg");
@@ -199,7 +203,6 @@ public class AudioGenerationService {
             Map<String, Object> result = analyzeAudio(filePart, skipVocal);
             log.info("[PERF] Inner analyzeAudio took {} ms", System.currentTimeMillis() - tAnalyze);
             result.put("audioFileKey", audioFileKey);
-            result.put("downloadUrl", downloadUrl);
             log.info("[PERF] total analyzeAudioFromKey took {} ms", System.currentTimeMillis() - t0);
             return result;
         } catch (Exception e) {
@@ -210,6 +213,80 @@ public class AudioGenerationService {
                 tempFile.delete();
             }
         }
+    }
+
+    @Transactional
+    public Map<String, Object> confirmAndValidateDiyAudio(Long fileId, String targetBucket) {
+        // Step 1: Download the temp file from file-service
+        byte[] fileBytes;
+        try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
+            if (response.status() >= 400) {
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
+            }
+            if (response.body() == null) {
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service response body is null");
+            }
+            try (InputStream is = response.body().asInputStream()) {
+                fileBytes = is.readAllBytes();
+            }
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to download file {}", fileId, e);
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Không thể tải file tạm: " + e.getMessage());
+        }
+
+        // Step 2: Separate audio to check vocal presence
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile("confirm-diy-", ".mp3");
+            Files.write(tempFile.toPath(), fileBytes);
+
+            org.springframework.web.multipart.MultipartFile filePart =
+                new TempFileMultipartFile(tempFile, "file", "music.mp3", "audio/mpeg");
+
+            Map<String, Object> separation = aiClient.separateAudio(filePart, true);
+            Object hasVocalObj = separation.get("has_vocal");
+            boolean hasVocal = false;
+            if (hasVocalObj instanceof Boolean) {
+                hasVocal = (Boolean) hasVocalObj;
+            } else if (hasVocalObj instanceof String) {
+                hasVocal = Boolean.parseBoolean((String) hasVocalObj);
+            }
+
+            if (hasVocal) {
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.");
+            }
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to separate audio for validation", e);
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Không thể xác thực tệp âm thanh: " + e.getMessage());
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                tempFile.delete();
+            }
+        }
+
+        // Step 3: Call file-service to confirm and move the file
+        ApiResponse<Map<String, Object>> confirmResp = fileServiceClient.confirmFile(fileId, Map.of("targetBucket", targetBucket));
+        if (confirmResp == null || !confirmResp.success() || confirmResp.data() == null) {
+            String errorMsg = (confirmResp != null && confirmResp.message() != null) ? confirmResp.message() : "Unknown error";
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Xác nhận file thất bại: " + errorMsg);
+        }
+
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("fileId", fileId);
+        Map<String, Object> confirmData = confirmResp.data();
+        if (confirmData.containsKey("storedKey")) {
+            result.put("audioFileKey", confirmData.get("storedKey"));
+        } else if (confirmData.containsKey("id")) {
+            result.put("audioFileKey", confirmData.get("id").toString());
+        } else {
+            result.put("audioFileKey", fileId.toString());
+        }
+        
+        return result;
     }
 
     @Transactional
@@ -297,17 +374,22 @@ public class AudioGenerationService {
 
                 updateProgress(job.getId(), "Fetching background music from storage...");
                 Long fileId = Long.parseLong(job.getAudioFileKey());
-                ApiResponse<Map<String, Object>> downloadUrlResp = fileServiceClient.getDownloadUrl(fileId);
-                if (downloadUrlResp == null || downloadUrlResp.data() == null) {
-                    throw new RuntimeException("Failed to get download URL from file service");
+                byte[] bgBytes;
+                try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
+                    if (response.status() >= 400) {
+                        throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
+                    }
+                    if (response.body() == null) {
+                        throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service response body is null");
+                    }
+                    try (InputStream is = response.body().asInputStream()) {
+                        bgBytes = is.readAllBytes();
+                    }
                 }
-                String downloadUrl = (String) downloadUrlResp.data().get("url");
 
                 File tempBgFile = File.createTempFile("bg-diy-", ".mp3");
                 try {
-                    try (java.io.InputStream in = new java.net.URL(downloadUrl).openStream()) {
-                        Files.copy(in, tempBgFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    }
+                    Files.write(tempBgFile.toPath(), bgBytes);
 
                     updateProgress(job.getId(), "Generating voiceover via Text-to-Speech...");
                     byte[] voiceBytes = aiClient.generateTts(Map.of(
