@@ -313,6 +313,7 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      LYRIA_RECONCILE_SCHEDULER_ENABLED: ${LYRIA_RECONCILE_SCHEDULER_ENABLED:-true}
     volumes:
       - ./logs:/logs
     depends_on:
