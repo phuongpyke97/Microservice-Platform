@@ -117,6 +117,11 @@ public class AutoAuditLogAspect {
         metadata.put("duration_ms", duration);
         metadata.put("request_uri", request.getRequestURI());
 
+        Object tokenUsage = request.getAttribute("lyria_token_usage");
+        if (tokenUsage != null) {
+            metadata.put("lyria_token_usage", tokenUsage);
+        }
+
         if (exception != null) {
             metadata.put("exception", exception.getClass().getName());
             metadata.put("message", exception.getMessage());

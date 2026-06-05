@@ -22,8 +22,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -172,6 +174,26 @@ public class MusicGenerationService {
         try {
             audioBytes = lyriaClient.generateMusic(prompt);
             log.info("[LYRIA-GENERATE-OK] Gemini generated audio bytes count: {}", audioBytes != null ? audioBytes.length : 0);
+
+            try {
+                org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                    (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+                if (attributes != null) {
+                    jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
+                    Object tokenUsageObj = request.getAttribute("lyria_token_usage");
+                    if (tokenUsageObj instanceof Map) {
+                        Map<String, Object> tokenUsage = new HashMap<>((Map<String, Object>) tokenUsageObj);
+                        tokenUsage.put("msisdn", msisdn);
+                        tokenUsage.put("model", "lyria-3-clip-preview");
+                        tokenUsage.put("genre", genre);
+                        tokenUsage.put("mood", mood);
+                        tokenUsage.put("instrument", instrument);
+                        request.setAttribute("lyria_token_usage", tokenUsage);
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("[LYRIA-ENRICH-WARN] Failed to enrich request attributes with token metadata: {}", ex.getMessage());
+            }
         } catch (Exception e) {
             log.error("[LYRIA-GENERATE-FAILED] Gemini Lyria music generation failed: {}", e.getMessage(), e);
             throw e;

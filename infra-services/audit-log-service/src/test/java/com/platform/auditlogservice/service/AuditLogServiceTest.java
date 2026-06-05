@@ -29,11 +29,17 @@ class AuditLogServiceTest {
     @Mock
     private AuditLogRepository repository;
 
+    @Mock
+    private com.platform.auditlogservice.repository.LyriaRequestLogRepository requestLogRepository;
+
+    @Mock
+    private com.platform.auditlogservice.repository.LyriaDailyStatRepository dailyStatRepository;
+
     private AuditLogService service;
 
     @BeforeEach
     void setUp() {
-        service = new AuditLogService(repository);
+        service = new AuditLogService(repository, requestLogRepository, dailyStatRepository, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 
     @Test

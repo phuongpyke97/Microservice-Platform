@@ -1,13 +1,23 @@
 package com.platform.auditlogservice.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.auditlogservice.dto.response.AuditLogResponse;
 import com.platform.auditlogservice.entity.AuditLog;
+import com.platform.auditlogservice.entity.LyriaDailyStat;
+import com.platform.auditlogservice.entity.LyriaRequestLog;
 import com.platform.auditlogservice.exception.AuditErrorCode;
 import com.platform.auditlogservice.repository.AuditLogRepository;
+import com.platform.auditlogservice.repository.LyriaDailyStatRepository;
+import com.platform.auditlogservice.repository.LyriaRequestLogRepository;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.response.PageResponse;
 import com.platform.common.rmq.event.AuditLogEvent;
 import jakarta.persistence.criteria.Predicate;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -20,9 +30,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditLogService {
 
     private final AuditLogRepository repository;
+    private final LyriaRequestLogRepository requestLogRepository;
+    private final LyriaDailyStatRepository dailyStatRepository;
+    private final ObjectMapper objectMapper;
 
-    public AuditLogService(AuditLogRepository repository) {
+    public AuditLogService(AuditLogRepository repository,
+                           LyriaRequestLogRepository requestLogRepository,
+                           LyriaDailyStatRepository dailyStatRepository,
+                           ObjectMapper objectMapper) {
         this.repository = repository;
+        this.requestLogRepository = requestLogRepository;
+        this.dailyStatRepository = dailyStatRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -35,6 +54,94 @@ public class AuditLogService {
                 event.metadataJson(),
                 event.timestamp()
         ));
+
+        // Process Lyria token stats and request details
+        if (event.action() != null && event.action().contains("/campaigns/generate") && event.metadataJson() != null) {
+            try {
+                JsonNode rootNode = objectMapper.readTree(event.metadataJson());
+                JsonNode tokenUsage = rootNode.path("lyria_token_usage");
+                
+                int durationMs = rootNode.path("duration_ms").asInt(0);
+                LocalDate statDate = LocalDate.ofInstant(
+                    Instant.ofEpochMilli(event.timestamp()), 
+                    ZoneId.of("Asia/Ho_Chi_Minh")
+                );
+
+                if ("SUCCESS".equalsIgnoreCase(event.status()) && !tokenUsage.isMissingNode()) {
+                    int promptTokens = tokenUsage.path("prompt_tokens").asInt();
+                    int candidateTokens = tokenUsage.path("candidate_tokens").asInt();
+                    int totalTokens = tokenUsage.path("total_tokens").asInt();
+                    String msisdn = tokenUsage.path("msisdn").asText("");
+                    String model = tokenUsage.path("model").asText("lyria-3-clip-preview");
+
+                    // 1. Insert detailed request log
+                    requestLogRepository.save(new LyriaRequestLog(
+                        event.userId(),
+                        msisdn,
+                        model,
+                        promptTokens,
+                        candidateTokens,
+                        totalTokens,
+                        durationMs,
+                        "SUCCESS",
+                        null
+                    ));
+
+                    // 2. Upsert daily stats
+                    LyriaDailyStat stat = dailyStatRepository.findByStatDate(statDate)
+                        .orElseGet(() -> new LyriaDailyStat(statDate));
+                    
+                    int oldTotalSuccess = stat.getTotalRequests();
+                    stat.setTotalRequests(oldTotalSuccess + 1);
+                    stat.setTotalPromptTokens(stat.getTotalPromptTokens() + promptTokens);
+                    stat.setTotalCandidateTokens(stat.getTotalCandidateTokens() + candidateTokens);
+                    stat.setTotalTokens(stat.getTotalTokens() + totalTokens);
+                    
+                    long newTotalLatency = ((long) oldTotalSuccess * stat.getAvgLatencyMs()) + durationMs;
+                    stat.setAvgLatencyMs((int) (newTotalLatency / stat.getTotalRequests()));
+                    
+                    BigDecimal addedCost = BigDecimal.valueOf(totalTokens).multiply(new BigDecimal("0.000001"));
+                    stat.setEstimatedCostUsd(stat.getEstimatedCostUsd().add(addedCost));
+                    
+                    dailyStatRepository.save(stat);
+                } else if ("FAILED".equalsIgnoreCase(event.status())) {
+                    String exceptionClass = rootNode.path("exception").asText("");
+                    String message = rootNode.path("message").asText("");
+                    String errorMsg = exceptionClass.substring(exceptionClass.lastIndexOf('.') + 1) + ": " + message;
+                    if (errorMsg.length() > 500) {
+                        errorMsg = errorMsg.substring(0, 497) + "...";
+                    }
+
+                    String msisdn = "";
+                    if (!tokenUsage.isMissingNode() && tokenUsage.has("msisdn")) {
+                        msisdn = tokenUsage.path("msisdn").asText();
+                    }
+
+                    // 1. Insert detailed request log (FAILED)
+                    requestLogRepository.save(new LyriaRequestLog(
+                        event.userId(),
+                        msisdn,
+                        "lyria-3-clip-preview",
+                        0,
+                        0,
+                        0,
+                        durationMs,
+                        "FAILED",
+                        errorMsg
+                    ));
+
+                    // 2. Increment failed requests in daily stats
+                    LyriaDailyStat stat = dailyStatRepository.findByStatDate(statDate)
+                        .orElseGet(() -> new LyriaDailyStat(statDate));
+                    stat.setFailedRequests(stat.getFailedRequests() + 1);
+                    dailyStatRepository.save(stat);
+                }
+            } catch (Exception e) {
+                // Log and swallow exception to keep the audit listener reliable
+                org.slf4j.LoggerFactory.getLogger(AuditLogService.class)
+                    .error("Failed to parse Lyria token usage in AuditLogService: {}", e.getMessage(), e);
+            }
+        }
     }
 
     @Transactional(readOnly = true)

@@ -3,6 +3,7 @@ package com.platform.crbtcampaign.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 public class LyriaClient {
@@ -63,6 +66,26 @@ public class LyriaClient {
 
         try {
             JsonNode rootNode = objectMapper.readTree(jsonResponse);
+
+            JsonNode usageMetadata = rootNode.path("usageMetadata");
+            if (!usageMetadata.isMissingNode()) {
+                int promptTokens = usageMetadata.path("promptTokenCount").asInt();
+                int candidateTokens = usageMetadata.path("candidatesTokenCount").asInt();
+                int totalTokens = usageMetadata.path("totalTokenCount").asInt();
+
+                ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+                if (attributes != null) {
+                    HttpServletRequest request = attributes.getRequest();
+                    request.setAttribute("lyria_token_usage", Map.of(
+                        "prompt_tokens", promptTokens,
+                        "candidate_tokens", candidateTokens,
+                        "total_tokens", totalTokens
+                    ));
+                }
+                log.info("[LYRIA-TOKEN-USAGE] input_tokens={}, output_tokens={}, total_tokens={}", 
+                         promptTokens, candidateTokens, totalTokens);
+            }
+
             JsonNode candidates = rootNode.path("candidates");
             if (candidates.isArray() && candidates.size() > 0) {
                 JsonNode parts = candidates.get(0).path("content").path("parts");
