@@ -25,6 +25,31 @@ public class AudioGenerationClientFallback implements FallbackFactory<AudioGener
             public ApiResponse<Void> deleteJob(String authHeader, Long jobId) {
                 throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service for deletion");
             }
+
+            @Override
+            public ApiResponse<List<DiyJobResponse>> searchJobsAdmin(String authHeader, String startTime, String endTime, Long userId, String msisdn, String search, int page, int size) {
+                return ApiResponse.success(List.of());
+            }
+
+            @Override
+            public ApiResponse<DiyJobResponse> getJobAdmin(String authHeader, Long jobId) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
+
+            @Override
+            public ApiResponse<DiyJobResponse> createJobAdmin(String authHeader, Long userId, com.platform.crbtcampaign.client.dto.DiyJobRequest request) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
+
+            @Override
+            public ApiResponse<DiyJobResponse> updateJobAdmin(String authHeader, Long jobId, DiyJobResponse request) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
+
+            @Override
+            public ApiResponse<Void> deleteJobAdmin(String authHeader, Long jobId, boolean hard) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
         };
     }
 }

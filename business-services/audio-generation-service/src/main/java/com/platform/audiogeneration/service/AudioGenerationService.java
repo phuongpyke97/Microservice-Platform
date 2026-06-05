@@ -325,6 +325,22 @@ public class AudioGenerationService {
         job.setVocalStart(request.vocalStart());
         job.setVocalEnd(request.vocalEnd());
 
+        String msisdn = com.platform.common.security.SecurityUtils.getCurrentMsisdn();
+        if (msisdn == null || msisdn.isBlank()) {
+            msisdn = request.msisdn();
+        }
+        job.setMsisdn(msisdn);
+
+        String title = request.title();
+        if (title == null || title.isBlank()) {
+            title = "DIY Ringback Tone";
+            if (request.prompt() != null && !request.prompt().isBlank()) {
+                String cleaned = request.prompt().trim();
+                title = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+            }
+        }
+        job.setTitle(title);
+
         // 1. Save job to database first. If this fails, no credit is deducted.
         jobRepository.save(job);
 
@@ -512,8 +528,101 @@ public class AudioGenerationService {
         rabbitTemplate.convertAndSend(RmqExchanges.AUDIO_EVENTS, RmqRoutingKeys.AUDIO_GENERATED, event);
     }
 
+    public org.springframework.data.domain.Page<AudioJobResponse> searchJobsAdmin(
+            java.time.Instant startTime,
+            java.time.Instant endTime,
+            Long userId,
+            String msisdn,
+            String search,
+            org.springframework.data.domain.Pageable pageable) {
+
+        org.springframework.data.jpa.domain.Specification<AudioJob> spec = org.springframework.data.jpa.domain.Specification.where(null);
+
+        if (startTime != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), startTime));
+        }
+        if (endTime != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), endTime));
+        }
+        if (userId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("userId"), userId));
+        }
+        if (msisdn != null && !msisdn.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("msisdn"), msisdn));
+        }
+        if (search != null && !search.isBlank()) {
+            String pattern = "%" + search.toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("title")), pattern),
+                cb.like(cb.lower(root.get("prompt")), pattern)
+            ));
+        }
+
+        return jobRepository.findAll(spec, pageable).map(this::toResponse);
+    }
+
+    public AudioJobResponse getJobAdmin(Long jobId) {
+        AudioJob job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        return toResponse(job);
+    }
+
+    @Transactional
+    public AudioJobResponse createJobAdmin(Long explicitUserId, GenerateAudioRequest request) {
+        AudioJob job = new AudioJob();
+        job.setUserId(explicitUserId != null ? explicitUserId : 0L);
+        job.setPrompt(request.prompt());
+        job.setVoiceId(request.voiceId());
+        job.setJobType(request.type() != null ? request.type() : "DIY");
+        job.setAudioFileKey(request.audioFileKey());
+        job.setVocalStart(request.vocalStart());
+        job.setVocalEnd(request.vocalEnd());
+        job.setStatus(AudioJob.JobStatus.COMPLETED);
+        job.setResultUrl(request.audioFileKey() != null ? request.audioFileKey() : "http://localhost:9000/media-audio/mock.mp3");
+        job.setTitle(request.title() != null ? request.title() : "Admin Custom Tone");
+        job.setMsisdn(request.msisdn() != null ? request.msisdn() : "0000000000");
+
+        jobRepository.save(job);
+        return toResponse(job);
+    }
+
+    @Transactional
+    public AudioJobResponse updateJobAdmin(Long jobId, AudioJobResponse request) {
+        AudioJob job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+
+        if (request.title() != null) {
+            job.setTitle(request.title());
+        }
+        if (request.prompt() != null) {
+            job.setPrompt(request.prompt());
+        }
+        if (request.status() != null) {
+            job.setStatus(request.status());
+        }
+        if (request.resultUrl() != null) {
+            job.setResultUrl(request.resultUrl());
+        }
+
+        jobRepository.save(job);
+        return toResponse(job);
+    }
+
+    @Transactional
+    public void deleteJobAdmin(Long jobId, boolean hard) {
+        AudioJob job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        if (hard) {
+            jobRepository.delete(job);
+        } else {
+            job.setDeleted(true);
+            jobRepository.save(job);
+        }
+    }
+
     private AudioJobResponse toResponse(AudioJob job) {
         return new AudioJobResponse(job.getId(), job.getPrompt(), job.getVoiceId(),
-            job.getStatus(), job.getResultUrl(), job.getErrorMessage(), job.getCreatedAt());
+            job.getStatus(), job.getResultUrl(), job.getErrorMessage(), job.getCreatedAt(),
+            job.getTitle(), job.getMsisdn());
     }
 }

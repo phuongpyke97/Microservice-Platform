@@ -52,6 +52,12 @@ public class AudioJob {
     @Column(nullable = false)
     private boolean deleted = false;
 
+    @Column(length = 255)
+    private String title;
+
+    @Column(length = 50)
+    private String msisdn;
+
 
     @PrePersist
     protected void onCreate() {

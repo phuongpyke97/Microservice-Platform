@@ -42,6 +42,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.platform.crbtcampaign.client.dto.DiyJobRequest;
+import com.platform.crbtcampaign.client.dto.DiyJobResponse;
 
 @Service
 public class MusicGenerationService {
@@ -477,6 +483,327 @@ public class MusicGenerationService {
             return "";
         }
         return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+    }
+
+    private String getAuthHeader() {
+        String authHeader = null;
+        try {
+            org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                authHeader = attributes.getRequest().getHeader("Authorization");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get auth header: {}", e.getMessage());
+        }
+        return authHeader;
+    }
+
+    public List<MyLibraryItemResponse> searchMusicItemsAdmin(
+            String startTimeStr,
+            String endTimeStr,
+            String source,
+            Long userId,
+            String msisdn,
+            String search,
+            int page,
+            int size) {
+
+        Instant start = (startTimeStr != null && !startTimeStr.isBlank()) ? Instant.parse(startTimeStr) : null;
+        Instant end = (endTimeStr != null && !endTimeStr.isBlank()) ? Instant.parse(endTimeStr) : null;
+
+        List<MyLibraryItemResponse> aiResults = new ArrayList<>();
+        List<MyLibraryItemResponse> diyResults = new ArrayList<>();
+
+        boolean fetchAi = source == null || "AI".equalsIgnoreCase(source);
+        boolean fetchDiy = source == null || "DIY".equalsIgnoreCase(source);
+
+        if (fetchAi) {
+            Specification<UserLyriaHistory> spec = Specification.where(null);
+            if (start != null) {
+                spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), start));
+            }
+            if (end != null) {
+                spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), end));
+            }
+            if (userId != null) {
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("userId"), userId));
+            }
+            if (msisdn != null && !msisdn.isBlank()) {
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("msisdn"), msisdn));
+            }
+            if (search != null && !search.isBlank()) {
+                String pattern = "%" + search.toLowerCase() + "%";
+                spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("title")), pattern),
+                    cb.like(cb.lower(root.get("genre")), pattern),
+                    cb.like(cb.lower(root.get("mood")), pattern)
+                ));
+            }
+
+            Page<UserLyriaHistory> aiPage = historyRepository.findAll(
+                spec,
+                PageRequest.of(0, page * size + size, Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+
+            for (UserLyriaHistory item : aiPage.getContent()) {
+                List<String> tags = new ArrayList<>();
+                if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
+                if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
+                if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
+                tags.add(item.getDurationSeconds() + "s");
+
+                aiResults.add(new MyLibraryItemResponse(
+                    "AI_" + item.getId(),
+                    item.getTitle(),
+                    "AI",
+                    tags,
+                    item.getAudioUrl(),
+                    item.getCreatedAt()
+                ));
+            }
+        }
+
+        if (fetchDiy) {
+            String authHeader = getAuthHeader();
+            if (authHeader != null) {
+                try {
+                    ApiResponse<List<DiyJobResponse>> diyResp = audioGenerationClient.searchJobsAdmin(
+                        authHeader, startTimeStr, endTimeStr, userId, msisdn, search, 0, page * size + size
+                    );
+                    if (diyResp != null && diyResp.success() && diyResp.data() != null) {
+                        for (DiyJobResponse item : diyResp.data()) {
+                            String displayTitle = item.title();
+                            if (displayTitle == null || displayTitle.isBlank()) {
+                                displayTitle = "DIY Ringback Tone";
+                                if (item.prompt() != null && !item.prompt().isBlank()) {
+                                    String cleaned = item.prompt().trim();
+                                    displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+                                }
+                            }
+
+                            diyResults.add(new MyLibraryItemResponse(
+                                "DIY_" + item.id(),
+                                displayTitle,
+                                "DIY",
+                                List.of("diy", "mixed"),
+                                item.resultUrl(),
+                                item.createdAt()
+                            ));
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to query DIY jobs via Feign client: {}", e.getMessage(), e);
+                }
+            }
+        }
+
+        List<MyLibraryItemResponse> combined = new ArrayList<>();
+        combined.addAll(aiResults);
+        combined.addAll(diyResults);
+
+        // Sort combined list by createdAt DESC
+        combined.sort((a, b) -> b.createdAt().compareTo(a.createdAt()));
+
+        int fromIndex = page * size;
+        if (fromIndex >= combined.size()) {
+            return List.of();
+        }
+        int toIndex = Math.min(fromIndex + size, combined.size());
+        return combined.subList(fromIndex, toIndex);
+    }
+
+    public MyLibraryItemResponse getMusicItemAdmin(String unifiedId) {
+        if (unifiedId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid ID");
+        }
+
+        if (unifiedId.startsWith("AI_")) {
+            Long historyId = Long.parseLong(unifiedId.substring(3));
+            UserLyriaHistory item = historyRepository.findById(historyId)
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+
+            List<String> tags = new ArrayList<>();
+            if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
+            if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
+            if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
+            tags.add(item.getDurationSeconds() + "s");
+
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt());
+        } else if (unifiedId.startsWith("DIY_")) {
+            Long jobId = Long.parseLong(unifiedId.substring(4));
+            String authHeader = getAuthHeader();
+            ApiResponse<DiyJobResponse> diyResp = audioGenerationClient.getJobAdmin(authHeader, jobId);
+            if (diyResp == null || !diyResp.success() || diyResp.data() == null) {
+                throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "DIY job not found");
+            }
+            DiyJobResponse item = diyResp.data();
+
+            String displayTitle = item.title();
+            if (displayTitle == null || displayTitle.isBlank()) {
+                displayTitle = "DIY Ringback Tone";
+                if (item.prompt() != null && !item.prompt().isBlank()) {
+                    String cleaned = item.prompt().trim();
+                    displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+                }
+            }
+
+            return new MyLibraryItemResponse(
+                "DIY_" + item.id(),
+                displayTitle,
+                "DIY",
+                List.of("diy", "mixed"),
+                item.resultUrl(),
+                item.createdAt()
+            );
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
+        }
+    }
+
+    @Transactional
+    public MyLibraryItemResponse createMusicItemAdmin(MyLibraryItemResponse request) {
+        if (request == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Request body is null");
+        }
+
+        String source = request.source() != null ? request.source().toUpperCase() : "AI";
+        if ("AI".equals(source)) {
+            String genre = "pop";
+            String mood = "happy";
+            String instrument = "piano";
+            if (request.tags() != null) {
+                if (request.tags().size() > 0) genre = request.tags().get(0);
+                if (request.tags().size() > 1) mood = request.tags().get(1);
+                if (request.tags().size() > 2) instrument = request.tags().get(2);
+            }
+
+            UserLyriaHistory item = new UserLyriaHistory(0L, "0000000000", request.title(), genre, mood, instrument, request.audioUrl());
+            historyRepository.save(item);
+
+            return new MyLibraryItemResponse(
+                "AI_" + item.getId(),
+                item.getTitle(),
+                "AI",
+                request.tags(),
+                item.getAudioUrl(),
+                item.getCreatedAt()
+            );
+        } else if ("DIY".equals(source)) {
+            String authHeader = getAuthHeader();
+
+            DiyJobRequest jobReq = new DiyJobRequest(
+                request.title(), // prompt
+                "voice",
+                "DIY",
+                request.audioUrl(),
+                0.0,
+                50.0,
+                request.title(),
+                "0000000000"
+            );
+
+            ApiResponse<DiyJobResponse> diyResp = audioGenerationClient.createJobAdmin(authHeader, null, jobReq);
+            if (diyResp == null || !diyResp.success() || diyResp.data() == null) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Failed to create DIY job");
+            }
+            DiyJobResponse item = diyResp.data();
+            return new MyLibraryItemResponse(
+                "DIY_" + item.id(),
+                item.title() != null ? item.title() : "DIY Ringback Tone",
+                "DIY",
+                List.of("diy", "mixed"),
+                item.resultUrl(),
+                item.createdAt()
+            );
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown source type");
+        }
+    }
+
+    @Transactional
+    public MyLibraryItemResponse updateMusicItemAdmin(String unifiedId, MyLibraryItemResponse request) {
+        if (unifiedId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid ID");
+        }
+
+        if (unifiedId.startsWith("AI_")) {
+            Long historyId = Long.parseLong(unifiedId.substring(3));
+            UserLyriaHistory item = historyRepository.findById(historyId)
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+
+            if (request.title() != null) {
+                item.setTitle(request.title());
+            }
+            historyRepository.save(item);
+
+            List<String> tags = new ArrayList<>();
+            if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
+            if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
+            if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
+            tags.add(item.getDurationSeconds() + "s");
+
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt());
+        } else if (unifiedId.startsWith("DIY_")) {
+            Long jobId = Long.parseLong(unifiedId.substring(4));
+            String authHeader = getAuthHeader();
+
+            DiyJobResponse updateReq = new DiyJobResponse(
+                jobId,
+                request.title(),
+                null,
+                null,
+                request.audioUrl(),
+                null,
+                null,
+                request.title(),
+                null
+            );
+
+            ApiResponse<DiyJobResponse> diyResp = audioGenerationClient.updateJobAdmin(authHeader, jobId, updateReq);
+            if (diyResp == null || !diyResp.success() || diyResp.data() == null) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Failed to update DIY job");
+            }
+            DiyJobResponse item = diyResp.data();
+            return new MyLibraryItemResponse(
+                "DIY_" + item.id(),
+                item.title() != null ? item.title() : "DIY Ringback Tone",
+                "DIY",
+                List.of("diy", "mixed"),
+                item.resultUrl(),
+                item.createdAt()
+            );
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
+        }
+    }
+
+    @Transactional
+    public void deleteMusicItemAdmin(String unifiedId, boolean hard) {
+        if (unifiedId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid ID");
+        }
+
+        if (unifiedId.startsWith("AI_")) {
+            Long historyId = Long.parseLong(unifiedId.substring(3));
+            UserLyriaHistory item = historyRepository.findById(historyId)
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+            if (hard) {
+                historyRepository.delete(item);
+            } else {
+                item.setDeleted(true);
+                historyRepository.save(item);
+            }
+        } else if (unifiedId.startsWith("DIY_")) {
+            Long jobId = Long.parseLong(unifiedId.substring(4));
+            String authHeader = getAuthHeader();
+            ApiResponse<Void> diyResp = audioGenerationClient.deleteJobAdmin(authHeader, jobId, hard);
+            if (diyResp == null || !diyResp.success()) {
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Failed to delete DIY job");
+            }
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
+        }
     }
 
     private record PoolEntry(String url, String owner) {}

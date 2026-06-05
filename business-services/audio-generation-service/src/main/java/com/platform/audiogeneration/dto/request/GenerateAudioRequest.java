@@ -9,5 +9,11 @@ public record GenerateAudioRequest(
     String type, // "AI" or "DIY"
     String audioFileKey,
     Double vocalStart,
-    Double vocalEnd
-) {}
+    Double vocalEnd,
+    String title,
+    String msisdn
+) {
+    public GenerateAudioRequest(String prompt, String voiceId, String type, String audioFileKey, Double vocalStart, Double vocalEnd) {
+        this(prompt, voiceId, type, audioFileKey, vocalStart, vocalEnd, null, null);
+    }
+}

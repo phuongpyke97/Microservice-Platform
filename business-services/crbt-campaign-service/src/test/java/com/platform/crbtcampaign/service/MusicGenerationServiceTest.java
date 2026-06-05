@@ -169,6 +169,89 @@ class MusicGenerationServiceTest {
         assertEquals(true, history.isDeleted());
     }
 
+    @Test
+    void searchMusicItemsAdmin_shouldFilterAndCombineCorrectly() {
+        Instant now = Instant.now();
+        UserLyriaHistory ai = new UserLyriaHistory(42L, "0912345678", "Chill Pop Vibes", "Pop", "Chill", "Piano", "http://minio/ai.mp3");
+        setCreatedAt(ai, now.minus(5, ChronoUnit.MINUTES));
+
+        org.springframework.data.domain.Page<UserLyriaHistory> pageResult = new org.springframework.data.domain.PageImpl<>(List.of(ai));
+        when(historyRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+            .thenReturn(pageResult);
+
+        DiyJobResponse diy = new DiyJobResponse(
+            100L,
+            "Mix voice test prompt",
+            "voice1",
+            "COMPLETED",
+            "http://minio/diy.mp3",
+            null,
+            now.minus(2, ChronoUnit.MINUTES),
+            "My DIY Title",
+            "0912345678"
+        );
+
+        org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer test-token");
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+            new org.springframework.web.context.request.ServletRequestAttributes(request)
+        );
+
+        try {
+            when(audioGenerationClient.searchJobsAdmin(eq("Bearer test-token"), any(), any(), any(), any(), any(), eq(0), eq(10)))
+                .thenReturn(ApiResponse.success(List.of(diy)));
+
+            List<MyLibraryItemResponse> result = musicGenerationService.searchMusicItemsAdmin(
+                now.minus(1, ChronoUnit.DAYS).toString(),
+                now.plus(1, ChronoUnit.DAYS).toString(),
+                null,
+                null,
+                "0912345678",
+                "Pop",
+                0,
+                10
+            );
+
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertEquals("DIY_100", result.get(0).id());
+            assertEquals("My DIY Title", result.get(0).title());
+            assertEquals("AI_" + ai.getId(), result.get(1).id());
+            assertEquals("Chill Pop Vibes", result.get(1).title());
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    void deleteMusicItemAdmin_shouldInvokeCorrectRepositoryOrClient() {
+        UserLyriaHistory ai = new UserLyriaHistory(42L, "0912345678", "Chill Pop Vibes", "Pop", "Chill", "Piano", "http://minio/ai.mp3");
+        when(historyRepository.findById(10L)).thenReturn(Optional.of(ai));
+
+        musicGenerationService.deleteMusicItemAdmin("AI_10", false);
+        verify(historyRepository, times(1)).save(ai);
+        assertEquals(true, ai.isDeleted());
+
+        musicGenerationService.deleteMusicItemAdmin("AI_10", true);
+        verify(historyRepository, times(1)).delete(ai);
+
+        org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer test-token");
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+            new org.springframework.web.context.request.ServletRequestAttributes(request)
+        );
+
+        try {
+            when(audioGenerationClient.deleteJobAdmin("Bearer test-token", 100L, false))
+                .thenReturn(ApiResponse.success(null));
+
+            musicGenerationService.deleteMusicItemAdmin("DIY_100", false);
+            verify(audioGenerationClient, times(1)).deleteJobAdmin("Bearer test-token", 100L, false);
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
     private void setCreatedAt(UserLyriaHistory target, Instant time) {
         try {
             java.lang.reflect.Field field = UserLyriaHistory.class.getDeclaredField("createdAt");

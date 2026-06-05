@@ -10,5 +10,7 @@ public record AudioJobResponse(
     JobStatus status,
     String resultUrl,
     String errorMessage,
-    Instant createdAt
+    Instant createdAt,
+    String title,
+    String msisdn
 ) {}
