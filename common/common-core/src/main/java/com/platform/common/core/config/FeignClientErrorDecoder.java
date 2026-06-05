@@ -24,6 +24,12 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
         }
         log.error("Feign client call failed: method={}, status={}, reason={}, body={}", 
             methodKey, response.status(), response.reason(), body);
+        if (response.status() == 403) {
+            return new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+        }
+        if (response.status() == 401) {
+            return new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
         return new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
     }
 }

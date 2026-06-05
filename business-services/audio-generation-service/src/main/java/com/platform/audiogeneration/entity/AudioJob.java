@@ -61,8 +61,12 @@ public class AudioJob {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = Instant.now();
-        status = JobStatus.PENDING;
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        if (status == null) {
+            status = JobStatus.PENDING;
+        }
     }
 
     @PreUpdate

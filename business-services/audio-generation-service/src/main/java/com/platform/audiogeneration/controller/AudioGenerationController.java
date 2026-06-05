@@ -52,6 +52,13 @@ public class AudioGenerationController {
         return ApiResponse.success(null);
     }
 
+    @PutMapping("/{jobId}")
+    public ApiResponse<AudioJobResponse> update(
+            @PathVariable Long jobId,
+            @RequestBody AudioJobResponse request) {
+        return ApiResponse.success(service.updateJob(jobId, request, requireUserId()));
+    }
+
 
     private Long requireUserId() {
         Long userId = SecurityUtils.getCurrentUserId();

@@ -343,16 +343,7 @@ public class MusicGenerationService {
         log.info("[MY-LIBRARY] Fetching library items for userId={}", userId);
         List<UserLyriaHistory> aiList = historyRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId);
 
-        String authHeader = null;
-        try {
-            org.springframework.web.context.request.ServletRequestAttributes attributes = 
-                (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                authHeader = attributes.getRequest().getHeader("Authorization");
-            }
-        } catch (Exception e) {
-            log.warn("[MY-LIBRARY-AUTH-ERR] Failed to retrieve Authorization header: {}", e.getMessage());
-        }
+        String authHeader = getAuthHeader();
 
         List<DiyJobResponse> diyList = new ArrayList<>();
         if (authHeader != null) {
@@ -434,16 +425,7 @@ public class MusicGenerationService {
             log.info("[DELETE-LIBRARY-ITEM-AI-OK] Soft-deleted AI music history record: {}", historyId);
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
-            String authHeader = null;
-            try {
-                org.springframework.web.context.request.ServletRequestAttributes attributes = 
-                    (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
-                if (attributes != null) {
-                    authHeader = attributes.getRequest().getHeader("Authorization");
-                }
-            } catch (Exception e) {
-                log.warn("[DELETE-LIBRARY-ITEM-AUTH-ERR] Failed to retrieve Authorization header: {}", e.getMessage());
-            }
+            String authHeader = getAuthHeader();
             if (authHeader == null) {
                 throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
             }
@@ -455,6 +437,82 @@ public class MusicGenerationService {
                 log.info("[DELETE-LIBRARY-ITEM-DIY-OK] Deleted DIY job: {}", jobId);
             } catch (Exception e) {
                 log.error("[DELETE-LIBRARY-ITEM-DIY-ERR] Feign call to delete DIY job failed: {}", e.getMessage(), e);
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown library item type");
+        }
+    }
+
+    @Transactional
+    public MyLibraryItemResponse updateLibraryItem(Long userId, String unifiedId, MyLibraryItemResponse request) {
+        if (unifiedId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid library item ID");
+        }
+        log.info("[UPDATE-LIBRARY-ITEM] userId={}, unifiedId={}", userId, unifiedId);
+
+        if (unifiedId.startsWith("AI_")) {
+            Long historyId = Long.parseLong(unifiedId.substring(3));
+            UserLyriaHistory history = historyRepository.findById(historyId)
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+            boolean isAdmin = com.platform.common.security.SecurityUtils.getCurrentUserRoles().contains("ADMIN");
+            if (!isAdmin && !history.getUserId().equals(userId)) {
+                throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+            }
+            if (request.title() != null) {
+                history.setTitle(request.title());
+            }
+            historyRepository.save(history);
+
+            List<String> tags = new ArrayList<>();
+            if (history.getGenre() != null && !history.getGenre().isBlank()) tags.add(history.getGenre().toLowerCase());
+            if (history.getMood() != null && !history.getMood().isBlank()) tags.add(history.getMood().toLowerCase());
+            if (history.getInstrument() != null && !history.getInstrument().isBlank()) tags.add(history.getInstrument().toLowerCase());
+            tags.add(history.getDurationSeconds() + "s");
+
+            return new MyLibraryItemResponse(
+                "AI_" + history.getId(),
+                history.getTitle(),
+                "AI",
+                tags,
+                history.getAudioUrl(),
+                history.getCreatedAt()
+            );
+        } else if (unifiedId.startsWith("DIY_")) {
+            Long jobId = Long.parseLong(unifiedId.substring(4));
+            String authHeader = getAuthHeader();
+            if (authHeader == null) {
+                throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+            }
+            DiyJobResponse updateReq = new DiyJobResponse(
+                jobId,
+                request.title(),
+                null,
+                null,
+                request.audioUrl(),
+                null,
+                null,
+                request.title(),
+                null
+            );
+            try {
+                ApiResponse<DiyJobResponse> updateResp = audioGenerationClient.updateJob(authHeader, jobId, updateReq);
+                if (updateResp == null || !updateResp.success() || updateResp.data() == null) {
+                    throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Failed to update DIY job");
+                }
+                DiyJobResponse item = updateResp.data();
+                return new MyLibraryItemResponse(
+                    "DIY_" + item.id(),
+                    item.title() != null ? item.title() : "DIY Ringback Tone",
+                    "DIY",
+                    List.of("diy", "mixed"),
+                    item.resultUrl(),
+                    item.createdAt()
+                );
+            } catch (BaseException be) {
+                throw be;
+            } catch (Exception e) {
+                log.error("[UPDATE-LIBRARY-ITEM-DIY-ERR] Feign call to update DIY job failed: {}", e.getMessage(), e);
                 throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
             }
         } else {
@@ -495,6 +553,9 @@ public class MusicGenerationService {
             }
         } catch (Exception e) {
             log.warn("Failed to get auth header: {}", e.getMessage());
+        }
+        if (authHeader == null) {
+            authHeader = "Bearer crbt-user";
         }
         return authHeader;
     }

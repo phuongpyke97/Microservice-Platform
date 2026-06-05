@@ -108,5 +108,16 @@ public class CampaignController {
         musicGenerationService.deleteLibraryItem(userId, unifiedId);
         return ApiResponse.success(null);
     }
+
+    @PutMapping("/my-library/{unifiedId}")
+    public ApiResponse<MyLibraryItemResponse> updateLibraryItem(
+            @PathVariable String unifiedId,
+            @RequestBody MyLibraryItemResponse request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        return ApiResponse.success(musicGenerationService.updateLibraryItem(userId, unifiedId, request));
+    }
 }
 

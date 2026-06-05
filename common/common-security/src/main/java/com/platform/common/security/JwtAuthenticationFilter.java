@@ -11,11 +11,16 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Reads X-User-* / X-MSISDN headers injected by the API Gateway and populates the SecurityContext.
  * Internal services never re-validate the JWT or CRBT token; the Gateway already did.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_EMAIL = "X-User-Email";
@@ -26,6 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String userIdHeader = request.getHeader(HEADER_USER_ID);
+        log.info("[JWT-FILTER] Incoming request URI={}, X-User-Id={}, X-User-Roles={}", 
+            request.getRequestURI(), userIdHeader, request.getHeader(HEADER_USER_ROLES));
         if (userIdHeader != null && !userIdHeader.isBlank()) {
             Long userId = Long.parseLong(userIdHeader.trim());
             String email = request.getHeader(HEADER_USER_EMAIL);

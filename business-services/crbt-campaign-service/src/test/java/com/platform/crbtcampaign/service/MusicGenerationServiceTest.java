@@ -252,6 +252,68 @@ class MusicGenerationServiceTest {
         }
     }
 
+    @Test
+    void updateLibraryItem_shouldUpdateAiHistory_whenOwnerMatches() {
+        Long userId = 42L;
+        String unifiedId = "AI_10";
+        MyLibraryItemResponse req = new MyLibraryItemResponse(null, "New AI Title", null, null, null, null);
+
+        UserLyriaHistory history = new UserLyriaHistory(userId, "0912345678", "Old Title", "Pop", "Chill", "Piano", "url");
+        when(historyRepository.findById(10L)).thenReturn(Optional.of(history));
+
+        MyLibraryItemResponse resp = musicGenerationService.updateLibraryItem(userId, unifiedId, req);
+
+        assertNotNull(resp);
+        assertEquals("New AI Title", resp.title());
+        assertEquals("New AI Title", history.getTitle());
+        verify(historyRepository, times(1)).save(history);
+    }
+
+    @Test
+    void updateLibraryItem_shouldThrowForbidden_whenOwnerDoesNotMatchForAi() {
+        Long ownerId = 42L;
+        Long otherUserId = 99L;
+        String unifiedId = "AI_10";
+        MyLibraryItemResponse req = new MyLibraryItemResponse(null, "New AI Title", null, null, null, null);
+
+        UserLyriaHistory history = new UserLyriaHistory(ownerId, "0912345678", "Old Title", "Pop", "Chill", "Piano", "url");
+        when(historyRepository.findById(10L)).thenReturn(Optional.of(history));
+
+        org.junit.jupiter.api.Assertions.assertThrows(com.platform.common.core.exception.BaseException.class, () -> {
+            musicGenerationService.updateLibraryItem(otherUserId, unifiedId, req);
+        });
+    }
+
+    @Test
+    void updateLibraryItem_shouldInvokeClientUpdate_whenDiy() {
+        Long userId = 42L;
+        String unifiedId = "DIY_100";
+        MyLibraryItemResponse req = new MyLibraryItemResponse(null, "New DIY Title", null, null, null, null);
+
+        DiyJobResponse clientResp = new DiyJobResponse(
+            100L, "prompt", "voice", "COMPLETED", "http://minio/diy1.mp3", null, Instant.now(), "New DIY Title", "0912345678"
+        );
+
+        org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer test-token");
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+            new org.springframework.web.context.request.ServletRequestAttributes(request)
+        );
+
+        try {
+            when(audioGenerationClient.updateJob(eq("Bearer test-token"), eq(100L), any(DiyJobResponse.class)))
+                .thenReturn(ApiResponse.success(clientResp));
+
+            MyLibraryItemResponse resp = musicGenerationService.updateLibraryItem(userId, unifiedId, req);
+
+            assertNotNull(resp);
+            assertEquals("New DIY Title", resp.title());
+            verify(audioGenerationClient, times(1)).updateJob(eq("Bearer test-token"), eq(100L), any(DiyJobResponse.class));
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
     private void setCreatedAt(UserLyriaHistory target, Instant time) {
         try {
             java.lang.reflect.Field field = UserLyriaHistory.class.getDeclaredField("createdAt");

@@ -9,8 +9,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Component
 public class FeignCorrelationInterceptor implements RequestInterceptor {
+
+    private static final Logger log = LoggerFactory.getLogger(FeignCorrelationInterceptor.class);
 
     @Override
     public void apply(RequestTemplate template) {
@@ -18,6 +23,8 @@ public class FeignCorrelationInterceptor implements RequestInterceptor {
         if (correlationId != null) {
             template.header(MDCFilter.CORRELATION_ID_HEADER, correlationId);
         }
+
+        log.info("[FEIGN-INTERCEPTOR] Running apply for request URL={}", template.url());
 
         // Propagate security headers
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -28,6 +35,8 @@ public class FeignCorrelationInterceptor implements RequestInterceptor {
             String msisdn = request.getHeader("X-MSISDN");
             String email = request.getHeader("X-User-Email");
 
+            log.info("[FEIGN-INTERCEPTOR] Propagating from request headers: X-User-Id={}, X-User-Roles={}, X-MSISDN={}", userId, roles, msisdn);
+
             if (userId != null) template.header("X-User-Id", userId);
             if (roles != null) template.header("X-User-Roles", roles);
             if (msisdn != null) template.header("X-MSISDN", msisdn);
@@ -35,14 +44,17 @@ public class FeignCorrelationInterceptor implements RequestInterceptor {
         } else {
             // Fallback to SecurityUtils context
             Long currentUserId = SecurityUtils.getCurrentUserId();
+            List<String> roles = SecurityUtils.getCurrentUserRoles();
+            String msisdn = SecurityUtils.getCurrentMsisdn();
+
+            log.info("[FEIGN-INTERCEPTOR] Propagating from SecurityUtils: userId={}, roles={}, msisdn={}", currentUserId, roles, msisdn);
+
             if (currentUserId != null) {
                 template.header("X-User-Id", String.valueOf(currentUserId));
             }
-            List<String> roles = SecurityUtils.getCurrentUserRoles();
             if (roles != null && !roles.isEmpty()) {
                 template.header("X-User-Roles", String.join(",", roles));
             }
-            String msisdn = SecurityUtils.getCurrentMsisdn();
             if (msisdn != null) {
                 template.header("X-MSISDN", msisdn);
             }

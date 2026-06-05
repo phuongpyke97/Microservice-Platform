@@ -15,6 +15,16 @@ public class AudioGenerationClientFallback implements FallbackFactory<AudioGener
     @Override
     public AudioGenerationClient create(Throwable cause) {
         return new AudioGenerationClient() {
+            private void handleException(String defaultMessage) {
+                if (cause instanceof feign.FeignException) {
+                    feign.FeignException fe = (feign.FeignException) cause;
+                    if (fe.status() == 403) {
+                        throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+                    }
+                }
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, defaultMessage);
+            }
+
             @Override
             public ApiResponse<List<DiyJobResponse>> getUserJobs(String authHeader) {
                 // Fallback returns empty list
@@ -23,7 +33,14 @@ public class AudioGenerationClientFallback implements FallbackFactory<AudioGener
 
             @Override
             public ApiResponse<Void> deleteJob(String authHeader, Long jobId) {
-                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service for deletion");
+                handleException("Cannot contact audio generation service for deletion");
+                return null;
+            }
+
+            @Override
+            public ApiResponse<DiyJobResponse> updateJob(String authHeader, Long jobId, DiyJobResponse request) {
+                handleException("Cannot contact audio generation service for update");
+                return null;
             }
 
             @Override
@@ -33,22 +50,26 @@ public class AudioGenerationClientFallback implements FallbackFactory<AudioGener
 
             @Override
             public ApiResponse<DiyJobResponse> getJobAdmin(String authHeader, Long jobId) {
-                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+                handleException("Cannot contact audio generation service");
+                return null;
             }
 
             @Override
             public ApiResponse<DiyJobResponse> createJobAdmin(String authHeader, Long userId, com.platform.crbtcampaign.client.dto.DiyJobRequest request) {
-                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+                handleException("Cannot contact audio generation service");
+                return null;
             }
 
             @Override
             public ApiResponse<DiyJobResponse> updateJobAdmin(String authHeader, Long jobId, DiyJobResponse request) {
-                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+                handleException("Cannot contact audio generation service");
+                return null;
             }
 
             @Override
             public ApiResponse<Void> deleteJobAdmin(String authHeader, Long jobId, boolean hard) {
-                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+                handleException("Cannot contact audio generation service");
+                return null;
             }
         };
     }

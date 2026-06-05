@@ -609,6 +609,21 @@ public class AudioGenerationService {
     }
 
     @Transactional
+    public AudioJobResponse updateJob(Long jobId, AudioJobResponse request, Long userId) {
+        AudioJob job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        boolean isAdmin = com.platform.common.security.SecurityUtils.getCurrentUserRoles().contains("ADMIN");
+        if (!isAdmin && !job.getUserId().equals(userId)) {
+            throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+        }
+        if (request.title() != null) {
+            job.setTitle(request.title());
+        }
+        jobRepository.save(job);
+        return toResponse(job);
+    }
+
+    @Transactional
     public void deleteJobAdmin(Long jobId, boolean hard) {
         AudioJob job = jobRepository.findById(jobId)
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));

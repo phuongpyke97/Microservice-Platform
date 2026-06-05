@@ -19,6 +19,13 @@ public interface AudioGenerationClient {
     @DeleteMapping("/audio-jobs/{jobId}")
     ApiResponse<Void> deleteJob(@RequestHeader("Authorization") String authHeader, @PathVariable("jobId") Long jobId);
 
+    @org.springframework.web.bind.annotation.PutMapping("/audio-jobs/{jobId}")
+    ApiResponse<DiyJobResponse> updateJob(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable("jobId") Long jobId,
+            @org.springframework.web.bind.annotation.RequestBody DiyJobResponse request
+    );
+
     @GetMapping("/audio-jobs/admin/search")
     ApiResponse<List<DiyJobResponse>> searchJobsAdmin(
             @RequestHeader("Authorization") String authHeader,
