@@ -46,6 +46,13 @@ public class AudioGenerationController {
         return ApiResponse.success(service.getJob(jobId, requireUserId()));
     }
 
+    @DeleteMapping("/{jobId}")
+    public ApiResponse<Void> delete(@PathVariable Long jobId) {
+        service.deleteJob(jobId, requireUserId());
+        return ApiResponse.success(null);
+    }
+
+
     private Long requireUserId() {
         Long userId = SecurityUtils.getCurrentUserId();
         if (userId == null) {

@@ -472,18 +472,30 @@ public class AudioGenerationService {
     }
 
     public List<AudioJobResponse> getUserJobs(Long userId) {
-        return jobRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        return jobRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId).stream()
             .map(this::toResponse).toList();
     }
 
     public AudioJobResponse getJob(Long jobId, Long userId) {
         AudioJob job = jobRepository.findById(jobId)
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
-        if (!job.getUserId().equals(userId)) {
+        if (!job.getUserId().equals(userId) || job.isDeleted()) {
             throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
         }
         return toResponse(job);
     }
+
+    @Transactional
+    public void deleteJob(Long jobId, Long userId) {
+        AudioJob job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        if (!job.getUserId().equals(userId)) {
+            throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+        }
+        job.setDeleted(true);
+        jobRepository.save(job);
+    }
+
 
     public String getJobProgress(Long jobId) {
         return redisTemplate.opsForValue().get(JOB_PROGRESS_KEY + jobId);

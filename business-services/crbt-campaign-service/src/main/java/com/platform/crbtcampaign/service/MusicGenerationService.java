@@ -12,13 +12,21 @@ import com.platform.crbtcampaign.client.LyriaClient;
 import com.platform.crbtcampaign.client.CreditWalletClient;
 import com.platform.crbtcampaign.client.dto.UserCreditResponse;
 import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
+import com.platform.crbtcampaign.client.AudioGenerationClient;
+import com.platform.crbtcampaign.client.dto.DiyJobResponse;
+import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
+import com.platform.crbtcampaign.entity.UserLyriaHistory;
+import com.platform.crbtcampaign.repository.UserLyriaHistoryRepository;
+import org.springframework.transaction.annotation.Transactional;
 import com.platform.crbtcampaign.client.dto.WalletResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
 import com.platform.crbtcampaign.entity.UserSubscription;
 import com.platform.crbtcampaign.exception.CampaignErrorCode;
 import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -52,6 +60,8 @@ public class MusicGenerationService {
     private final RedisTemplate<String, String> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+    private final UserLyriaHistoryRepository historyRepository;
+    private final AudioGenerationClient audioGenerationClient;
     private final Random random = new Random();
 
     public MusicGenerationService(AuthServiceClient authServiceClient,
@@ -62,7 +72,9 @@ public class MusicGenerationService {
                                   LyriaSystemPromptConfig promptConfig,
                                   RedisTemplate<String, String> redisTemplate,
                                   RabbitTemplate rabbitTemplate,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  UserLyriaHistoryRepository historyRepository,
+                                  AudioGenerationClient audioGenerationClient) {
         this.authServiceClient = authServiceClient;
         this.fileServiceClient = fileServiceClient;
         this.lyriaClient = lyriaClient;
@@ -72,7 +84,10 @@ public class MusicGenerationService {
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = objectMapper;
+        this.historyRepository = historyRepository;
+        this.audioGenerationClient = audioGenerationClient;
     }
+
 
     public GenerateMusicResponse generate(String msisdn, String genre, String mood, String instrument) {
         log.info("[GENERATE-START] Starting music generation request for msisdn={}, genre={}, mood={}, instrument={}", 
@@ -152,8 +167,21 @@ public class MusicGenerationService {
             }
 
             redisTemplate.opsForSet().add(seenKey, url);
+
+            // Save to user history DB
+            try {
+                String title = generateTitle(genre, mood, instrument);
+                UserLyriaHistory history = new UserLyriaHistory(userId, msisdn, title, genre, mood, instrument, url);
+                historyRepository.save(history);
+                log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}", userId, title, url);
+            } catch (Exception dbEx) {
+                log.error("[GENERATE-HISTORY-ERROR] Failed to save history to DB: {}", dbEx.getMessage(), dbEx);
+                // Do not fail the request if history database insertion fails
+            }
+
             log.info("[GENERATE-SUCCESS] Successfully processed request for msisdn={}, returned url={}", mask(msisdn), url);
             return new GenerateMusicResponse(url);
+
 
         } catch (Exception e) {
             log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit with txnRef={}", userId, txnRef, e);
@@ -305,5 +333,152 @@ public class MusicGenerationService {
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
 
+    public List<MyLibraryItemResponse> getMyLibrary(Long userId) {
+        log.info("[MY-LIBRARY] Fetching library items for userId={}", userId);
+        List<UserLyriaHistory> aiList = historyRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId);
+
+        String authHeader = null;
+        try {
+            org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                authHeader = attributes.getRequest().getHeader("Authorization");
+            }
+        } catch (Exception e) {
+            log.warn("[MY-LIBRARY-AUTH-ERR] Failed to retrieve Authorization header: {}", e.getMessage());
+        }
+
+        List<DiyJobResponse> diyList = new ArrayList<>();
+        if (authHeader != null) {
+            try {
+                ApiResponse<List<DiyJobResponse>> diyResp = audioGenerationClient.getUserJobs(authHeader);
+                if (diyResp != null && diyResp.success() && diyResp.data() != null) {
+                    diyList = diyResp.data();
+                }
+            } catch (Exception e) {
+                log.error("[MY-LIBRARY-DIY-ERR] Feign call to audio-generation-service failed: {}", e.getMessage(), e);
+            }
+        }
+
+        List<MyLibraryItemResponse> combined = new ArrayList<>();
+        
+        // Map AI history
+        for (UserLyriaHistory item : aiList) {
+            List<String> tags = new ArrayList<>();
+            if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
+            if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
+            if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
+            tags.add(item.getDurationSeconds() + "s");
+
+            combined.add(new MyLibraryItemResponse(
+                "AI_" + item.getId(),
+                item.getTitle(),
+                "AI",
+                tags,
+                item.getAudioUrl(),
+                item.getCreatedAt()
+            ));
+        }
+
+        // Map DIY history (completed items only)
+        for (DiyJobResponse item : diyList) {
+            if (!"COMPLETED".equalsIgnoreCase(item.status())) {
+                continue;
+            }
+            String url = item.resultUrl();
+            if (url != null && url.contains(",")) {
+                url = url.split(",")[0];
+            }
+            String displayTitle = "DIY Ringback Tone";
+            if (item.prompt() != null && !item.prompt().isBlank()) {
+                String cleaned = item.prompt().trim();
+                displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+            }
+            combined.add(new MyLibraryItemResponse(
+                "DIY_" + item.id(),
+                displayTitle,
+                "DIY",
+                List.of("diy", "mixed"),
+                url,
+                item.createdAt()
+            ));
+        }
+
+        // Sort by createdAt DESC
+        combined.sort((a, b) -> b.createdAt().compareTo(a.createdAt()));
+        return combined;
+    }
+
+    @Transactional
+    public void deleteLibraryItem(Long userId, String unifiedId) {
+        if (unifiedId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid library item ID");
+        }
+        log.info("[DELETE-LIBRARY-ITEM] userId={}, unifiedId={}", userId, unifiedId);
+
+        if (unifiedId.startsWith("AI_")) {
+            Long historyId = Long.parseLong(unifiedId.substring(3));
+            UserLyriaHistory history = historyRepository.findById(historyId)
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+            if (!history.getUserId().equals(userId)) {
+                throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN);
+            }
+            history.setDeleted(true);
+            historyRepository.save(history);
+            log.info("[DELETE-LIBRARY-ITEM-AI-OK] Soft-deleted AI music history record: {}", historyId);
+        } else if (unifiedId.startsWith("DIY_")) {
+            Long jobId = Long.parseLong(unifiedId.substring(4));
+            String authHeader = null;
+            try {
+                org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                    (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+                if (attributes != null) {
+                    authHeader = attributes.getRequest().getHeader("Authorization");
+                }
+            } catch (Exception e) {
+                log.warn("[DELETE-LIBRARY-ITEM-AUTH-ERR] Failed to retrieve Authorization header: {}", e.getMessage());
+            }
+            if (authHeader == null) {
+                throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+            }
+            try {
+                ApiResponse<Void> deleteResp = audioGenerationClient.deleteJob(authHeader, jobId);
+                if (deleteResp == null || !deleteResp.success()) {
+                    throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Failed to delete DIY job");
+                }
+                log.info("[DELETE-LIBRARY-ITEM-DIY-OK] Deleted DIY job: {}", jobId);
+            } catch (Exception e) {
+                log.error("[DELETE-LIBRARY-ITEM-DIY-ERR] Feign call to delete DIY job failed: {}", e.getMessage(), e);
+                throw new BaseException(CommonErrorCode.SYSTEM_BUSY, "Cannot contact audio generation service");
+            }
+        } else {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown library item type");
+        }
+    }
+
+    private String generateTitle(String genre, String mood, String instrument) {
+        String baseMood = (mood == null || mood.isBlank()) ? "Energetic" : mood.trim();
+        String baseGenreOrInst = (instrument != null && !instrument.isBlank()) ? instrument.trim() : genre;
+        if (baseGenreOrInst == null || baseGenreOrInst.isBlank()) {
+            baseGenreOrInst = "Beat";
+        } else {
+            baseGenreOrInst = baseGenreOrInst.trim();
+        }
+
+        String[] musicalNouns = {"Vibes", "Melody", "Beats", "Groove", "Echoes", "Horizon", "Flow", "Dreams", "Journey", "Waves", "Rhythm"};
+        int index = Math.abs((baseMood + baseGenreOrInst).hashCode()) % musicalNouns.length;
+        String noun = musicalNouns[index];
+
+        return capitalize(baseMood) + " " + capitalize(baseGenreOrInst) + " " + noun;
+    }
+
+    private String capitalize(String str) {
+        if (str == null || str.isEmpty()) {
+            return "";
+        }
+        return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+    }
+
     private record PoolEntry(String url, String owner) {}
+
 }

@@ -49,6 +49,10 @@ public class AudioJob {
 
     private Instant updatedAt;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface AudioJobRepository extends JpaRepository<AudioJob, Long> {
     List<AudioJob> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<AudioJob> findByUserIdAndDeletedFalseOrderByCreatedAtDesc(Long userId);
+
 
     @Query("SELECT COUNT(j) FROM AudioJob j WHERE j.userId = :userId AND j.status IN ('PENDING', 'PROCESSING')")
     long countActiveJobsByUserId(Long userId);

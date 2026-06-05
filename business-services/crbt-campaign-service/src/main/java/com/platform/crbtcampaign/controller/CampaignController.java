@@ -9,7 +9,9 @@ import com.platform.crbtcampaign.dto.request.RenewSubscriptionRequest;
 import com.platform.crbtcampaign.dto.request.SubscribePackageRequest;
 import com.platform.crbtcampaign.dto.response.CampaignResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
+import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
 import com.platform.crbtcampaign.dto.response.SubscriptionResponse;
+
 import com.platform.crbtcampaign.service.CampaignService;
 import com.platform.crbtcampaign.service.MusicGenerationService;
 import jakarta.validation.Valid;
@@ -87,4 +89,24 @@ public class CampaignController {
         }
         return ApiResponse.success(musicGenerationService.generate(msisdn, genre, mood, instrument));
     }
+
+    @GetMapping("/my-library")
+    public ApiResponse<List<MyLibraryItemResponse>> getMyLibrary() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        return ApiResponse.success(musicGenerationService.getMyLibrary(userId));
+    }
+
+    @DeleteMapping("/my-library/{unifiedId}")
+    public ApiResponse<Void> deleteLibraryItem(@PathVariable String unifiedId) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        musicGenerationService.deleteLibraryItem(userId, unifiedId);
+        return ApiResponse.success(null);
+    }
 }
+
