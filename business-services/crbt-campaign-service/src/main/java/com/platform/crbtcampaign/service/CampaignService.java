@@ -23,11 +23,17 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class CampaignService {
+
+    private static final Logger log = LoggerFactory.getLogger(CampaignService.class);
 
     private final CampaignRepository campaignRepository;
     private final CampaignPackageRepository packageRepository;
@@ -80,7 +86,7 @@ public class CampaignService {
     }
 
     @Transactional
-    public void subscribe(Long userId, Long packageId) {
+    public void subscribe(Long userId, Long packageId, boolean confirmChange) {
         CampaignPackage pkg = packageRepository.findById(packageId)
             .orElseThrow(() -> new BaseException(CampaignErrorCode.CAMPAIGN_PACKAGE_NOT_FOUND));
 
@@ -95,9 +101,17 @@ public class CampaignService {
             UserSubscription activeSub = activeSubs.get(0);
             if (activeSub.getCampaignPackage().getId().equals(packageId)) {
                 throw new BaseException(CampaignErrorCode.ALREADY_SUBSCRIBED);
-            } else {
+            }
+            // Switching to a different package requires explicit confirmation
+            // (the client re-sends with confirmChange=true). Without it we surface
+            // ACTIVE_SUBSCRIPTION_EXISTS so the UI can prompt. The old subscription
+            // is cancelled here; leftover credits are NOT reset — the new package's
+            // quota accumulates on top, consistent with re-subscribe semantics.
+            if (!confirmChange) {
                 throw new BaseException(CampaignErrorCode.ACTIVE_SUBSCRIPTION_EXISTS);
             }
+            activeSub.setStatus(UserSubscription.Status.EXPIRED);
+            subscriptionRepository.save(activeSub);
         }
 
         // Deactivate any CANCELLED subscriptions to clean up database state
@@ -117,14 +131,80 @@ public class CampaignService {
         );
         subscriptionRepository.save(subscription);
 
-        // Notify Credit Wallet to add credits
+        // Accumulate, do NOT reset: credits only expire at the package's expiry
+        // (cleanupExpiredTokens) or at the renewal boundary. A user who cancels
+        // mid-period keeps the leftover credits, so re-subscribing adds the new
+        // quota on top (e.g. 2 leftover + 3 quota = 5), riding the new expiry.
+        //
+        // Granted only AFTER the subscription is durably committed — running the
+        // remote Feign call inside the tx would hold the DB connection for the whole
+        // network round-trip and risk a credit/subscription mismatch on rollback.
+        // Strings are built eagerly because the entity may be detached by afterCommit.
         int packageQuota = calculateCreditAmount(pkg);
-        var addRequest = new WalletAmountRequest(
-            packageQuota,
-            "Subscription: " + pkg.getName(),
-            "SUB-" + UUID.randomUUID().toString()
-        );
-        creditWalletClient.add(userId, addRequest);
+        String grantReason = "Subscription: " + pkg.getName();
+        runAfterCommit(() -> grantCredits(userId, packageQuota, grantReason, "SUB-"));
+    }
+
+    /** Run an action after the surrounding tx commits, or inline if no tx is active. */
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
+    }
+
+    /**
+     * Renewal credit rule (auto-renew + telco-initiated renew): reset the wallet to
+     * zero at the expiry boundary, then grant the fresh {@code quota} — leftover
+     * credits do not roll past a renewal. Distinct from a mid-period re-subscribe,
+     * which accumulates via {@link #grantCredits}.
+     */
+    private void resetThenGrantCredits(Long userId, int quota, String grantReason, String refPrefix) {
+        resetCreditsToZero(userId);
+        grantCredits(userId, quota, grantReason, refPrefix);
+    }
+
+    /**
+     * Add {@code quota} credits on top of the current balance (no reset). Used by
+     * subscribe/re-subscribe so leftover credits from a cancelled-but-not-expired
+     * package accumulate. Failures are logged for out-of-band reconciliation rather
+     * than rethrown — the subscription already stands and cannot be undone here.
+     */
+    private void grantCredits(Long userId, int quota, String grantReason, String refPrefix) {
+        try {
+            creditWalletClient.add(userId, new WalletAmountRequest(
+                quota, grantReason, refPrefix + UUID.randomUUID().toString()));
+        } catch (Exception e) {
+            log.error("[CREDIT] Grant failed: userId={}, ref={}, reason={}",
+                userId, refPrefix, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Drain the wallet to zero. Shared by the reset-then-grant rule and by expiry
+     * cleanup. Each wallet call is isolated and failures are logged, not rethrown,
+     * for out-of-band reconciliation.
+     */
+    private void resetCreditsToZero(Long userId) {
+        try {
+            var balanceResp = creditWalletClient.getBalance(userId);
+            if (balanceResp != null && balanceResp.success() && balanceResp.data() != null
+                    && balanceResp.data().balance() > 0) {
+                creditWalletClient.deduct(userId, new WalletAmountRequest(
+                    balanceResp.data().balance(),
+                    "Reset balance to zero",
+                    "RESET-" + UUID.randomUUID().toString()
+                ));
+            }
+        } catch (Exception e) {
+            log.error("[CREDIT] Balance reset failed: userId={}, reason={}", userId, e.getMessage(), e);
+        }
     }
 
     private int calculateCreditAmount(CampaignPackage pkg) {
@@ -174,47 +254,19 @@ public class CampaignService {
                 CampaignPackage pkg = sub.getCampaignPackage();
                 Long userId = sub.getUserId();
 
-                // 1. Reset credit balance in wallet to 0 first!
-                int currentBalance = 0;
-                try {
-                    var balanceResp = creditWalletClient.getBalance(userId);
-                    if (balanceResp != null && balanceResp.success() && balanceResp.data() != null) {
-                        currentBalance = balanceResp.data().balance();
-                    }
-                } catch (Exception e) {
-                    System.err.println("Failed to get balance during scheduled renewal: " + e.getMessage());
-                }
-
-                if (currentBalance > 0) {
-                    try {
-                        var deductRequest = new WalletAmountRequest(
-                            currentBalance,
-                            "Scheduled Renewal Reset",
-                            "RESET-" + UUID.randomUUID().toString()
-                        );
-                        creditWalletClient.deduct(userId, deductRequest);
-                    } catch (Exception e) {
-                        System.err.println("Failed to deduct old balance during scheduled renewal: " + e.getMessage());
-                    }
-                }
-
-                // 2. Grant credits
+                // Same reset-then-grant rule as subscribe(), so a renewed package
+                // leaves the same balance as a fresh subscription to it.
                 int creditAmount = calculateCreditAmount(pkg);
-                var addRequest = new WalletAmountRequest(
-                    creditAmount,
-                    "Auto-renewal: " + pkg.getName(),
-                    "RENEW-" + UUID.randomUUID().toString()
-                );
-                creditWalletClient.add(userId, addRequest);
+                resetThenGrantCredits(userId, creditAmount, "Auto-renewal: " + pkg.getName(), "RENEW-");
 
-                // 3. Extend expiry
+                // Extend expiry
                 Instant expiresAt = now.plus(pkg.getValidityDays(), ChronoUnit.DAYS);
                 sub.setExpiresAt(expiresAt);
                 subscriptionRepository.save(sub);
 
                 renewed++;
             } catch (Exception e) {
-                System.err.println("Failed to renew subscription " + sub.getId() + ": " + e.getMessage());
+                log.error("Failed to renew subscription {}: {}", sub.getId(), e.getMessage(), e);
             }
         }
 
@@ -248,7 +300,7 @@ public class CampaignService {
                 balance = balanceResponse.data().balance();
             }
         } catch (Exception e) {
-            System.err.println("Failed to get wallet balance for user " + userId + ": " + e.getMessage());
+            log.error("Failed to get wallet balance for user {}: {}", userId, e.getMessage(), e);
         }
 
         return new SubscriptionResponse(
@@ -281,40 +333,10 @@ public class CampaignService {
         UserSubscription sub = activeSubs.get(0);
         CampaignPackage pkg = sub.getCampaignPackage();
 
-        // 1. Reset credit balance in wallet to 0 first!
-        int currentBalance = 0;
-        try {
-            var balanceResponse = creditWalletClient.getBalance(userId);
-            if (balanceResponse != null && balanceResponse.success() && balanceResponse.data() != null) {
-                currentBalance = balanceResponse.data().balance();
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to fetch balance during renewal: " + e.getMessage());
-        }
-
-        if (currentBalance > 0) {
-            try {
-                var deductRequest = new WalletAmountRequest(
-                    currentBalance,
-                    "Renewal Reset",
-                    "RESET-" + UUID.randomUUID().toString()
-                );
-                creditWalletClient.deduct(userId, deductRequest);
-            } catch (Exception e) {
-                System.err.println("Failed to deduct old balance during renewal: " + e.getMessage());
-            }
-        }
-
-        // 2. Grant credits
+        // Same reset-then-grant rule as subscribe() and the scheduled renewal.
         int creditAmount = calculateCreditAmount(pkg);
-        var addRequest = new WalletAmountRequest(
-            creditAmount,
-            "Renew: " + pkg.getName(),
-            "RENEW-" + UUID.randomUUID().toString()
-        );
-        creditWalletClient.add(userId, addRequest);
+        resetThenGrantCredits(userId, creditAmount, "Renew: " + pkg.getName(), "RENEW-");
 
-        // 3. Update subscription in DB
         sub.setExpiresAt(request.expiresAt());
         subscriptionRepository.save(sub);
     }
@@ -330,36 +352,15 @@ public class CampaignService {
             try {
                 Long userId = sub.getUserId();
 
-                // Get current balance
-                int currentBalance = 0;
-                try {
-                    var balanceResp = creditWalletClient.getBalance(userId);
-                    if (balanceResp != null && balanceResp.success() && balanceResp.data() != null) {
-                        currentBalance = balanceResp.data().balance();
-                    }
-                } catch (Exception e) {
-                    System.err.println("Failed to get balance during cleanup: " + e.getMessage());
-                }
-
-                if (currentBalance > 0) {
-                    try {
-                        var deductRequest = new WalletAmountRequest(
-                            currentBalance,
-                            "Token expired reset",
-                            "RESET-" + UUID.randomUUID().toString()
-                        );
-                        creditWalletClient.deduct(userId, deductRequest);
-                    } catch (Exception e) {
-                        System.err.println("Failed to deduct balance during cleanup: " + e.getMessage());
-                    }
-                }
+                // Expired token → drain any leftover balance to zero.
+                resetCreditsToZero(userId);
 
                 sub.setStatus(UserSubscription.Status.EXPIRED);
                 subscriptionRepository.save(sub);
 
                 count++;
             } catch (Exception e) {
-                System.err.println("Failed to clean up expired sub " + sub.getId() + ": " + e.getMessage());
+                log.error("Failed to clean up expired sub {}: {}", sub.getId(), e.getMessage(), e);
             }
         }
         return count;

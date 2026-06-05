@@ -47,7 +47,7 @@ public class CampaignController {
         if (userId == null) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
-        campaignService.subscribe(userId, request.packageId());
+        campaignService.subscribe(userId, request.packageId(), Boolean.TRUE.equals(request.confirmChange()));
         return ApiResponse.success(null);
     }
 

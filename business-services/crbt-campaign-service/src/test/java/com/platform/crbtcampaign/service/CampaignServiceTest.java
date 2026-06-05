@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +75,7 @@ class CampaignServiceTest {
     void subscribe_shouldThrowWhenPackageNotFound() {
         when(packageRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(BaseException.class, () -> campaignService.subscribe(1L, 99L));
+        assertThrows(BaseException.class, () -> campaignService.subscribe(1L, 99L, false));
     }
 
     @Test
@@ -89,7 +90,7 @@ class CampaignServiceTest {
         when(packageRepository.findById(1L)).thenReturn(Optional.of(pkg));
         when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(activeSub));
 
-        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L));
+        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L, false));
     }
 
     @Test
@@ -107,7 +108,36 @@ class CampaignServiceTest {
         when(packageRepository.findById(1L)).thenReturn(Optional.of(pkg));
         when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(activeSub));
 
-        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L));
+        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L, false));
+    }
+
+    @Test
+    void subscribe_withConfirmChange_shouldSwitchPackageAndAccumulateCredits() {
+        Instant now = Instant.now();
+        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, now.minus(1, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        CampaignPackage newPkg = mock(CampaignPackage.class);
+        when(newPkg.getId()).thenReturn(1L);
+        when(newPkg.getCampaign()).thenReturn(campaign);
+        when(newPkg.getCreditAmount()).thenReturn(3);
+        when(newPkg.getPrice()).thenReturn(new BigDecimal("10000"));
+        when(newPkg.getValidityDays()).thenReturn(1);
+
+        CampaignPackage oldPkg = mock(CampaignPackage.class);
+        when(oldPkg.getId()).thenReturn(2L);
+        UserSubscription activeSub = new UserSubscription(42L, oldPkg, UserSubscription.Status.ACTIVE, now.plus(5, ChronoUnit.HOURS));
+
+        when(packageRepository.findById(1L)).thenReturn(Optional.of(newPkg));
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(activeSub));
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.CANCELLED)).thenReturn(List.of());
+
+        campaignService.subscribe(42L, 1L, true);
+
+        // Old subscription retired, new one created
+        assertEquals(UserSubscription.Status.EXPIRED, activeSub.getStatus());
+        verify(subscriptionRepository, times(2)).save(any(UserSubscription.class));
+        // Accumulate: grant new quota, NO reset (no deduct) — leftover credits survive the switch
+        verify(creditWalletClient).add(eq(42L), any(WalletAmountRequest.class));
+        verify(creditWalletClient, never()).deduct(eq(42L), any(WalletAmountRequest.class));
     }
 
     @Test
@@ -126,7 +156,7 @@ class CampaignServiceTest {
         when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of());
         when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.CANCELLED)).thenReturn(List.of(cancelledSub));
 
-        campaignService.subscribe(42L, 1L);
+        campaignService.subscribe(42L, 1L, false);
 
         assertEquals(UserSubscription.Status.EXPIRED, cancelledSub.getStatus());
         verify(subscriptionRepository, times(2)).save(any(UserSubscription.class));

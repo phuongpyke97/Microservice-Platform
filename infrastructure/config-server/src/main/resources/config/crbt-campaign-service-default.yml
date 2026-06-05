@@ -17,6 +17,10 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
 lyria:
   api-key: ${GEMINI_API_KEY:}
