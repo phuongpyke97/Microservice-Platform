@@ -1,10 +1,14 @@
 package com.platform.auditlogservice.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.auditlogservice.dto.response.LyriaDailyStatResponse;
 import com.platform.auditlogservice.dto.response.LyriaRequestLogResponse;
 import com.platform.auditlogservice.dto.response.LyriaSummaryResponse;
+import com.platform.auditlogservice.entity.AuditLog;
 import com.platform.auditlogservice.entity.LyriaDailyStat;
 import com.platform.auditlogservice.entity.LyriaRequestLog;
+import com.platform.auditlogservice.repository.AuditLogRepository;
 import com.platform.auditlogservice.repository.LyriaDailyStatRepository;
 import com.platform.auditlogservice.repository.LyriaRequestLogRepository;
 import com.platform.common.core.response.PageResponse;
@@ -26,11 +30,17 @@ public class LyriaReportService {
 
     private final LyriaRequestLogRepository requestLogRepository;
     private final LyriaDailyStatRepository dailyStatRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final ObjectMapper objectMapper;
 
     public LyriaReportService(LyriaRequestLogRepository requestLogRepository,
-                              LyriaDailyStatRepository dailyStatRepository) {
+                              LyriaDailyStatRepository dailyStatRepository,
+                              AuditLogRepository auditLogRepository,
+                              ObjectMapper objectMapper) {
         this.requestLogRepository = requestLogRepository;
         this.dailyStatRepository = dailyStatRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -104,9 +114,19 @@ public class LyriaReportService {
 
     @Transactional
     public void reconcileDailyStats(LocalDate date) {
-        List<LyriaRequestLog> logs = requestLogRepository.findAll(
-            filter(date, date, null, null)
+        Instant startInstant = date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant endInstant = date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+
+        long startTs = startInstant.toEpochMilli();
+        long endTs = endInstant.toEpochMilli();
+
+        // 1. Fetch raw logs from audit_logs table
+        List<AuditLog> rawLogs = auditLogRepository.findByActionContainingAndTimestampGreaterThanEqualAndTimestampLessThan(
+            "/campaigns/generate", startTs, endTs
         );
+
+        // 2. Clear existing lyria_request_logs for this date range to prevent duplicates
+        requestLogRepository.deleteLogsInDateRange(startInstant, endInstant);
 
         int totalRequests = 0;
         int failedRequests = 0;
@@ -115,18 +135,84 @@ public class LyriaReportService {
         long totalTokens = 0;
         long totalLatencyMs = 0;
 
-        for (LyriaRequestLog log : logs) {
-            if ("SUCCESS".equalsIgnoreCase(log.getStatus())) {
-                totalRequests++;
-                totalPromptTokens += log.getPromptTokens();
-                totalCandidateTokens += log.getCandidateTokens();
-                totalTokens += log.getTotalTokens();
-                totalLatencyMs += log.getLatencyMs();
-            } else {
-                failedRequests++;
+        List<LyriaRequestLog> logsToSave = new ArrayList<>();
+
+        for (AuditLog auditLog : rawLogs) {
+            try {
+                if (auditLog.getMetadataJson() == null) continue;
+
+                JsonNode rootNode = objectMapper.readTree(auditLog.getMetadataJson());
+                JsonNode tokenUsage = rootNode.path("lyria_token_usage");
+
+                int durationMs = rootNode.path("duration_ms").asInt(0);
+
+                if ("SUCCESS".equalsIgnoreCase(auditLog.getStatus()) && !tokenUsage.isMissingNode()) {
+                    int promptTokens = tokenUsage.path("prompt_tokens").asInt(0);
+                    int candidateTokens = tokenUsage.path("candidate_tokens").asInt(0);
+                    int totalTokensVal = tokenUsage.path("total_tokens").asInt(0);
+                    String msisdn = tokenUsage.path("msisdn").asText("");
+                    String model = tokenUsage.path("model").asText("lyria-3-clip-preview");
+
+                    totalRequests++;
+                    totalPromptTokens += promptTokens;
+                    totalCandidateTokens += candidateTokens;
+                    totalTokens += totalTokensVal;
+                    totalLatencyMs += durationMs;
+
+                    LyriaRequestLog logEntity = new LyriaRequestLog(
+                        auditLog.getUserId(),
+                        msisdn,
+                        model,
+                        promptTokens,
+                        candidateTokens,
+                        totalTokensVal,
+                        durationMs,
+                        "SUCCESS",
+                        null
+                    );
+                    logEntity.setCreatedAt(Instant.ofEpochMilli(auditLog.getTimestamp()));
+                    logsToSave.add(logEntity);
+                } else if ("FAILED".equalsIgnoreCase(auditLog.getStatus())) {
+                    failedRequests++;
+
+                    String exceptionClass = rootNode.path("exception").asText("");
+                    String message = rootNode.path("message").asText("");
+                    String errorMsg = exceptionClass.substring(exceptionClass.lastIndexOf('.') + 1) + ": " + message;
+                    if (errorMsg.length() > 500) {
+                        errorMsg = errorMsg.substring(0, 497) + "...";
+                    }
+
+                    String msisdn = "";
+                    if (!tokenUsage.isMissingNode() && tokenUsage.has("msisdn")) {
+                        msisdn = tokenUsage.path("msisdn").asText();
+                    }
+
+                    LyriaRequestLog logEntity = new LyriaRequestLog(
+                        auditLog.getUserId(),
+                        msisdn,
+                        "lyria-3-clip-preview",
+                        0,
+                        0,
+                        0,
+                        durationMs,
+                        "FAILED",
+                        errorMsg
+                    );
+                    logEntity.setCreatedAt(Instant.ofEpochMilli(auditLog.getTimestamp()));
+                    logsToSave.add(logEntity);
+                }
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(LyriaReportService.class)
+                    .error("Failed to parse audit log metadata in reconciliation for log id {}: {}", auditLog.getId(), e.getMessage(), e);
             }
         }
 
+        // Save new logs
+        if (!logsToSave.isEmpty()) {
+            requestLogRepository.saveAll(logsToSave);
+        }
+
+        // 3. Upsert/Update the aggregated daily stats
         int avgLatencyMs = totalRequests > 0 ? (int) (totalLatencyMs / totalRequests) : 0;
         BigDecimal cost = BigDecimal.valueOf(totalTokens).multiply(new BigDecimal("0.000001"));
 

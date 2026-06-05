@@ -44,7 +44,6 @@ public class LyriaRequestLog {
     @Column(name = "error_message", length = 500)
     private String errorMessage;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +62,7 @@ public class LyriaRequestLog {
         this.latencyMs = latencyMs;
         this.status = status;
         this.errorMessage = errorMessage;
+        this.createdAt = Instant.now();
     }
 
     public Long getId() {
@@ -107,5 +107,9 @@ public class LyriaRequestLog {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }
