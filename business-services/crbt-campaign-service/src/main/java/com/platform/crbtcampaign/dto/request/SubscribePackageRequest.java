@@ -2,4 +2,7 @@ package com.platform.crbtcampaign.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 
-public record SubscribePackageRequest(@NotNull Long packageId) {}
+public record SubscribePackageRequest(
+    @NotNull Long packageId,
+    Boolean confirmChange
+) {}

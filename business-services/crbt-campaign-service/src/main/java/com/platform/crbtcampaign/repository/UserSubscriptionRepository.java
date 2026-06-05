@@ -9,4 +9,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     List<UserSubscription> findByUserIdAndStatus(Long userId, UserSubscription.Status status);
     List<UserSubscription> findAllByStatusAndAutoRenewAndExpiresAtBefore(
         UserSubscription.Status status, boolean autoRenew, Instant expiresAt);
+    List<UserSubscription> findByStatusInAndExpiresAtBefore(
+        List<UserSubscription.Status> statuses, Instant expiresAt);
 }
+

@@ -2,13 +2,16 @@ package com.platform.crbtcampaign.service;
 
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
-import com.platform.common.rmq.RmqExchanges;
-import com.platform.common.rmq.RmqRoutingKeys;
-import com.platform.common.rmq.event.CreditChangedEvent;
+import com.platform.crbtcampaign.client.AuthServiceClient;
+import com.platform.crbtcampaign.client.CreditWalletClient;
+import com.platform.crbtcampaign.client.dto.UserCreditResponse;
+import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
 import com.platform.crbtcampaign.dto.request.CreateCampaignRequest;
 import com.platform.crbtcampaign.dto.request.CreatePackageRequest;
+import com.platform.crbtcampaign.dto.request.RenewSubscriptionRequest;
 import com.platform.crbtcampaign.dto.response.CampaignResponse;
 import com.platform.crbtcampaign.dto.response.PackageResponse;
+import com.platform.crbtcampaign.dto.response.SubscriptionResponse;
 import com.platform.crbtcampaign.entity.Campaign;
 import com.platform.crbtcampaign.entity.CampaignPackage;
 import com.platform.crbtcampaign.entity.UserSubscription;
@@ -20,7 +23,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,16 +32,19 @@ public class CampaignService {
     private final CampaignRepository campaignRepository;
     private final CampaignPackageRepository packageRepository;
     private final UserSubscriptionRepository subscriptionRepository;
-    private final RabbitTemplate rabbitTemplate;
+    private final CreditWalletClient creditWalletClient;
+    private final AuthServiceClient authServiceClient;
 
     public CampaignService(CampaignRepository campaignRepository,
                            CampaignPackageRepository packageRepository,
                            UserSubscriptionRepository subscriptionRepository,
-                           RabbitTemplate rabbitTemplate) {
+                           CreditWalletClient creditWalletClient,
+                           AuthServiceClient authServiceClient) {
         this.campaignRepository = campaignRepository;
         this.packageRepository = packageRepository;
         this.subscriptionRepository = subscriptionRepository;
-        this.rabbitTemplate = rabbitTemplate;
+        this.creditWalletClient = creditWalletClient;
+        this.authServiceClient = authServiceClient;
     }
 
     @Transactional
@@ -84,24 +89,42 @@ public class CampaignService {
             throw new BaseException(CampaignErrorCode.CAMPAIGN_NOT_FOUND);
         }
 
+        // Validate active subscriptions
+        List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE);
+        if (!activeSubs.isEmpty()) {
+            UserSubscription activeSub = activeSubs.get(0);
+            if (activeSub.getCampaignPackage().getId().equals(packageId)) {
+                throw new BaseException(CampaignErrorCode.ALREADY_SUBSCRIBED);
+            } else {
+                throw new BaseException(CampaignErrorCode.ACTIVE_SUBSCRIPTION_EXISTS);
+            }
+        }
+
+        // Deactivate any CANCELLED subscriptions to clean up database state
+        List<UserSubscription> cancelledSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.CANCELLED);
+        for (UserSubscription cancelledSub : cancelledSubs) {
+            cancelledSub.setStatus(UserSubscription.Status.EXPIRED);
+            subscriptionRepository.save(cancelledSub);
+        }
+
+        Instant expiresAt = Instant.now().plus(pkg.getValidityDays(), ChronoUnit.DAYS);
+
         UserSubscription subscription = new UserSubscription(
             userId,
             pkg,
             UserSubscription.Status.ACTIVE,
-            Instant.now().plus(pkg.getValidityDays(), ChronoUnit.DAYS)
+            expiresAt
         );
         subscriptionRepository.save(subscription);
 
         // Notify Credit Wallet to add credits
-        CreditChangedEvent event = new CreditChangedEvent(
-            userId,
-            calculateCreditAmount(pkg),
-            "IN",
+        int packageQuota = calculateCreditAmount(pkg);
+        var addRequest = new WalletAmountRequest(
+            packageQuota,
             "Subscription: " + pkg.getName(),
-            "SUB-" + UUID.randomUUID().toString(),
-            System.currentTimeMillis()
+            "SUB-" + UUID.randomUUID().toString()
         );
-        rabbitTemplate.convertAndSend(RmqExchanges.CREDIT_EVENTS, RmqRoutingKeys.CREDIT_CHANGED, event);
+        creditWalletClient.add(userId, addRequest);
     }
 
     private int calculateCreditAmount(CampaignPackage pkg) {
@@ -149,30 +172,196 @@ public class CampaignService {
         for (UserSubscription sub : expiring) {
             try {
                 CampaignPackage pkg = sub.getCampaignPackage();
+                Long userId = sub.getUserId();
 
-                // Extend expiry
-                sub.setExpiresAt(now.plus(pkg.getValidityDays(), ChronoUnit.DAYS));
-                subscriptionRepository.save(sub);
+                // 1. Reset credit balance in wallet to 0 first!
+                int currentBalance = 0;
+                try {
+                    var balanceResp = creditWalletClient.getBalance(userId);
+                    if (balanceResp != null && balanceResp.success() && balanceResp.data() != null) {
+                        currentBalance = balanceResp.data().balance();
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to get balance during scheduled renewal: " + e.getMessage());
+                }
 
-                // Grant credits with bonus
+                if (currentBalance > 0) {
+                    try {
+                        var deductRequest = new WalletAmountRequest(
+                            currentBalance,
+                            "Scheduled Renewal Reset",
+                            "RESET-" + UUID.randomUUID().toString()
+                        );
+                        creditWalletClient.deduct(userId, deductRequest);
+                    } catch (Exception e) {
+                        System.err.println("Failed to deduct old balance during scheduled renewal: " + e.getMessage());
+                    }
+                }
+
+                // 2. Grant credits
                 int creditAmount = calculateCreditAmount(pkg);
-                CreditChangedEvent event = new CreditChangedEvent(
-                    sub.getUserId(),
+                var addRequest = new WalletAmountRequest(
                     creditAmount,
-                    "IN",
                     "Auto-renewal: " + pkg.getName(),
-                    "RENEW-" + UUID.randomUUID().toString(),
-                    System.currentTimeMillis()
+                    "RENEW-" + UUID.randomUUID().toString()
                 );
-                rabbitTemplate.convertAndSend(RmqExchanges.CREDIT_EVENTS, RmqRoutingKeys.CREDIT_CHANGED, event);
+                creditWalletClient.add(userId, addRequest);
+
+                // 3. Extend expiry
+                Instant expiresAt = now.plus(pkg.getValidityDays(), ChronoUnit.DAYS);
+                sub.setExpiresAt(expiresAt);
+                subscriptionRepository.save(sub);
 
                 renewed++;
             } catch (Exception e) {
-                // Log but continue with other subscriptions
                 System.err.println("Failed to renew subscription " + sub.getId() + ": " + e.getMessage());
             }
         }
 
         return renewed;
+    }
+
+    @Transactional
+    public void unsubscribe(Long userId) {
+        List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE);
+        if (activeSubs.isEmpty()) {
+            throw new BaseException(CampaignErrorCode.CAMPAIGN_SUBSCRIPTION_NOT_FOUND);
+        }
+        UserSubscription sub = activeSubs.get(0);
+        sub.setStatus(UserSubscription.Status.CANCELLED);
+        subscriptionRepository.save(sub);
+    }
+
+    @Transactional(readOnly = true)
+    public SubscriptionResponse getActiveSubscription(Long userId) {
+        List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE);
+        if (activeSubs.isEmpty()) {
+            throw new BaseException(CampaignErrorCode.CAMPAIGN_SUBSCRIPTION_NOT_FOUND);
+        }
+        UserSubscription sub = activeSubs.get(0);
+        CampaignPackage pkg = sub.getCampaignPackage();
+
+        int balance = 0;
+        try {
+            var balanceResponse = creditWalletClient.getBalance(userId);
+            if (balanceResponse != null && balanceResponse.success() && balanceResponse.data() != null) {
+                balance = balanceResponse.data().balance();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to get wallet balance for user " + userId + ": " + e.getMessage());
+        }
+
+        return new SubscriptionResponse(
+            sub.getId(),
+            pkg.getId(),
+            pkg.getName(),
+            pkg.getPrice().doubleValue(),
+            pkg.getValidityDays(),
+            sub.getExpiresAt(),
+            balance,
+            sub.getExpiresAt(), // tokenExpiredAt matches expiresAt
+            sub.getStatus().name(),
+            sub.isAutoRenew()
+        );
+    }
+
+    @Transactional
+    public void renewSubscriptionInternal(RenewSubscriptionRequest request) {
+        UserCreditResponse userInfo = authServiceClient.getUserCredit(request.msisdn());
+        if (userInfo == null || userInfo.userId() == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        Long userId = userInfo.userId();
+
+        List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE);
+        if (activeSubs.isEmpty()) {
+            throw new BaseException(CampaignErrorCode.CAMPAIGN_SUBSCRIPTION_NOT_FOUND);
+        }
+
+        UserSubscription sub = activeSubs.get(0);
+        CampaignPackage pkg = sub.getCampaignPackage();
+
+        // 1. Reset credit balance in wallet to 0 first!
+        int currentBalance = 0;
+        try {
+            var balanceResponse = creditWalletClient.getBalance(userId);
+            if (balanceResponse != null && balanceResponse.success() && balanceResponse.data() != null) {
+                currentBalance = balanceResponse.data().balance();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to fetch balance during renewal: " + e.getMessage());
+        }
+
+        if (currentBalance > 0) {
+            try {
+                var deductRequest = new WalletAmountRequest(
+                    currentBalance,
+                    "Renewal Reset",
+                    "RESET-" + UUID.randomUUID().toString()
+                );
+                creditWalletClient.deduct(userId, deductRequest);
+            } catch (Exception e) {
+                System.err.println("Failed to deduct old balance during renewal: " + e.getMessage());
+            }
+        }
+
+        // 2. Grant credits
+        int creditAmount = calculateCreditAmount(pkg);
+        var addRequest = new WalletAmountRequest(
+            creditAmount,
+            "Renew: " + pkg.getName(),
+            "RENEW-" + UUID.randomUUID().toString()
+        );
+        creditWalletClient.add(userId, addRequest);
+
+        // 3. Update subscription in DB
+        sub.setExpiresAt(request.expiresAt());
+        subscriptionRepository.save(sub);
+    }
+
+    @Transactional
+    public int cleanupExpiredTokens() {
+        Instant now = Instant.now();
+        List<UserSubscription> expired = subscriptionRepository
+            .findByStatusInAndExpiresAtBefore(List.of(UserSubscription.Status.ACTIVE, UserSubscription.Status.CANCELLED), now);
+
+        int count = 0;
+        for (UserSubscription sub : expired) {
+            try {
+                Long userId = sub.getUserId();
+
+                // Get current balance
+                int currentBalance = 0;
+                try {
+                    var balanceResp = creditWalletClient.getBalance(userId);
+                    if (balanceResp != null && balanceResp.success() && balanceResp.data() != null) {
+                        currentBalance = balanceResp.data().balance();
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to get balance during cleanup: " + e.getMessage());
+                }
+
+                if (currentBalance > 0) {
+                    try {
+                        var deductRequest = new WalletAmountRequest(
+                            currentBalance,
+                            "Token expired reset",
+                            "RESET-" + UUID.randomUUID().toString()
+                        );
+                        creditWalletClient.deduct(userId, deductRequest);
+                    } catch (Exception e) {
+                        System.err.println("Failed to deduct balance during cleanup: " + e.getMessage());
+                    }
+                }
+
+                sub.setStatus(UserSubscription.Status.EXPIRED);
+                subscriptionRepository.save(sub);
+
+                count++;
+            } catch (Exception e) {
+                System.err.println("Failed to clean up expired sub " + sub.getId() + ": " + e.getMessage());
+            }
+        }
+        return count;
     }
 }

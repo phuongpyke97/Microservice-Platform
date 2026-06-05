@@ -4,14 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.platform.common.core.exception.BaseException;
-import com.platform.common.rmq.RmqExchanges;
-import com.platform.common.rmq.RmqRoutingKeys;
+import com.platform.common.core.response.ApiResponse;
+import com.platform.crbtcampaign.client.AuthServiceClient;
+import com.platform.crbtcampaign.client.CreditWalletClient;
+import com.platform.crbtcampaign.client.dto.UserCreditResponse;
+import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
+import com.platform.crbtcampaign.client.dto.WalletResponse;
 import com.platform.crbtcampaign.dto.request.CreateCampaignRequest;
 import com.platform.crbtcampaign.dto.request.CreatePackageRequest;
+import com.platform.crbtcampaign.dto.request.RenewSubscriptionRequest;
 import com.platform.crbtcampaign.dto.response.CampaignResponse;
 import com.platform.crbtcampaign.entity.Campaign;
 import com.platform.crbtcampaign.entity.CampaignPackage;
@@ -29,15 +37,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class CampaignServiceTest {
 
     @Mock CampaignRepository campaignRepository;
     @Mock CampaignPackageRepository packageRepository;
     @Mock UserSubscriptionRepository subscriptionRepository;
-    @Mock RabbitTemplate rabbitTemplate;
+    @Mock CreditWalletClient creditWalletClient;
+    @Mock AuthServiceClient authServiceClient;
 
     @InjectMocks CampaignService campaignService;
 
@@ -66,33 +78,132 @@ class CampaignServiceTest {
     }
 
     @Test
-    void subscribe_shouldPublishCreditChangedEvent() {
-        Instant start = Instant.now().minus(1, ChronoUnit.DAYS);
-        Instant end = Instant.now().plus(30, ChronoUnit.DAYS);
-        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, start, end);
-        // Price 50000 > 1000 -> 100 * 1.1 = 110 credits
-        CampaignPackage pkg = new CampaignPackage(campaign, "VIP", new BigDecimal("50000"), 100, 30);
+    void subscribe_shouldThrowWhenAlreadySubscribedToSamePackage() {
+        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        CampaignPackage pkg = mock(CampaignPackage.class);
+        when(pkg.getId()).thenReturn(1L);
+        when(pkg.getCampaign()).thenReturn(campaign);
+
+        UserSubscription activeSub = new UserSubscription(42L, pkg, UserSubscription.Status.ACTIVE, Instant.now().plus(5, ChronoUnit.DAYS));
 
         when(packageRepository.findById(1L)).thenReturn(Optional.of(pkg));
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(activeSub));
 
-        campaignService.subscribe(42L, 1L);
-
-        verify(rabbitTemplate).convertAndSend(eq(RmqExchanges.CREDIT_EVENTS), eq(RmqRoutingKeys.CREDIT_CHANGED), any(Object.class));
+        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L));
     }
 
     @Test
-    void renewSubscriptions_shouldRenewAndPublishEvents() {
+    void subscribe_shouldThrowWhenActiveSubscriptionExistsForDifferentPackage() {
+        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        CampaignPackage pkg = mock(CampaignPackage.class);
+        when(pkg.getId()).thenReturn(1L);
+        when(pkg.getCampaign()).thenReturn(campaign);
+
+        CampaignPackage diffPkg = mock(CampaignPackage.class);
+        when(diffPkg.getId()).thenReturn(2L);
+
+        UserSubscription activeSub = new UserSubscription(42L, diffPkg, UserSubscription.Status.ACTIVE, Instant.now().plus(5, ChronoUnit.DAYS));
+
+        when(packageRepository.findById(1L)).thenReturn(Optional.of(pkg));
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(activeSub));
+
+        assertThrows(BaseException.class, () -> campaignService.subscribe(42L, 1L));
+    }
+
+    @Test
+    void subscribe_shouldDeactivateCancelledSubscriptionsAndAddCredits() {
+        Instant now = Instant.now();
+        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, now.minus(1, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        CampaignPackage pkg = mock(CampaignPackage.class);
+        when(pkg.getCampaign()).thenReturn(campaign);
+        when(pkg.getCreditAmount()).thenReturn(100);
+        when(pkg.getPrice()).thenReturn(new BigDecimal("50000"));
+        when(pkg.getValidityDays()).thenReturn(30);
+
+        UserSubscription cancelledSub = new UserSubscription(42L, pkg, UserSubscription.Status.CANCELLED, now.plus(5, ChronoUnit.DAYS));
+
+        when(packageRepository.findById(1L)).thenReturn(Optional.of(pkg));
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of());
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.CANCELLED)).thenReturn(List.of(cancelledSub));
+
+        campaignService.subscribe(42L, 1L);
+
+        assertEquals(UserSubscription.Status.EXPIRED, cancelledSub.getStatus());
+        verify(subscriptionRepository, times(2)).save(any(UserSubscription.class));
+        verify(creditWalletClient).add(eq(42L), any(WalletAmountRequest.class));
+    }
+
+    @Test
+    void unsubscribe_shouldSetStatusToCancelled() {
+        CampaignPackage pkg = mock(CampaignPackage.class);
+        UserSubscription sub = new UserSubscription(42L, pkg, UserSubscription.Status.ACTIVE, Instant.now().plus(5, ChronoUnit.DAYS));
+
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(sub));
+
+        campaignService.unsubscribe(42L);
+
+        assertEquals(UserSubscription.Status.CANCELLED, sub.getStatus());
+        verify(subscriptionRepository).save(sub);
+    }
+
+    @Test
+    void renewSubscriptionInternal_shouldResetBalanceAndAddCredits() {
         Instant now = Instant.now();
         Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, now.minus(5, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
         CampaignPackage pkg = new CampaignPackage(campaign, "VIP", new BigDecimal("50000"), 100, 30);
-        UserSubscription sub = new UserSubscription(1L, pkg, UserSubscription.Status.ACTIVE, now.minus(1, ChronoUnit.HOURS));
+        UserSubscription sub = new UserSubscription(42L, pkg, UserSubscription.Status.ACTIVE, now.plus(1, ChronoUnit.DAYS));
+
+        RenewSubscriptionRequest request = new RenewSubscriptionRequest("0912345678", "VIP", now.plus(31, ChronoUnit.DAYS));
+        UserCreditResponse userCredit = new UserCreditResponse(42L, "0912345678");
+
+        when(authServiceClient.getUserCredit("0912345678")).thenReturn(userCredit);
+        when(subscriptionRepository.findByUserIdAndStatus(42L, UserSubscription.Status.ACTIVE)).thenReturn(List.of(sub));
+        
+        ApiResponse<WalletResponse> balanceResp = ApiResponse.success(new WalletResponse(42L, 15));
+        when(creditWalletClient.getBalance(42L)).thenReturn(balanceResp);
+
+        campaignService.renewSubscriptionInternal(request);
+
+        verify(creditWalletClient).deduct(eq(42L), any(WalletAmountRequest.class));
+        verify(creditWalletClient).add(eq(42L), any(WalletAmountRequest.class));
+        verify(subscriptionRepository).save(sub);
+        assertEquals(request.expiresAt(), sub.getExpiresAt());
+    }
+
+    @Test
+    void renewSubscriptions_shouldRenewExpiringSubscriptions() {
+        Instant now = Instant.now();
+        Campaign campaign = new Campaign("Tet", "desc", Campaign.Status.ACTIVE, now.minus(5, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        CampaignPackage pkg = new CampaignPackage(campaign, "VIP", new BigDecimal("50000"), 100, 30);
+        UserSubscription sub = new UserSubscription(42L, pkg, UserSubscription.Status.ACTIVE, now.minus(1, ChronoUnit.HOURS));
 
         when(subscriptionRepository.findAllByStatusAndAutoRenewAndExpiresAtBefore(any(), eq(true), any())).thenReturn(List.of(sub));
+        ApiResponse<WalletResponse> balanceResp = ApiResponse.success(new WalletResponse(42L, 5));
+        when(creditWalletClient.getBalance(42L)).thenReturn(balanceResp);
 
         int renewed = campaignService.renewSubscriptions();
 
         assertEquals(1, renewed);
+        verify(creditWalletClient).deduct(eq(42L), any(WalletAmountRequest.class));
+        verify(creditWalletClient).add(eq(42L), any(WalletAmountRequest.class));
         verify(subscriptionRepository).save(sub);
-        verify(rabbitTemplate).convertAndSend(eq(RmqExchanges.CREDIT_EVENTS), eq(RmqRoutingKeys.CREDIT_CHANGED), any(Object.class));
+    }
+
+    @Test
+    void cleanupExpiredTokens_shouldResetBalanceAndMarkExpired() {
+        Instant now = Instant.now();
+        CampaignPackage pkg = mock(CampaignPackage.class);
+        UserSubscription sub = new UserSubscription(42L, pkg, UserSubscription.Status.CANCELLED, now.minus(1, ChronoUnit.HOURS));
+
+        when(subscriptionRepository.findByStatusInAndExpiresAtBefore(any(), any())).thenReturn(List.of(sub));
+        ApiResponse<WalletResponse> balanceResp = ApiResponse.success(new WalletResponse(42L, 10));
+        when(creditWalletClient.getBalance(42L)).thenReturn(balanceResp);
+
+        int count = campaignService.cleanupExpiredTokens();
+
+        assertEquals(1, count);
+        verify(creditWalletClient).deduct(eq(42L), any(WalletAmountRequest.class));
+        assertEquals(UserSubscription.Status.EXPIRED, sub.getStatus());
+        verify(subscriptionRepository).save(sub);
     }
 }

@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.common.ai.LyriaSystemPromptConfig;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
-import com.platform.common.rmq.RmqExchanges;
-import com.platform.common.rmq.RmqRoutingKeys;
-import com.platform.common.rmq.event.CreditChangedEvent;
+import com.platform.common.core.response.ApiResponse;
 import com.platform.crbtcampaign.client.AuthServiceClient;
 import com.platform.crbtcampaign.client.FileServiceClient;
 import com.platform.crbtcampaign.client.LyriaClient;
@@ -15,12 +13,14 @@ import com.platform.crbtcampaign.client.CreditWalletClient;
 import com.platform.crbtcampaign.client.dto.UserCreditResponse;
 import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
 import com.platform.crbtcampaign.client.dto.WalletResponse;
-import com.platform.common.core.response.ApiResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
+import com.platform.crbtcampaign.entity.UserSubscription;
 import com.platform.crbtcampaign.exception.CampaignErrorCode;
+import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -45,6 +45,7 @@ public class MusicGenerationService {
     private final FileServiceClient fileServiceClient;
     private final LyriaClient lyriaClient;
     private final CreditWalletClient creditWalletClient;
+    private final UserSubscriptionRepository subscriptionRepository;
     private final LyriaSystemPromptConfig promptConfig;
     private final RedisTemplate<String, String> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
@@ -55,6 +56,7 @@ public class MusicGenerationService {
                                   FileServiceClient fileServiceClient,
                                   LyriaClient lyriaClient,
                                   CreditWalletClient creditWalletClient,
+                                  UserSubscriptionRepository subscriptionRepository,
                                   LyriaSystemPromptConfig promptConfig,
                                   RedisTemplate<String, String> redisTemplate,
                                   RabbitTemplate rabbitTemplate,
@@ -63,6 +65,7 @@ public class MusicGenerationService {
         this.fileServiceClient = fileServiceClient;
         this.lyriaClient = lyriaClient;
         this.creditWalletClient = creditWalletClient;
+        this.subscriptionRepository = subscriptionRepository;
         this.promptConfig = promptConfig;
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
@@ -84,26 +87,45 @@ public class MusicGenerationService {
         }
 
         Long userId = userInfo.userId();
-        log.info("[GENERATE-CREDIT-CHECK] Querying credit-wallet-service for userId={}", userId);
-        ApiResponse<WalletResponse> walletResp = creditWalletClient.getBalance(userId);
-        if (walletResp == null || !walletResp.success() || walletResp.data() == null) {
-            log.error("[GENERATE-CREDIT-ERROR] Failed to retrieve wallet balance for userId={}", userId);
-            throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
+
+        // 1. Fetch active subscription
+        List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE);
+        if (activeSubs.isEmpty()) {
+            log.warn("[GENERATE-CREDIT-INSUFFICIENT] userId={} has no active subscription", userId);
+            throw new BaseException(CampaignErrorCode.SUBSCRIBER_NOT_ACTIVE);
         }
 
-        int creditBalance = walletResp.data().balance();
-        if (creditBalance < 1) {
-            log.warn("[GENERATE-CREDIT-INSUFFICIENT] userId={} credit balance {} is insufficient", userId, creditBalance);
-            throw new BaseException(CampaignErrorCode.CAMPAIGN_INSUFFICIENT_CREDIT);
+        UserSubscription sub = activeSubs.get(0);
+        if (sub.getExpiresAt().isBefore(Instant.now())) {
+            log.warn("[GENERATE-CREDIT-INSUFFICIENT] userId={} active subscription has expired", userId);
+            throw new BaseException(CampaignErrorCode.SUBSCRIBER_NOT_ACTIVE);
+        }
+
+        // 2. Fetch wallet balance
+        int walletBalance = 0;
+        try {
+            ApiResponse<WalletResponse> balanceResp = creditWalletClient.getBalance(userId);
+            if (balanceResp != null && balanceResp.success() && balanceResp.data() != null) {
+                walletBalance = balanceResp.data().balance();
+            }
+        } catch (Exception e) {
+            log.error("[GENERATE-CREDIT-ERROR] Failed to check wallet balance for userId={}: {}", userId, e.getMessage());
+            throw new BaseException(CommonErrorCode.SYSTEM_BUSY);
+        }
+
+        if (walletBalance < 1) {
+            log.warn("[GENERATE-CREDIT-INSUFFICIENT] userId={} wallet balance {} is insufficient", userId, walletBalance);
+            throw new BaseException(CampaignErrorCode.INSUFFICIENT_TOKENS);
         }
 
         String txnRef = "MUSIC-" + UUID.randomUUID();
-        // Deduct first before generation to prevent Double Spending
+
+        // 3. Deduct credit synchronously on credit-wallet-service to keep in sync
         log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}, txnRef={}", userId, txnRef);
         deductCreditSynchronously(userId, genre, mood, instrument, txnRef);
 
         try {
-            // Step 3: cache lookup
+            // Cache lookup
             String hashKey = sha256(genre + ":" + mood + ":" + instrument);
             String poolKey = POOL_KEY_PREFIX + hashKey;
             String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;

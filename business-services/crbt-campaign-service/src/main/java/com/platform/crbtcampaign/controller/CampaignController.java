@@ -5,9 +5,11 @@ import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.ApiResponse;
 import com.platform.common.security.SecurityUtils;
 import com.platform.crbtcampaign.dto.request.CreateCampaignRequest;
+import com.platform.crbtcampaign.dto.request.RenewSubscriptionRequest;
 import com.platform.crbtcampaign.dto.request.SubscribePackageRequest;
 import com.platform.crbtcampaign.dto.response.CampaignResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
+import com.platform.crbtcampaign.dto.response.SubscriptionResponse;
 import com.platform.crbtcampaign.service.CampaignService;
 import com.platform.crbtcampaign.service.MusicGenerationService;
 import jakarta.validation.Valid;
@@ -49,12 +51,37 @@ public class CampaignController {
         return ApiResponse.success(null);
     }
 
+    @PostMapping("/unsubscribe")
+    public ApiResponse<Void> unsubscribe() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        campaignService.unsubscribe(userId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/subscriptions/active")
+    public ApiResponse<SubscriptionResponse> getActiveSubscription() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
+        }
+        return ApiResponse.success(campaignService.getActiveSubscription(userId));
+    }
+
+    @PostMapping("/internal/crbt/renew")
+    public ApiResponse<Void> renew(@Valid @RequestBody RenewSubscriptionRequest request) {
+        campaignService.renewSubscriptionInternal(request);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/generate")
     public ApiResponse<GenerateMusicResponse> generate(
             @RequestHeader(value = "X-MSISDN", required = false) String msisdn,
             @RequestParam @NotBlank @Size(max = 50) String genre,
             @RequestParam @NotBlank @Size(max = 50) String mood,
-            @RequestParam @NotBlank @Size(max = 50) String instrument) {
+            @RequestParam(required = false, defaultValue = "") @Size(max = 50) String instrument) {
         if (msisdn == null || msisdn.isBlank()) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }

@@ -210,7 +210,7 @@ function Invoke-UatStep {
     catch {
         $timer.Stop()
         $message = $_.Exception.Message
-        if ($_.Exception.Response) {
+        if ($_.Exception -and $_.Exception.PSObject.Properties['Response'] -ne $null -and $_.Exception.Response) {
             $statusCode = [int]$_.Exception.Response.StatusCode
             try {
                 $stream = $_.Exception.Response.GetResponseStream()
@@ -286,8 +286,8 @@ try {
 
     $start = (Get-Date).ToUniversalTime().AddMinutes(-5).ToString("o")
     $end = (Get-Date).ToUniversalTime().AddDays(7).ToString("o")
-    Invoke-UatStep 12 "crbt-campaign-service" "Campaign create" "POST" "$CampaignBaseUrl/campaigns" @{ name = "UAT Campaign $RunId"; description = "UAT campaign"; startAt = $start; endAt = $end; packages = @(@{ name = "UAT Package"; price = 1000; creditAmount = $CreditAmount; validityDays = 30 }) } ${function:Test-HasData} { param($json) $data = Get-DataValue $json; $State.CampaignId = Get-PropertyValue $data @("id"); $packages = Get-PropertyValue $data @("packages"); if ($packages -and $packages.Length -gt 0) { $State.PackageId = Get-PropertyValue $packages[0] @("id") } } -RequiresUser
-    Invoke-UatStep 13 "crbt-campaign-service" "Campaign active list" "GET" "$CampaignBaseUrl/campaigns/active" $null ${function:Test-AnySuccess} { param($json) if (-not $State.PackageId) { $first = Get-FirstValue (Get-DataValue $json); $packages = Get-PropertyValue $first @("packages"); if ($packages -and $packages.Length -gt 0) { $State.PackageId = Get-PropertyValue $packages[0] @("id") } } }
+    Invoke-UatStep 12 "crbt-campaign-service" "Campaign create" "POST" "$CampaignBaseUrl/campaigns" @{ name = "UAT Campaign $RunId"; description = "UAT campaign"; startAt = $start; endAt = $end; packages = @(@{ name = "UAT Package"; price = 1000; creditAmount = $CreditAmount; validityDays = 30 }) } ${function:Test-HasData} { param($json) $data = Get-DataValue $json; $State.CampaignId = Get-PropertyValue $data @("id"); $packages = Get-PropertyValue $data @("packages"); if ($packages) { $State.PackageId = if ($packages -is [System.Array]) { Get-PropertyValue $packages[0] @("id") } else { Get-PropertyValue $packages @("id") } } } -RequiresUser
+    Invoke-UatStep 13 "crbt-campaign-service" "Campaign active list" "GET" "$CampaignBaseUrl/campaigns/active" $null ${function:Test-AnySuccess} { param($json) if (-not $State.PackageId) { $first = Get-FirstValue (Get-DataValue $json); $packages = Get-PropertyValue $first @("packages"); if ($packages) { $State.PackageId = if ($packages -is [System.Array]) { Get-PropertyValue $packages[0] @("id") } else { Get-PropertyValue $packages @("id") } } } }
     if ($State.PackageId) { Invoke-UatStep 14 "crbt-campaign-service" "Campaign subscribe" "POST" "$CampaignBaseUrl/campaigns/subscribe" @{ packageId = [long]$State.PackageId } ${function:Test-AnySuccess} $null -RequiresUser -AllowClientError } else { Add-Result 14 "crbt-campaign-service" "Campaign subscribe" "POST" "$CampaignBaseUrl/campaigns/subscribe" "SKIP" $null 0 "" "Missing packageId dependency" "" }
     Invoke-UatStep 15 "crbt-campaign-service" "Campaign generate" "POST" "$CampaignBaseUrl/campaigns/generate?genre=Pop&mood=Happy" $null ${function:Test-AnySuccess} $null -RequiresUser -AllowClientError
 

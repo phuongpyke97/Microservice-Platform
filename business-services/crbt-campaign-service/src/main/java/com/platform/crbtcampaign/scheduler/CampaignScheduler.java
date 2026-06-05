@@ -31,4 +31,20 @@ public class CampaignScheduler {
             log.error("Auto-renew job failed", e);
         }
     }
+
+    /**
+     * Clean up expired subscription tokens every minute (T8.6)
+     */
+    @Scheduled(cron = "0 */1 * * * *")
+    public void cleanupExpiredTokens() {
+        log.debug("Starting expired token cleanup job");
+        try {
+            int cleaned = campaignService.cleanupExpiredTokens();
+            if (cleaned > 0) {
+                log.info("Expired token cleanup completed: {} subscriptions reset to 0", cleaned);
+            }
+        } catch (Exception e) {
+            log.error("Expired token cleanup job failed", e);
+        }
+    }
 }
