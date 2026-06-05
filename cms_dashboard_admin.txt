@@ -1,0 +1,105 @@
+================================================================================
+TÀI LIỆU API CHO FRONTEND - CMS DASHBOARD ADMIN (GEMINI LYRIA 3 TOKEN TRACKING)
+================================================================================
+
+Base URL qua API Gateway:
+http://localhost:18080/audit-log-service/reports/lyria
+
+--------------------------------------------------------------------------------
+1. Tab Tổng Quan (Cards thống kê)
+--------------------------------------------------------------------------------
+* API Path: GET /summary
+* Query Parameters:
+  - startDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+  - endDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+
+* Response JSON:
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "totalTokens": 150000,
+    "totalSongs": 120,
+    "avgTokensPerSong": 1250.0
+  }
+}
+
+--------------------------------------------------------------------------------
+2. Tab Biểu Đồ & Bảng Thống Kê Hàng Ngày
+--------------------------------------------------------------------------------
+* API Path: GET /daily
+* Query Parameters:
+  - startDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+  - endDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+
+* Response JSON:
+{
+  "success": true,
+  "message": "OK",
+  "data": [
+    {
+      "statDate": "2026-06-05",
+      "totalRequests": 125,
+      "failedRequests": 5,
+      "totalPromptTokens": 80000,
+      "totalCandidateTokens": 70000,
+      "totalTokens": 150000,
+      "avgLatencyMs": 1250,
+      "estimatedCostUsd": 0.3000
+    }
+  ]
+}
+
+--------------------------------------------------------------------------------
+3. Tab Chi Tiết Requests (Phân trang & Tìm kiếm)
+--------------------------------------------------------------------------------
+* API Path: GET /requests
+* Query Parameters:
+  - startDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+  - endDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+  - msisdn (String) [Tùy chọn - lọc theo SĐT]
+  - status (String: SUCCESS | FAILED) [Tùy chọn - lọc trạng thái]
+  - page (int, mặc định 0) [Tùy chọn - trang hiện tại]
+  - size (int, mặc định 20) [Tùy chọn - số phần tử trên trang]
+
+* Response JSON:
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "content": [
+      {
+        "id": 4,
+        "userId": 3,
+        "msisdn": "84987654321",
+        "model": "lyria-3-clip-preview",
+        "promptTokens": 1000,
+        "candidateTokens": 500,
+        "totalTokens": 1500,
+        "latencyMs": 1250,
+        "status": "SUCCESS",
+        "errorMessage": null,
+        "createdAt": "2026-06-05T01:12:07.335Z"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+
+--------------------------------------------------------------------------------
+4. Nút bấm Đối Soát Thủ Công (Reconcile)
+--------------------------------------------------------------------------------
+* API Path: POST /reconcile
+* Query Parameters:
+  - startDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+  - endDate (ISO Date, VD: 2026-06-05) [Bắt buộc]
+
+* Response JSON:
+{
+  "success": true,
+  "message": "OK",
+  "data": null
+}
