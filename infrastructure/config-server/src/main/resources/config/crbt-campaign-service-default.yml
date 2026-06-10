@@ -26,6 +26,25 @@ lyria:
   api-key: ${GEMINI_API_KEY:}
   model: lyria-3-clip-preview
   daily-quota: 100
+  timeout:
+    connect-ms: ${LYRIA_CONNECT_TIMEOUT_MS:5000}
+    read-ms: ${LYRIA_READ_TIMEOUT_MS:90000}  # 90s — AI music generation takes 20-60s
+  pool:
+    max-total: ${LYRIA_POOL_MAX_TOTAL:20}          # tổng connection tối đa
+    max-per-route: ${LYRIA_POOL_MAX_PER_ROUTE:20}  # connection tới 1 host (googleapis.com)
+    conn-ttl-sec: ${LYRIA_POOL_CONN_TTL_SEC:300}   # tái sử dụng connection tối đa 5 phút
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      lyria:
+        slidingWindowSize: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        slowCallDurationThreshold: 90s
+        slowCallRateThreshold: 80
+        permittedNumberOfCallsInHalfOpenState: 2
+        registerHealthIndicator: true
 
 eureka:
   client:
