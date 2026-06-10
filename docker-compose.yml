@@ -281,6 +281,7 @@ services:
       MINIO_BUCKET_AUDIO: ${MINIO_BUCKET_AUDIO}
       MINIO_BUCKET_IMAGES: ${MINIO_BUCKET_IMAGES}
       MINIO_BUCKET_AUDIO_LIB: ${MINIO_BUCKET_AUDIO_LIB}
+      AI_WORKER_URL: http://ai-media-worker:8765
     volumes:
       - ./logs:/logs
     depends_on:

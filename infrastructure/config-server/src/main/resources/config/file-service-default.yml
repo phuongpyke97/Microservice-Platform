@@ -27,6 +27,9 @@ minio:
   bucket-image: ${MINIO_BUCKET_IMAGES:image}
   bucket-audio-lib: ${MINIO_BUCKET_AUDIO_LIB:media-audio-lib}
 
+ai-worker:
+  url: ${AI_WORKER_URL:http://localhost:8765}
+
 eureka:
   client:
     service-url:

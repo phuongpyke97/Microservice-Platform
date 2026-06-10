@@ -19,9 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClient;
 
 @Service
 public class FileService {
@@ -36,15 +44,18 @@ public class FileService {
     private final MinioClient minioClient;
     private final MinioClient publicMinioClient;
     private final MinioProperties properties;
+    private final RestClient restClient;
 
     public FileService(FileMetadataRepository repository,
                        MinioClient minioClient,
                        @org.springframework.beans.factory.annotation.Qualifier("publicMinioClient") MinioClient publicMinioClient,
-                       MinioProperties properties) {
+                       MinioProperties properties,
+                       @Value("${ai-worker.url:http://localhost:8765}") String aiWorkerUrl) {
         this.repository = repository;
         this.minioClient = minioClient;
         this.publicMinioClient = publicMinioClient;
         this.properties = properties;
+        this.restClient = RestClient.builder().baseUrl(aiWorkerUrl).build();
     }
 
     @Transactional
@@ -93,6 +104,25 @@ public class FileService {
             throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET);
         }
 
+        // Vocal check if target bucket is media-audio-lib
+        if (targetBucket.equals(properties.bucketAudioLib())) {
+            try {
+                byte[] fileBytes;
+                try (InputStream is = minioClient.getObject(
+                        GetObjectArgs.builder()
+                                .bucket(metadata.getBucket())
+                                .object(metadata.getStoredKey())
+                                .build())) {
+                    fileBytes = is.readAllBytes();
+                }
+                checkVocal(fileBytes, metadata.getOriginalName(), metadata.getContentType());
+            } catch (BaseException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to perform vocal check: " + e.getMessage());
+            }
+        }
+
         try {
             // Get actual object size from MinIO first
             var stat = minioClient.statObject(
@@ -119,6 +149,8 @@ public class FileService {
                             .object(metadata.getStoredKey())
                             .build()
             );
+        } catch (BaseException e) {
+            throw e;
         } catch (Exception e) {
             throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
         }
@@ -242,6 +274,49 @@ public class FileService {
 
     private String buildObjectKey(String originalName) {
         return UUID.randomUUID() + "-" + originalName;
+    }
+
+    private void checkVocal(byte[] fileBytes, String filename, String contentType) {
+        try {
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            String mimeType = contentType != null ? contentType : "audio/mpeg";
+            builder.part("file", new ByteArrayResource(fileBytes) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            }, MediaType.parseMediaType(mimeType));
+
+            MultiValueMap<String, HttpEntity<?>> parts = builder.build();
+
+            Map<String, Object> response = restClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/separate-audio")
+                            .queryParam("exclude_audio", "true")
+                            .build())
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(parts)
+                    .retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (response != null) {
+                Object hasVocalObj = response.get("has_vocal");
+                boolean hasVocal = false;
+                if (hasVocalObj instanceof Boolean) {
+                    hasVocal = (Boolean) hasVocalObj;
+                } else if (hasVocalObj instanceof String) {
+                    hasVocal = Boolean.parseBoolean((String) hasVocalObj);
+                }
+
+                if (hasVocal) {
+                    throw new BaseException(FileErrorCode.AUDIO_HAS_VOCAL);
+                }
+            }
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to analyze vocal presence: " + e.getMessage());
+        }
     }
 
     private FileMetadataResponse toResponse(FileMetadata metadata) {
