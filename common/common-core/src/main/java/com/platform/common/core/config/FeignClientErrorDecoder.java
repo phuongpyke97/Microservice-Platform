@@ -25,21 +25,22 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
                 try {
                     ObjectMapper mapper = new ObjectMapper();
                     JsonNode node = mapper.readTree(body);
-                    String code = null;
+                    String parsedCode = null;
                     if (node.has("errorCode")) {
-                        code = node.get("errorCode").asText();
+                        parsedCode = node.get("errorCode").asText();
                     } else if (node.has("code")) {
-                        code = node.get("code").asText();
+                        parsedCode = node.get("code").asText();
                     }
-                    if (code != null && node.has("message")) {
+                    if (parsedCode != null && node.has("message")) {
                         String msg = node.get("message").asText();
                         HttpStatus status = HttpStatus.resolve(response.status());
                         if (status == null) {
                             status = HttpStatus.BAD_REQUEST;
                         }
+                        final String finalCode = parsedCode;
                         final HttpStatus finalStatus = status;
                         ErrorCode customCode = new ErrorCode() {
-                            @Override public String code() { return code; }
+                            @Override public String code() { return finalCode; }
                             @Override public String message() { return msg; }
                             @Override public HttpStatus status() { return finalStatus; }
                         };
