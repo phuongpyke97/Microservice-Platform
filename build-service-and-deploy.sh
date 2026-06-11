@@ -38,6 +38,7 @@ declare -A SERVICE_MAP=(
     ["audio-generation-service"]="business-services/audio-generation-service"
     ["crbt-credit-transaction-service"]="business-services/crbt-credit-transaction-service"
     ["crbt-core-adapter"]="business-services/crbt-core-adapter"
+    ["ai-media-worker"]="python-services/ai-media-worker"
 )
 
 # Determine Maven Command
@@ -59,7 +60,9 @@ if [[ $# -eq 0 ]]; then
     # No arguments: build all services
     for svc in "${!SERVICE_MAP[@]}"; do
         TARGET_SERVICES+=("$svc")
-        MAVEN_PROJECTS+=("${SERVICE_MAP[$svc]}")
+        if [[ "$svc" != "ai-media-worker" ]]; then
+            MAVEN_PROJECTS+=("${SERVICE_MAP[$svc]}")
+        fi
     done
     step "Yeu cau: Build & Deploy TAT CA các service"
 else
@@ -68,7 +71,9 @@ else
     for arg in "$@"; do
         if [[ -n "${SERVICE_MAP[$arg]:-}" ]]; then
             TARGET_SERVICES+=("$arg")
-            MAVEN_PROJECTS+=("${SERVICE_MAP[$arg]}")
+            if [[ "$arg" != "ai-media-worker" ]]; then
+                MAVEN_PROJECTS+=("${SERVICE_MAP[$arg]}")
+            fi
             info "  - $arg"
         else
             fail "Service '$arg' khong hop le. Cac service hop le la: \n$(echo "${!SERVICE_MAP[@]}" | tr ' ' '\n' | sed 's/^/  - /')"
@@ -77,35 +82,41 @@ else
 fi
 
 # --- 1. Maven build ---
-step "Maven clean package (skipTests)"
-cd "$ROOT"
-if [[ $# -eq 0 ]]; then
-    # Full build
-    "$MVN_CMD" clean package -DskipTests --batch-mode
-else
-    # Build only specified modules and their dependencies (-am)
-    IFS=','
-    project_list="${MAVEN_PROJECTS[*]}"
-    unset IFS
-    "$MVN_CMD" clean package -pl "$project_list" -am -DskipTests --batch-mode
-fi
-ok "Maven build thanh cong"
-
-# --- 2. Verify built JARs ---
-step "Kiem tra cac file JAR"
-for svc in "${TARGET_SERVICES[@]}"; do
-    path="${SERVICE_MAP[$svc]}"
-    target_dir="$ROOT/$path/target"
-    jar=$(find "$target_dir" -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" 2>/dev/null | head -1)
-    if [[ -z "$jar" ]]; then
-        fail "Khong tim thay file JAR cho service: $svc o $target_dir"
+if [[ ${#MAVEN_PROJECTS[@]} -gt 0 ]]; then
+    step "Maven clean package (skipTests)"
+    cd "$ROOT"
+    if [[ $# -eq 0 ]]; then
+        # Full build
+        "$MVN_CMD" clean package -DskipTests --batch-mode
     else
-        ok "$svc -> $(basename "$jar")"
+        # Build only specified modules and their dependencies (-am)
+        IFS=','
+        project_list="${MAVEN_PROJECTS[*]}"
+        unset IFS
+        "$MVN_CMD" clean package -pl "$project_list" -am -DskipTests --batch-mode
     fi
-done
+    ok "Maven build thanh cong"
+
+    # --- 2. Verify built JARs ---
+    step "Kiem tra cac file JAR"
+    for svc in "${TARGET_SERVICES[@]}"; do
+        if [[ "$svc" != "ai-media-worker" ]]; then
+            path="${SERVICE_MAP[$svc]}"
+            target_dir="$ROOT/$path/target"
+            jar=$(find "$target_dir" -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" 2>/dev/null | head -1)
+            if [[ -z "$jar" ]]; then
+                fail "Khong tim thay file JAR cho service: $svc o $target_dir"
+            else
+                ok "$svc -> $(basename "$jar")"
+            fi
+        fi
+    done
+else
+    step "Maven build (Bo qua do khong co service Java nao can build)"
+fi
 
 # --- 3. Docker Compose build & up ---
-step "Docker Compose build + up (Chi chay cac service Java)"
+step "Docker Compose build + up (Chi chay cac service thich hop)"
 cd "$ROOT"
 
 info "Building docker images: docker compose build --parallel ${TARGET_SERVICES[*]}"
@@ -114,10 +125,10 @@ ok "Docker compose build xong"
 
 info "Running: docker compose up -d ${TARGET_SERVICES[*]}"
 docker compose up -d "${TARGET_SERVICES[@]}" || fail "Docker compose up that bai"
-ok "Cac service da khoi dong/restart thanh cong!"
+ok "Cac service da khi dong/restart thanh cong!"
 
 # --- 4. Status ---
 step "Trang thai cac container dang chay"
 docker compose ps "${TARGET_SERVICES[@]}"
 
-echo -e "\n${GREEN}[DONE] Da build & deploy xong cac service Java!${NC}"
+echo -e "\n${GREEN}[DONE] Da build & deploy xong cac service!${NC}"
