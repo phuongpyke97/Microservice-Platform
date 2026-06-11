@@ -17,6 +17,8 @@ import com.platform.crbtcampaign.service.MusicGenerationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
@@ -87,6 +89,28 @@ public class CampaignController {
         if (msisdn == null || msisdn.isBlank()) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
+
+        // Pre-populate audit log metadata with MSISDN and model to handle failures or cache hits
+        try {
+            org.springframework.web.context.request.ServletRequestAttributes attributes =
+                (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
+                Map<String, Object> initialTokenUsage = new HashMap<>();
+                initialTokenUsage.put("msisdn", msisdn);
+                initialTokenUsage.put("model", "lyria-3-clip-preview");
+                initialTokenUsage.put("prompt_tokens", 0);
+                initialTokenUsage.put("candidate_tokens", 0);
+                initialTokenUsage.put("total_tokens", 0);
+                initialTokenUsage.put("genre", genre);
+                initialTokenUsage.put("mood", mood);
+                initialTokenUsage.put("instrument", instrument);
+                request.setAttribute("lyria_token_usage", initialTokenUsage);
+            }
+        } catch (Exception ex) {
+            // Ignore context issues (e.g. non-web context tests)
+        }
+
         return ApiResponse.success(musicGenerationService.generate(msisdn, genre, mood, instrument));
     }
 
