@@ -64,7 +64,7 @@ class FileServiceTest {
 
     @Test
     void uploadTemp_largeFile_throws() {
-        byte[] data = new byte[5 * 1024 * 1024 + 1];
+        byte[] data = new byte[15 * 1024 * 1024 + 1];
         var file = new MockMultipartFile("file", "big.mp3", "audio/mpeg", data);
 
         assertThatThrownBy(() -> fileService.uploadTemp(10L, file))
@@ -138,20 +138,24 @@ class FileServiceTest {
         when(statResponse.size()).thenReturn(1024L);
         when(minioClient.statObject(any())).thenReturn(statResponse);
 
+        io.minio.GetObjectResponse getResponse = mock(io.minio.GetObjectResponse.class);
+        when(getResponse.readAllBytes()).thenReturn(new byte[0]);
+        when(minioClient.getObject(any())).thenReturn(getResponse);
+
         // Mock RestClient
         org.springframework.web.client.RestClient restClient = mock(org.springframework.web.client.RestClient.class);
         org.springframework.web.client.RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(org.springframework.web.client.RestClient.RequestBodyUriSpec.class);
         org.springframework.web.client.RestClient.RequestBodySpec requestBodySpec = mock(org.springframework.web.client.RestClient.RequestBodySpec.class);
         org.springframework.web.client.RestClient.ResponseSpec responseSpec = mock(org.springframework.web.client.RestClient.ResponseSpec.class);
 
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any())).thenReturn(requestBodySpec);
-        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        doReturn(requestBodyUriSpec).when(restClient).post();
+        doAnswer(invocation -> requestBodySpec).when(requestBodyUriSpec).uri(anyString());
+        doAnswer(invocation -> requestBodySpec).when(requestBodySpec).contentType(any());
+        doAnswer(invocation -> requestBodySpec).when(requestBodySpec).body(any(Object.class));
+        doReturn(responseSpec).when(requestBodySpec).retrieve();
 
         java.util.Map<String, Object> responseMap = java.util.Map.of("duration", 60.0);
-        when(responseSpec.body(any(org.springframework.core.ParameterizedTypeReference.class))).thenReturn(responseMap);
+        doReturn(responseMap).when(responseSpec).body(any(org.springframework.core.ParameterizedTypeReference.class));
 
         setRestClient(fileService, restClient);
 
@@ -172,20 +176,24 @@ class FileServiceTest {
         when(statResponse.size()).thenReturn(1024L);
         when(minioClient.statObject(any())).thenReturn(statResponse);
 
+        io.minio.GetObjectResponse getResponse = mock(io.minio.GetObjectResponse.class);
+        when(getResponse.readAllBytes()).thenReturn(new byte[0]);
+        when(minioClient.getObject(any())).thenReturn(getResponse);
+
         // Mock RestClient
         org.springframework.web.client.RestClient restClient = mock(org.springframework.web.client.RestClient.class);
         org.springframework.web.client.RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(org.springframework.web.client.RestClient.RequestBodyUriSpec.class);
         org.springframework.web.client.RestClient.RequestBodySpec requestBodySpec = mock(org.springframework.web.client.RestClient.RequestBodySpec.class);
         org.springframework.web.client.RestClient.ResponseSpec responseSpec = mock(org.springframework.web.client.RestClient.ResponseSpec.class);
 
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any())).thenReturn(requestBodySpec);
-        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        doReturn(requestBodyUriSpec).when(restClient).post();
+        doAnswer(invocation -> requestBodySpec).when(requestBodyUriSpec).uri(anyString());
+        doAnswer(invocation -> requestBodySpec).when(requestBodySpec).contentType(any());
+        doAnswer(invocation -> requestBodySpec).when(requestBodySpec).body(any(Object.class));
+        doReturn(responseSpec).when(requestBodySpec).retrieve();
 
         java.util.Map<String, Object> responseMap = java.util.Map.of("duration", 30.0); // 30s is too short
-        when(responseSpec.body(any(org.springframework.core.ParameterizedTypeReference.class))).thenReturn(responseMap);
+        doReturn(responseMap).when(responseSpec).body(any(org.springframework.core.ParameterizedTypeReference.class));
 
         setRestClient(fileService, restClient);
 
@@ -201,7 +209,7 @@ class FileServiceTest {
         when(repository.findById(12L)).thenReturn(Optional.of(metadata));
 
         io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
-        when(statResponse.size()).thenReturn(10L * 1024L * 1024L); // 10MB exceeds 5MB limit
+        when(statResponse.size()).thenReturn(20L * 1024L * 1024L); // 20MB exceeds 15MB limit
         when(minioClient.statObject(any())).thenReturn(statResponse);
 
         assertThatThrownBy(() -> fileService.confirm(12L, "audio"))

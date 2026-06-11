@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 
 public enum FileErrorCode implements ErrorCode {
     FILE_NOT_FOUND("FILE_NOT_FOUND", "File not found", HttpStatus.NOT_FOUND),
-    FILE_TOO_LARGE("FILE_TOO_LARGE", "File exceeds 5MB limit", HttpStatus.BAD_REQUEST),
+    FILE_TOO_LARGE("FILE_TOO_LARGE", "File exceeds 15MB limit", HttpStatus.BAD_REQUEST),
     FILE_TYPE_NOT_ALLOWED("FILE_TYPE_NOT_ALLOWED", "File type not allowed", HttpStatus.BAD_REQUEST),
     FILE_UPLOAD_FAILED("FILE_UPLOAD_FAILED", "Failed to upload file to storage", HttpStatus.INTERNAL_SERVER_ERROR),
     FILE_ALREADY_DELETED("FILE_ALREADY_DELETED", "File is already deleted", HttpStatus.GONE),

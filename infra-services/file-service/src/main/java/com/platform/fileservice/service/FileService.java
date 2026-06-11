@@ -34,7 +34,7 @@ import org.springframework.web.client.RestClient;
 @Service
 public class FileService {
 
-    private static final long MAX_SIZE = 5L * 1024 * 1024;
+    private static final long MAX_SIZE = 15L * 1024 * 1024;
     private static final long PRESIGNED_TTL_SECONDS = 300;
     private static final Set<String> ALLOWED_TYPES = Set.of(
             "image/jpeg", "image/png", "audio/mpeg", "audio/wav", "audio/ogg"
