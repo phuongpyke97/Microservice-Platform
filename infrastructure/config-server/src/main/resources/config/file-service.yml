@@ -29,6 +29,8 @@ minio:
 
 ai-worker:
   url: ${AI_WORKER_URL:http://localhost:8765}
+  connect-timeout-ms: ${AI_WORKER_CONNECT_TIMEOUT_MS:40000}
+  read-timeout-ms: ${AI_WORKER_READ_TIMEOUT_MS:300000}
 
 eureka:
   client:

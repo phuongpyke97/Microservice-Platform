@@ -39,7 +39,9 @@ class FileServiceTest {
                 minioClient,
                 publicMinioClient,
                 new MinioProperties("http://localhost:9000", "http://localhost:9000", "minio", "minio123", "temp", "audio", "image", "audio-lib"),
-                "http://localhost:8765"
+                "http://localhost:8765",
+                40000,
+                300000
         );
     }
 

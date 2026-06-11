@@ -50,12 +50,23 @@ public class FileService {
                        MinioClient minioClient,
                        @org.springframework.beans.factory.annotation.Qualifier("publicMinioClient") MinioClient publicMinioClient,
                        MinioProperties properties,
-                       @Value("${ai-worker.url:http://localhost:8765}") String aiWorkerUrl) {
+                       @Value("${ai-worker.url:http://localhost:8765}") String aiWorkerUrl,
+                       @Value("${ai-worker.connect-timeout-ms:40000}") int connectTimeout,
+                       @Value("${ai-worker.read-timeout-ms:300000}") int readTimeout) {
         this.repository = repository;
         this.minioClient = minioClient;
         this.publicMinioClient = publicMinioClient;
         this.properties = properties;
-        this.restClient = RestClient.builder().baseUrl(aiWorkerUrl).build();
+
+        org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory = 
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+
+        this.restClient = RestClient.builder()
+                .baseUrl(aiWorkerUrl)
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Transactional
@@ -88,7 +99,7 @@ public class FileService {
         return toResponse(metadata);
     }
 
-    @Transactional
+    @Transactional(timeout = 300)
     public FileMetadataResponse confirm(Long fileId, String targetBucket) {
         FileMetadata metadata = repository.findById(fileId)
                 .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));

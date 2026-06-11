@@ -3,6 +3,7 @@ package com.platform.crbtcampaign.controller;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.ApiResponse;
+import com.platform.common.core.response.PageResponse;
 import com.platform.common.security.SecurityUtils;
 import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
 import com.platform.crbtcampaign.service.MusicGenerationService;
@@ -20,7 +21,7 @@ public class AdminMusicController {
     }
 
     @GetMapping
-    public ApiResponse<List<MyLibraryItemResponse>> search(
+    public ApiResponse<PageResponse<MyLibraryItemResponse>> search(
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime,
             @RequestParam(required = false) String source,
@@ -30,7 +31,7 @@ public class AdminMusicController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         requireAdminRole();
-        List<MyLibraryItemResponse> result = musicGenerationService.searchMusicItemsAdmin(
+        PageResponse<MyLibraryItemResponse> result = musicGenerationService.searchMusicItemsAdmin(
             startTime, endTime, source, userId, msisdn, search, page, size
         );
         return ApiResponse.success(result);

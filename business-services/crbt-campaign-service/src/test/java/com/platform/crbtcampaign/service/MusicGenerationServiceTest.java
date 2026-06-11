@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.common.ai.LyriaSystemPromptConfig;
 import com.platform.common.core.response.ApiResponse;
+import com.platform.common.core.response.PageResponse;
 import com.platform.crbtcampaign.client.AudioGenerationClient;
 import com.platform.crbtcampaign.client.AuthServiceClient;
 import com.platform.crbtcampaign.client.CreditWalletClient;
@@ -178,6 +179,8 @@ class MusicGenerationServiceTest {
         org.springframework.data.domain.Page<UserLyriaHistory> pageResult = new org.springframework.data.domain.PageImpl<>(List.of(ai));
         when(historyRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
             .thenReturn(pageResult);
+        when(historyRepository.count(any(org.springframework.data.jpa.domain.Specification.class)))
+            .thenReturn(1L);
 
         DiyJobResponse diy = new DiyJobResponse(
             100L,
@@ -201,7 +204,7 @@ class MusicGenerationServiceTest {
             when(audioGenerationClient.searchJobsAdmin(eq("Bearer test-token"), any(), any(), any(), any(), any(), eq(0), eq(10)))
                 .thenReturn(ApiResponse.success(List.of(diy)));
 
-            List<MyLibraryItemResponse> result = musicGenerationService.searchMusicItemsAdmin(
+            PageResponse<MyLibraryItemResponse> result = musicGenerationService.searchMusicItemsAdmin(
                 now.minus(1, ChronoUnit.DAYS).toString(),
                 now.plus(1, ChronoUnit.DAYS).toString(),
                 null,
@@ -213,11 +216,15 @@ class MusicGenerationServiceTest {
             );
 
             assertNotNull(result);
-            assertEquals(2, result.size());
-            assertEquals("DIY_100", result.get(0).id());
-            assertEquals("My DIY Title", result.get(0).title());
-            assertEquals("AI_" + ai.getId(), result.get(1).id());
-            assertEquals("Chill Pop Vibes", result.get(1).title());
+            assertEquals(2, result.content().size());
+            assertEquals(2, result.totalElements());
+            assertEquals(1, result.totalPages());
+            assertEquals(0, result.page());
+            assertEquals(10, result.size());
+            assertEquals("DIY_100", result.content().get(0).id());
+            assertEquals("My DIY Title", result.content().get(0).title());
+            assertEquals("AI_" + ai.getId(), result.content().get(1).id());
+            assertEquals("Chill Pop Vibes", result.content().get(1).title());
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         }

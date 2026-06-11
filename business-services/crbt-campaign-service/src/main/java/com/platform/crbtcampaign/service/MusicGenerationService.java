@@ -6,6 +6,7 @@ import com.platform.common.ai.LyriaSystemPromptConfig;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.ApiResponse;
+import com.platform.common.core.response.PageResponse;
 import com.platform.crbtcampaign.client.AuthServiceClient;
 import com.platform.crbtcampaign.client.FileServiceClient;
 import com.platform.crbtcampaign.client.LyriaClient;
@@ -560,7 +561,7 @@ public class MusicGenerationService {
         return authHeader;
     }
 
-    public List<MyLibraryItemResponse> searchMusicItemsAdmin(
+    public PageResponse<MyLibraryItemResponse> searchMusicItemsAdmin(
             String startTimeStr,
             String endTimeStr,
             String source,
@@ -578,6 +579,9 @@ public class MusicGenerationService {
 
         boolean fetchAi = source == null || "AI".equalsIgnoreCase(source);
         boolean fetchDiy = source == null || "DIY".equalsIgnoreCase(source);
+
+        long aiTotal = 0;
+        long diyTotal = 0;
 
         if (fetchAi) {
             Specification<UserLyriaHistory> spec = Specification.where(null);
@@ -601,6 +605,8 @@ public class MusicGenerationService {
                     cb.like(cb.lower(root.get("mood")), pattern)
                 ));
             }
+
+            aiTotal = historyRepository.count(spec);
 
             Page<UserLyriaHistory> aiPage = historyRepository.findAll(
                 spec,
@@ -657,6 +663,7 @@ public class MusicGenerationService {
                     log.error("Failed to query DIY jobs via Feign client: {}", e.getMessage(), e);
                 }
             }
+            diyTotal = diyResults.size();
         }
 
         List<MyLibraryItemResponse> combined = new ArrayList<>();
@@ -666,12 +673,17 @@ public class MusicGenerationService {
         // Sort combined list by createdAt DESC
         combined.sort((a, b) -> b.createdAt().compareTo(a.createdAt()));
 
+        long totalElements = aiTotal + diyTotal;
+        int totalPages = (size > 0) ? (int) Math.ceil((double) totalElements / size) : 0;
+
         int fromIndex = page * size;
         if (fromIndex >= combined.size()) {
-            return List.of();
+            return new PageResponse<>(List.of(), page, size, totalElements, totalPages);
         }
         int toIndex = Math.min(fromIndex + size, combined.size());
-        return combined.subList(fromIndex, toIndex);
+        List<MyLibraryItemResponse> content = combined.subList(fromIndex, toIndex);
+
+        return new PageResponse<>(content, page, size, totalElements, totalPages);
     }
 
     public MyLibraryItemResponse getMusicItemAdmin(String unifiedId) {
