@@ -217,58 +217,7 @@ public class AudioGenerationService {
 
     @Transactional
     public Map<String, Object> confirmAndValidateDiyAudio(Long fileId, String targetBucket) {
-        // Step 1: Download the temp file from file-service
-        byte[] fileBytes;
-        try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
-            if (response.status() >= 400) {
-                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
-            }
-            if (response.body() == null) {
-                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service response body is null");
-            }
-            try (InputStream is = response.body().asInputStream()) {
-                fileBytes = is.readAllBytes();
-            }
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Failed to download file {}", fileId, e);
-            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Không thể tải file tạm: " + e.getMessage());
-        }
-
-        // Step 2: Separate audio to check vocal presence
-        File tempFile = null;
-        try {
-            tempFile = File.createTempFile("confirm-diy-", ".mp3");
-            Files.write(tempFile.toPath(), fileBytes);
-
-            org.springframework.web.multipart.MultipartFile filePart =
-                new TempFileMultipartFile(tempFile, "file", "music.mp3", "audio/mpeg");
-
-            Map<String, Object> separation = aiClient.separateAudio(filePart, true);
-            Object hasVocalObj = separation.get("has_vocal");
-            boolean hasVocal = false;
-            if (hasVocalObj instanceof Boolean) {
-                hasVocal = (Boolean) hasVocalObj;
-            } else if (hasVocalObj instanceof String) {
-                hasVocal = Boolean.parseBoolean((String) hasVocalObj);
-            }
-
-            if (hasVocal) {
-                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.");
-            }
-        } catch (BaseException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Failed to separate audio for validation", e);
-            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Không thể xác thực tệp âm thanh: " + e.getMessage());
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
-            }
-        }
-
-        // Step 3: Call file-service to confirm and move the file
+        // Call file-service to validate (duration, vocal presence, size) and move the file
         ApiResponse<Map<String, Object>> confirmResp = fileServiceClient.confirmFile(fileId, Map.of("targetBucket", targetBucket));
         if (confirmResp == null || !confirmResp.success() || confirmResp.data() == null) {
             String errorMsg = (confirmResp != null && confirmResp.message() != null) ? confirmResp.message() : "Unknown error";

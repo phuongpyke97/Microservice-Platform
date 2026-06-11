@@ -125,11 +125,102 @@ class FileServiceTest {
         assertThat(response.status()).isEqualTo(FileStatus.DELETED);
     }
 
+    @Test
+    void confirm_audioFileWithValidDuration_succeeds() throws Exception {
+        FileMetadata metadata = new FileMetadata(1L, "music.mp3", "obj-1", "temp", "audio/mpeg", 0, FileStatus.UPLOADED);
+        setId(metadata, 10L);
+        when(repository.findById(10L)).thenReturn(Optional.of(metadata));
+        when(repository.save(any(FileMetadata.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
+        when(statResponse.size()).thenReturn(1024L);
+        when(minioClient.statObject(any())).thenReturn(statResponse);
+
+        // Mock RestClient
+        org.springframework.web.client.RestClient restClient = mock(org.springframework.web.client.RestClient.class);
+        org.springframework.web.client.RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(org.springframework.web.client.RestClient.RequestBodyUriSpec.class);
+        org.springframework.web.client.RestClient.RequestBodySpec requestBodySpec = mock(org.springframework.web.client.RestClient.RequestBodySpec.class);
+        org.springframework.web.client.RestClient.ResponseSpec responseSpec = mock(org.springframework.web.client.RestClient.ResponseSpec.class);
+
+        when(restClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+        when(requestBodySpec.body(any())).thenReturn(requestBodySpec);
+        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+
+        java.util.Map<String, Object> responseMap = java.util.Map.of("duration", 60.0);
+        when(responseSpec.body(any(org.springframework.core.ParameterizedTypeReference.class))).thenReturn(responseMap);
+
+        setRestClient(fileService, restClient);
+
+        FileMetadataResponse response = fileService.confirm(10L, "audio");
+
+        assertThat(response.bucket()).isEqualTo("audio");
+        assertThat(response.status()).isEqualTo(FileStatus.CONFIRMED);
+        assertThat(response.sizeBytes()).isEqualTo(1024L);
+    }
+
+    @Test
+    void confirm_audioFileWithInvalidDuration_throws() throws Exception {
+        FileMetadata metadata = new FileMetadata(1L, "music.mp3", "obj-1", "temp", "audio/mpeg", 0, FileStatus.UPLOADED);
+        setId(metadata, 11L);
+        when(repository.findById(11L)).thenReturn(Optional.of(metadata));
+
+        io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
+        when(statResponse.size()).thenReturn(1024L);
+        when(minioClient.statObject(any())).thenReturn(statResponse);
+
+        // Mock RestClient
+        org.springframework.web.client.RestClient restClient = mock(org.springframework.web.client.RestClient.class);
+        org.springframework.web.client.RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(org.springframework.web.client.RestClient.RequestBodyUriSpec.class);
+        org.springframework.web.client.RestClient.RequestBodySpec requestBodySpec = mock(org.springframework.web.client.RestClient.RequestBodySpec.class);
+        org.springframework.web.client.RestClient.ResponseSpec responseSpec = mock(org.springframework.web.client.RestClient.ResponseSpec.class);
+
+        when(restClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+        when(requestBodySpec.body(any())).thenReturn(requestBodySpec);
+        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+
+        java.util.Map<String, Object> responseMap = java.util.Map.of("duration", 30.0); // 30s is too short
+        when(responseSpec.body(any(org.springframework.core.ParameterizedTypeReference.class))).thenReturn(responseMap);
+
+        setRestClient(fileService, restClient);
+
+        assertThatThrownBy(() -> fileService.confirm(11L, "audio"))
+                .isInstanceOf(BaseException.class)
+                .satisfies(e -> assertThat(((BaseException) e).getErrorCode()).isEqualTo(FileErrorCode.INVALID_AUDIO_DURATION));
+    }
+
+    @Test
+    void confirm_fileTooLarge_throws() throws Exception {
+        FileMetadata metadata = new FileMetadata(1L, "music.mp3", "obj-1", "temp", "audio/mpeg", 0, FileStatus.UPLOADED);
+        setId(metadata, 12L);
+        when(repository.findById(12L)).thenReturn(Optional.of(metadata));
+
+        io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
+        when(statResponse.size()).thenReturn(10L * 1024L * 1024L); // 10MB exceeds 5MB limit
+        when(minioClient.statObject(any())).thenReturn(statResponse);
+
+        assertThatThrownBy(() -> fileService.confirm(12L, "audio"))
+                .isInstanceOf(BaseException.class)
+                .satisfies(e -> assertThat(((BaseException) e).getErrorCode()).isEqualTo(FileErrorCode.FILE_TOO_LARGE));
+    }
+
     private void setId(FileMetadata metadata, Long id) {
         try {
             var field = FileMetadata.class.getDeclaredField("id");
             field.setAccessible(true);
             field.set(metadata, id);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void setRestClient(FileService service, org.springframework.web.client.RestClient restClient) {
+        try {
+            var field = FileService.class.getDeclaredField("restClient");
+            field.setAccessible(true);
+            field.set(service, restClient);
         } catch (Exception ignored) {
         }
     }

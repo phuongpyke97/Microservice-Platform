@@ -104,8 +104,26 @@ public class FileService {
             throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET);
         }
 
-        // Vocal check if target bucket is media-audio-lib
-        if (targetBucket.equals(properties.bucketAudioLib())) {
+        // Get actual object size from MinIO first to validate size before processing
+        long actualSize;
+        try {
+            var stat = minioClient.statObject(
+                    io.minio.StatObjectArgs.builder()
+                            .bucket(metadata.getBucket())
+                            .object(metadata.getStoredKey())
+                            .build()
+            );
+            actualSize = stat.size();
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Failed to locate file in temp storage");
+        }
+
+        // Enforce the size validation limit (e.g. 5MB)
+        validate(actualSize, metadata.getContentType());
+        metadata.setSizeBytes(actualSize);
+
+        // Enforce audio-specific constraints (duration and vocal presence)
+        if (metadata.getContentType() != null && metadata.getContentType().startsWith("audio/")) {
             try {
                 byte[] fileBytes;
                 try (InputStream is = minioClient.getObject(
@@ -115,24 +133,25 @@ public class FileService {
                                 .build())) {
                     fileBytes = is.readAllBytes();
                 }
-                checkVocal(fileBytes, metadata.getOriginalName(), metadata.getContentType());
+
+                // Verify audio duration (40s -> 5 minutes)
+                double duration = getAudioDuration(fileBytes, metadata.getOriginalName(), metadata.getContentType());
+                if (duration < 40.0 || duration > 300.0) {
+                    throw new BaseException(FileErrorCode.INVALID_AUDIO_DURATION);
+                }
+
+                // Vocal check if target bucket is media-audio-lib
+                if (targetBucket.equals(properties.bucketAudioLib())) {
+                    checkVocal(fileBytes, metadata.getOriginalName(), metadata.getContentType());
+                }
             } catch (BaseException e) {
                 throw e;
             } catch (Exception e) {
-                throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to perform vocal check: " + e.getMessage());
+                throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to validate audio file: " + e.getMessage());
             }
         }
 
         try {
-            // Get actual object size from MinIO first
-            var stat = minioClient.statObject(
-                    io.minio.StatObjectArgs.builder()
-                            .bucket(metadata.getBucket())
-                            .object(metadata.getStoredKey())
-                            .build()
-            );
-            metadata.setSizeBytes(stat.size());
-
             minioClient.copyObject(
                     CopyObjectArgs.builder()
                             .bucket(targetBucket)
@@ -316,6 +335,37 @@ public class FileService {
             throw e;
         } catch (Exception e) {
             throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to analyze vocal presence: " + e.getMessage());
+        }
+    }
+
+    private double getAudioDuration(byte[] fileBytes, String filename, String contentType) {
+        try {
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            String mimeType = contentType != null ? contentType : "audio/mpeg";
+            builder.part("file", new ByteArrayResource(fileBytes) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            }, MediaType.parseMediaType(mimeType));
+
+            MultiValueMap<String, HttpEntity<?>> parts = builder.build();
+
+            Map<String, Object> response = restClient.post()
+                    .uri("/audio-metadata")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(parts)
+                    .retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (response != null && response.get("duration") != null) {
+                return ((Number) response.get("duration")).doubleValue();
+            }
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to parse audio duration");
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to analyze audio duration: " + e.getMessage());
         }
     }
 

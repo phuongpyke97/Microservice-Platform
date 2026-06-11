@@ -2,10 +2,14 @@ package com.platform.common.core.config;
 
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
+import com.platform.common.core.exception.ErrorCode;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
@@ -18,6 +22,32 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
         try {
             if (response.body() != null) {
                 body = feign.Util.toString(response.body().asReader(StandardCharsets.UTF_8));
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    JsonNode node = mapper.readTree(body);
+                    String code = null;
+                    if (node.has("errorCode")) {
+                        code = node.get("errorCode").asText();
+                    } else if (node.has("code")) {
+                        code = node.get("code").asText();
+                    }
+                    if (code != null && node.has("message")) {
+                        String msg = node.get("message").asText();
+                        HttpStatus status = HttpStatus.resolve(response.status());
+                        if (status == null) {
+                            status = HttpStatus.BAD_REQUEST;
+                        }
+                        final HttpStatus finalStatus = status;
+                        ErrorCode customCode = new ErrorCode() {
+                            @Override public String code() { return code; }
+                            @Override public String message() { return msg; }
+                            @Override public HttpStatus status() { return finalStatus; }
+                        };
+                        return new BaseException(customCode, msg);
+                    }
+                } catch (Exception e) {
+                    // ignore and log normally
+                }
             }
         } catch (IOException e) {
             // ignore

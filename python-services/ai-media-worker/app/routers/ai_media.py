@@ -51,6 +51,19 @@ async def mix_audio_endpoint(vocal: UploadFile, accompaniment: UploadFile, mode:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.post("/audio-metadata")
+async def audio_metadata_endpoint(file: UploadFile):
+    import io
+    import librosa
+    try:
+        audio_data = await file.read()
+        y, sr = librosa.load(io.BytesIO(audio_data), sr=None)
+        duration = float(y.shape[0] / sr)
+        return {"duration": duration}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid audio file: {str(e)}")
+
+
 @router.post("/generate-tts")
 async def generate_tts_endpoint(payload: dict):
     text = payload.get("text", "")
