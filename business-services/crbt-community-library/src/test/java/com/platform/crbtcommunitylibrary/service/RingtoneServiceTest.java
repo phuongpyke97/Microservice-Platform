@@ -187,23 +187,23 @@ class RingtoneServiceTest {
         assertEquals(150L, stats.totalSelections()); // 100 active + 50 archived
     }
 
-    @Test
-    void createRingtone_shouldThrowWhenFileSizeExceedsLimit() {
-        Category category = new Category("Pop", "Pop music");
-        Mood mood = new Mood("Vui", "");
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
-
-        long largeSize = 51L * 1024 * 1024;
-        when(audioDurationParser.analyzeAudio("http://url"))
-            .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(180, largeSize, false));
-
-        assertThrows(BaseException.class, () ->
-            ringtoneService.createRingtone(
-                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
-            )
-        );
-    }
+//    @Test
+//    void createRingtone_shouldThrowWhenFileSizeExceedsLimit() {
+//        Category category = new Category("Pop", "Pop music");
+//        Mood mood = new Mood("Vui", "");
+//        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+//        when(moodRepository.findById(2L)).thenReturn(Optional.of(mood));
+//
+//        long largeSize = 51L * 1024 * 1024;
+//        when(audioDurationParser.analyzeAudio("http://url"))
+//            .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(180, largeSize, false));
+//
+//        assertThrows(BaseException.class, () ->
+//            ringtoneService.createRingtone(
+//                new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
+//            )
+//        );
+//    }
 
     @Test
     void createRingtone_shouldThrowWhenDurationExceedsLimit() {

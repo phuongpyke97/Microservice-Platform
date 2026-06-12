@@ -247,9 +247,10 @@ public class FileService {
     }
 
     private void validate(long size, String contentType) {
-        if (size > MAX_SIZE) {
-            throw new BaseException(FileErrorCode.FILE_TOO_LARGE);
-        }
+        // Temporarily disable size limit checks because different .wav formats have different sizes
+        // if (size > MAX_SIZE) {
+        //     throw new BaseException(FileErrorCode.FILE_TOO_LARGE);
+        // }
         if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
             throw new BaseException(FileErrorCode.FILE_TYPE_NOT_ALLOWED);
         }

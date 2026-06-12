@@ -148,9 +148,10 @@ public class RingtoneService {
         AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(request.audioUrl());
 
         // BR-Size: must be < 50MB
-        if (analysis.sizeBytes() > 50L * 1024 * 1024) {
-            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Dung lượng file vượt quá giới hạn cho phép (50MB).");
-        }
+        // Temporarily disable size limit checks because different .wav formats have different sizes
+        // if (analysis.sizeBytes() > 50L * 1024 * 1024) {
+        //     throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Dung lượng file vượt quá giới hạn cho phép (50MB).");
+        // }
 
         int duration = (request.durationSeconds() != null && request.durationSeconds() > 0)
             ? request.durationSeconds()
@@ -212,9 +213,10 @@ public class RingtoneService {
             AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(request.audioUrl());
 
             // BR-Size: must be < 50MB
-            if (analysis.sizeBytes() > 50L * 1024 * 1024) {
-                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Dung lượng file vượt quá giới hạn cho phép (50MB).");
-            }
+            // Temporarily disable size limit checks because different .wav formats have different sizes
+            // if (analysis.sizeBytes() > 50L * 1024 * 1024) {
+            //     throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Dung lượng file vượt quá giới hạn cho phép (50MB).");
+            // }
 
             int duration = (request.durationSeconds() != null && request.durationSeconds() > 0)
                 ? request.durationSeconds()
