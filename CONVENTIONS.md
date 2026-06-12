@@ -248,4 +248,14 @@ public class AsyncConfig {
         return executor;
     }
 }
+
+## Deployment Conventions
+
+### Rebuilding and Deploying Specific Services
+Khi có sự thay đổi về code hoặc cấu hình trong một hoặc nhiều microservices, câu lệnh để build và chạy lại các service bị ảnh hưởng cần được trả về theo dạng:
+```bash
+./build-service-and-deploy.sh <modified-service-1> <modified-service-2> ...
+```
+Điều này giúp hạn chế việc build lại và khởi động lại các service không liên quan, tối ưu hóa tài nguyên hệ thống.
+
 ```
