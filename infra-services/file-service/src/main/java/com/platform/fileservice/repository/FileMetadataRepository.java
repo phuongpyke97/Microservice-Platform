@@ -7,4 +7,10 @@ import java.util.Optional;
 
 public interface FileMetadataRepository extends JpaRepository<FileMetadata, Long> {
     Optional<FileMetadata> findByStoredKey(String storedKey);
+    java.util.List<FileMetadata> findByIdGreaterThanAndStatusAndCreatedAtBeforeOrderByIdAsc(
+            Long lastId, 
+            com.platform.fileservice.entity.FileStatus status, 
+            java.time.Instant cutoffTime, 
+            org.springframework.data.domain.Pageable pageable
+    );
 }
