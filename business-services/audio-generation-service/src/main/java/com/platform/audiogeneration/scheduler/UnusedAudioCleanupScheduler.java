@@ -35,7 +35,7 @@ public class UnusedAudioCleanupScheduler {
         this.fileServiceClient = fileServiceClient;
     }
 
-    @Scheduled(cron = "0 0 2 * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void cleanupUnusedAudios() {
         log.info("[CLEANUP-SCHEDULER] Starting daily unused audio cleanup task...");
         Instant cutoffTime = Instant.now().minus(7, ChronoUnit.DAYS);
