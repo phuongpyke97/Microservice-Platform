@@ -485,7 +485,9 @@ public class AudioGenerationService {
             String search,
             org.springframework.data.domain.Pageable pageable) {
 
-        org.springframework.data.jpa.domain.Specification<AudioJob> spec = org.springframework.data.jpa.domain.Specification.where(null);
+        org.springframework.data.jpa.domain.Specification<AudioJob> spec = org.springframework.data.jpa.domain.Specification.where(
+            (root, query, cb) -> cb.equal(root.get("deleted"), false)
+        );
 
         if (startTime != null) {
             spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), startTime));
@@ -503,7 +505,8 @@ public class AudioGenerationService {
             String pattern = "%" + search.toLowerCase() + "%";
             spec = spec.and((root, query, cb) -> cb.or(
                 cb.like(cb.lower(root.get("title")), pattern),
-                cb.like(cb.lower(root.get("prompt")), pattern)
+                cb.like(cb.lower(root.get("prompt")), pattern),
+                cb.like(root.get("msisdn"), pattern)
             ));
         }
 

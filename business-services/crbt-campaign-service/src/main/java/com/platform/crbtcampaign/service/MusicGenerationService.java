@@ -584,7 +584,7 @@ public class MusicGenerationService {
         long diyTotal = 0;
 
         if (fetchAi) {
-            Specification<UserLyriaHistory> spec = Specification.where(null);
+            Specification<UserLyriaHistory> spec = Specification.where((root, query, cb) -> cb.equal(root.get("deleted"), false));
             if (start != null) {
                 spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), start));
             }
@@ -602,7 +602,8 @@ public class MusicGenerationService {
                 spec = spec.and((root, query, cb) -> cb.or(
                     cb.like(cb.lower(root.get("title")), pattern),
                     cb.like(cb.lower(root.get("genre")), pattern),
-                    cb.like(cb.lower(root.get("mood")), pattern)
+                    cb.like(cb.lower(root.get("mood")), pattern),
+                    cb.like(root.get("msisdn"), pattern)
                 ));
             }
 
@@ -626,7 +627,8 @@ public class MusicGenerationService {
                     "AI",
                     tags,
                     item.getAudioUrl(),
-                    item.getCreatedAt()
+                    item.getCreatedAt(),
+                    item.getMsisdn()
                 ));
             }
         }
@@ -655,7 +657,8 @@ public class MusicGenerationService {
                                 "DIY",
                                 List.of("diy", "mixed"),
                                 item.resultUrl(),
-                                item.createdAt()
+                                item.createdAt(),
+                                item.msisdn()
                             ));
                         }
                     }
@@ -702,7 +705,7 @@ public class MusicGenerationService {
             if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
             tags.add(item.getDurationSeconds() + "s");
 
-            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt());
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn());
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
             String authHeader = getAuthHeader();
@@ -727,7 +730,8 @@ public class MusicGenerationService {
                 "DIY",
                 List.of("diy", "mixed"),
                 item.resultUrl(),
-                item.createdAt()
+                item.createdAt(),
+                item.msisdn()
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
@@ -751,7 +755,8 @@ public class MusicGenerationService {
                 if (request.tags().size() > 2) instrument = request.tags().get(2);
             }
 
-            UserLyriaHistory item = new UserLyriaHistory(0L, "0000000000", request.title(), genre, mood, instrument, request.audioUrl());
+            String targetMsisdn = request.msisdn() != null ? request.msisdn() : "0000000000";
+            UserLyriaHistory item = new UserLyriaHistory(0L, targetMsisdn, request.title(), genre, mood, instrument, request.audioUrl());
             historyRepository.save(item);
 
             return new MyLibraryItemResponse(
@@ -760,7 +765,8 @@ public class MusicGenerationService {
                 "AI",
                 request.tags(),
                 item.getAudioUrl(),
-                item.getCreatedAt()
+                item.getCreatedAt(),
+                item.getMsisdn()
             );
         } else if ("DIY".equals(source)) {
             String authHeader = getAuthHeader();
@@ -773,7 +779,7 @@ public class MusicGenerationService {
                 0.0,
                 50.0,
                 request.title(),
-                "0000000000"
+                request.msisdn() != null ? request.msisdn() : "0000000000"
             );
 
             ApiResponse<DiyJobResponse> diyResp = audioGenerationClient.createJobAdmin(authHeader, null, jobReq);
@@ -787,7 +793,8 @@ public class MusicGenerationService {
                 "DIY",
                 List.of("diy", "mixed"),
                 item.resultUrl(),
-                item.createdAt()
+                item.createdAt(),
+                item.msisdn()
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown source type");
@@ -816,7 +823,7 @@ public class MusicGenerationService {
             if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
             tags.add(item.getDurationSeconds() + "s");
 
-            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt());
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn());
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
             String authHeader = getAuthHeader();
@@ -830,7 +837,7 @@ public class MusicGenerationService {
                 null,
                 null,
                 request.title(),
-                null
+                request.msisdn()
             );
 
             ApiResponse<DiyJobResponse> diyResp = audioGenerationClient.updateJobAdmin(authHeader, jobId, updateReq);
@@ -844,7 +851,8 @@ public class MusicGenerationService {
                 "DIY",
                 List.of("diy", "mixed"),
                 item.resultUrl(),
-                item.createdAt()
+                item.createdAt(),
+                item.msisdn()
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
