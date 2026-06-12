@@ -105,14 +105,14 @@ class AudioGenerationServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.increment(any(String.class), eq(1L))).thenReturn(1L);
 
-        // Duration too short (30s)
+        // End time <= start time
         assertThrows(BaseException.class, () ->
-            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 10.0, 40.0))
+            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 40.0, 10.0))
         );
 
-        // Duration too long (70s)
+        // Start time negative
         assertThrows(BaseException.class, () ->
-            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", 0.0, 70.0))
+            service.submitJob(1L, new GenerateAudioRequest("hello", "voice", "DIY", "key", -5.0, 30.0))
         );
     }
 

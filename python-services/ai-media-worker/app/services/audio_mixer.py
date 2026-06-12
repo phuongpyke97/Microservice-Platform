@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from app.config import settings
 
-def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str) -> bytes:
+def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str, start_time: float = 0.0, end_time: float = 0.0) -> bytes:
     """
     Mix vocal (or TTS) and accompaniment bytes using FFmpeg.
     mode can be 'v1' (voice prominent), 'v2' (balanced), or 'v3' (music prominent).
@@ -24,21 +24,39 @@ def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str) 
         with open(bg_path, "wb") as f:
             f.write(accompaniment_bytes)
             
+        # Check if we should crop accompaniment
+        should_crop = (end_time > start_time)
+        bg_input_args = []
+        if should_crop:
+            duration = end_time - start_time
+            bg_input_args = ["-ss", f"{start_time:.3f}", "-t", f"{duration:.3f}"]
+
         # Define volume weights for filter complexes
         # BR-03-03 and BR-03-04: final mix normalize to -18 LUFS
+        v_vol = "1.0"
+        m_vol = "0.6"
         if mode == 'v1':
-            # Voice prominent: voice volume high (1.0), bg volume low (0.25)
-            filter_complex = '[0:a]volume=1.0[v];[1:a]volume=0.25[m];[v][m]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]'
+            v_vol = "1.0"
+            m_vol = "0.25"
         elif mode == 'v3':
-            # Music prominent: voice volume low (0.25), bg volume high (1.0)
-            filter_complex = '[0:a]volume=0.25[v];[1:a]volume=1.0[m];[v][m]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]'
+            v_vol = "0.25"
+            m_vol = "1.0"
+
+        # Apply 5s delay to vocal track and select mix duration behaviour
+        if should_crop:
+            # We crop the accompaniment. The output mix duration should match the accompaniment's duration.
+            # In amix, the first input determines the output duration with duration=first.
+            # So we feed accompaniment [m] as the first input to amix: [m][v]amix.
+            filter_complex = f"[0:a]adelay=5000:all=1,volume={v_vol}[v];[1:a]volume={m_vol}[m];[m][v]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
         else:
-            # Balanced: voice volume normal (1.0), bg volume balanced (0.6)
-            filter_complex = '[0:a]volume=1.0[v];[1:a]volume=0.6[m];[v][m]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]'
+            # Original behavior (e.g. without crop), output duration is determined by vocal duration.
+            # Vocal [v] is the first input to amix: [v][m]amix.
+            filter_complex = f"[0:a]adelay=5000:all=1,volume={v_vol}[v];[1:a]volume={m_vol}[m];[v][m]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
             
         cmd = [
             "ffmpeg", "-y",
             "-i", vocal_path,
+        ] + bg_input_args + [
             "-i", bg_path,
             "-filter_complex", filter_complex,
             "-map", "[out]",

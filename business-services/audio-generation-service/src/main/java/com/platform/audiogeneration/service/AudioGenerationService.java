@@ -254,15 +254,14 @@ public class AudioGenerationService {
                 throw new BaseException(AudioGenerationErrorCode.INVALID_PROMPT);
             }
 
-            // BR-1A-05 / BR-1B-04: Clip duration must be between 40 and 60 seconds
+            // Validate that the start and end times are correct
             if (request.vocalStart() == null || request.vocalEnd() == null) {
                 redisTemplate.opsForValue().decrement(ACTIVE_JOBS_KEY + userId);
                 throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Missing vocal start or end time");
             }
-            double duration = request.vocalEnd() - request.vocalStart();
-            if (duration < 40.0 || duration > 60.0) {
+            if (request.vocalStart() < 0.0 || request.vocalEnd() <= request.vocalStart()) {
                 redisTemplate.opsForValue().decrement(ACTIVE_JOBS_KEY + userId);
-                throw new BaseException(AudioGenerationErrorCode.INVALID_CLIP_DURATION);
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Invalid start or end time range");
             }
         }
 
@@ -369,9 +368,12 @@ public class AudioGenerationService {
                     org.springframework.web.multipart.MultipartFile bgPart =
                         new TempFileMultipartFile(tempBgFile, "accompaniment", "accompaniment.wav", "audio/wav");
 
-                    byte[] mixV1 = aiClient.mixAudio(vocalPart, bgPart, "v1");
-                    byte[] mixV2 = aiClient.mixAudio(vocalPart, bgPart, "v2");
-                    byte[] mixV3 = aiClient.mixAudio(vocalPart, bgPart, "v3");
+                    Double vocalStart = job.getVocalStart() != null ? job.getVocalStart() : 0.0;
+                    Double vocalEnd = job.getVocalEnd() != null ? job.getVocalEnd() : 0.0;
+
+                    byte[] mixV1 = aiClient.mixAudio(vocalPart, bgPart, "v1", vocalStart, vocalEnd);
+                    byte[] mixV2 = aiClient.mixAudio(vocalPart, bgPart, "v2", vocalStart, vocalEnd);
+                    byte[] mixV3 = aiClient.mixAudio(vocalPart, bgPart, "v3", vocalStart, vocalEnd);
 
                     updateProgress(job.getId(), "Uploading mixed versions to storage...");
                     ApiResponse<String> uploadV1 = fileServiceClient.uploadAudioBytes(mixV1, "media-audio");

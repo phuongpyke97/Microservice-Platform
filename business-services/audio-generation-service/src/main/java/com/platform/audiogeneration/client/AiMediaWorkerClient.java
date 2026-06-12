@@ -25,7 +25,9 @@ public interface AiMediaWorkerClient {
     byte[] mixAudio(
         @org.springframework.web.bind.annotation.RequestPart("vocal") org.springframework.web.multipart.MultipartFile vocal,
         @org.springframework.web.bind.annotation.RequestPart("accompaniment") org.springframework.web.multipart.MultipartFile accompaniment,
-        @org.springframework.web.bind.annotation.RequestParam("mode") String mode
+        @org.springframework.web.bind.annotation.RequestParam("mode") String mode,
+        @org.springframework.web.bind.annotation.RequestParam(value = "start_time", required = false) Double startTime,
+        @org.springframework.web.bind.annotation.RequestParam(value = "end_time", required = false) Double endTime
     );
 }
 
@@ -46,7 +48,7 @@ class AiMediaWorkerClientFallback implements AiMediaWorkerClient {
     }
 
     @Override
-    public byte[] mixAudio(org.springframework.web.multipart.MultipartFile vocal, org.springframework.web.multipart.MultipartFile accompaniment, String mode) {
+    public byte[] mixAudio(org.springframework.web.multipart.MultipartFile vocal, org.springframework.web.multipart.MultipartFile accompaniment, String mode, Double startTime, Double endTime) {
         throw new RuntimeException("AI Media Worker mix-audio unavailable");
     }
 }
