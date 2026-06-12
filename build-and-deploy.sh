@@ -35,9 +35,13 @@ fail()  { echo -e "  ${RED}[FAIL]${NC} $*"; exit 1; }
 skip()  { echo -e "  ${YELLOW}[SKIP]${NC} $*"; }
 info()  { echo -e "  ${GRAY}$*${NC}"; }
 
-# Java 21
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$JAVA_HOME/bin:$PATH"
+# Java 21 (only override if not already set and default Linux path exists)
+if [[ -z "${JAVA_HOME:-}" ]]; then
+    if [[ -d "/usr/lib/jvm/java-21-openjdk-amd64" ]]; then
+        export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+        export PATH="$JAVA_HOME/bin:$PATH"
+    fi
+fi
 
 # --- 0. Prerequisites ---
 step "Kiem tra prerequisites"

@@ -18,9 +18,13 @@ ok()    { echo -e "  ${GREEN}[OK]${NC} $*"; }
 fail()  { echo -e "  ${RED}[FAIL]${NC} $*"; exit 1; }
 info()  { echo -e "  ${GRAY}$*${NC}"; }
 
-# Export Java 21 path
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$JAVA_HOME/bin:$PATH"
+# Export Java 21 path (only if not already set and default Linux path exists)
+if [[ -z "${JAVA_HOME:-}" ]]; then
+    if [[ -d "/usr/lib/jvm/java-21-openjdk-amd64" ]]; then
+        export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+        export PATH="$JAVA_HOME/bin:$PATH"
+    fi
+fi
 
 # Map of service names to their directory path
 declare -A SERVICE_MAP=(
