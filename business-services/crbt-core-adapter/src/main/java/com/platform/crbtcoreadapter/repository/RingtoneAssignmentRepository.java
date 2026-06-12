@@ -12,4 +12,5 @@ public interface RingtoneAssignmentRepository extends JpaRepository<RingtoneAssi
     List<RingtoneAssignment> findByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<RingtoneAssignment> findByMsisdnAndStatus(String msisdn, SyncStatus status);
     List<RingtoneAssignment> findByStatus(SyncStatus status);
+    List<RingtoneAssignment> findByRingtoneUrlInAndStatusIn(List<String> ringtoneUrls, List<SyncStatus> statuses);
 }

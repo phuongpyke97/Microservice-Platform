@@ -70,4 +70,10 @@ public class FileController {
         String url = fileService.uploadAudioBytes(audioBytes, bucket);
         return ResponseEntity.ok(ApiResponse.success(url));
     }
+
+    @DeleteMapping("/internal/delete-file")
+    public ResponseEntity<ApiResponse<Void>> deleteFileByUrl(@RequestParam String url) {
+        fileService.deleteFileByUrl(url);
+        return ResponseEntity.ok(ApiResponse.success("File deleted from MinIO storage", null));
+    }
 }

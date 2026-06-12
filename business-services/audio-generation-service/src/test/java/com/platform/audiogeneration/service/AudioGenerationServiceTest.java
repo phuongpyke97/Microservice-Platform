@@ -225,38 +225,20 @@ class AudioGenerationServiceTest {
         Long fileId = 123L;
         String targetBucket = "media-audio-lib";
 
-        feign.Response mockResponse = org.mockito.Mockito.mock(feign.Response.class);
-        feign.Response.Body mockBody = org.mockito.Mockito.mock(feign.Response.Body.class);
-        when(fileServiceClient.downloadFile(fileId)).thenReturn(mockResponse);
-        when(mockResponse.status()).thenReturn(200);
-        when(mockResponse.body()).thenReturn(mockBody);
-        when(mockBody.asInputStream()).thenReturn(new java.io.ByteArrayInputStream("dummy".getBytes()));
-
-        java.util.Map<String, Object> separationResult = new java.util.HashMap<>();
-        separationResult.put("has_vocal", true);
-        when(aiClient.separateAudio(any(), eq(true))).thenReturn(separationResult);
+        when(fileServiceClient.confirmFile(eq(fileId), any())).thenReturn(
+            new com.platform.common.core.response.ApiResponse<>(false, "Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.", null, System.currentTimeMillis())
+        );
 
         BaseException ex = assertThrows(BaseException.class, () ->
             service.confirmAndValidateDiyAudio(fileId, targetBucket)
         );
-        assertEquals("Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.", ex.getMessage());
+        assertEquals("Xác nhận file thất bại: Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.", ex.getMessage());
     }
 
     @Test
     void confirmAndValidateDiyAudio_shouldSucceedWhenNoVocal() throws Exception {
         Long fileId = 123L;
         String targetBucket = "media-audio-lib";
-
-        feign.Response mockResponse = org.mockito.Mockito.mock(feign.Response.class);
-        feign.Response.Body mockBody = org.mockito.Mockito.mock(feign.Response.Body.class);
-        when(fileServiceClient.downloadFile(fileId)).thenReturn(mockResponse);
-        when(mockResponse.status()).thenReturn(200);
-        when(mockResponse.body()).thenReturn(mockBody);
-        when(mockBody.asInputStream()).thenReturn(new java.io.ByteArrayInputStream("dummy".getBytes()));
-
-        java.util.Map<String, Object> separationResult = new java.util.HashMap<>();
-        separationResult.put("has_vocal", false);
-        when(aiClient.separateAudio(any(), eq(true))).thenReturn(separationResult);
 
         java.util.Map<String, Object> confirmData = new java.util.HashMap<>();
         confirmData.put("storedKey", "media-audio-lib/confirmed.mp3");

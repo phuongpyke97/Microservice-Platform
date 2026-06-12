@@ -15,4 +15,6 @@ public interface AudioJobRepository extends JpaRepository<AudioJob, Long>, JpaSp
 
     @Query("SELECT COUNT(j) FROM AudioJob j WHERE j.userId = :userId AND j.status IN ('PENDING', 'PROCESSING')")
     long countActiveJobsByUserId(Long userId);
+
+    List<AudioJob> findByIdGreaterThanAndCreatedAtBeforeAndDeletedFalseOrderByIdAsc(Long id, java.time.Instant dateTime, org.springframework.data.domain.Pageable pageable);
 }

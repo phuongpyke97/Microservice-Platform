@@ -380,6 +380,51 @@ public class FileService {
         }
     }
 
+    @Transactional
+    public void deleteFileByUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "URL cannot be empty");
+        }
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String path = uri.getPath();
+            if (path == null) {
+                throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Invalid URL path");
+            }
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            int slashIdx = path.indexOf("/");
+            if (slashIdx == -1) {
+                throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Invalid file URL path structure");
+            }
+            String bucketName = path.substring(0, slashIdx);
+            String objectKey = path.substring(slashIdx + 1);
+
+            if (bucketName.isBlank() || objectKey.isBlank()) {
+                throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Empty bucket or object key");
+            }
+
+            // 1. Delete from MinIO
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectKey)
+                            .build()
+            );
+
+            // 2. Soft delete in DB if metadata exists
+            repository.findByStoredKey(objectKey).ifPresent(metadata -> {
+                metadata.setStatus(com.platform.fileservice.entity.FileStatus.DELETED);
+                repository.save(metadata);
+            });
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Failed to delete file: " + e.getMessage());
+        }
+    }
+
     private FileMetadataResponse toResponse(FileMetadata metadata) {
         return new FileMetadataResponse(
                 metadata.getId(),

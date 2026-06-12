@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableDiscoveryClient
 @EnableFeignClients
 @EnableAsync
+@org.springframework.scheduling.annotation.EnableScheduling
 public class AudioGenerationApplication {
     public static void main(String[] args) {
         SpringApplication.run(AudioGenerationApplication.class, args);

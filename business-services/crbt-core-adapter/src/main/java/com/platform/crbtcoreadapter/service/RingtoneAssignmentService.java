@@ -200,6 +200,16 @@ public class RingtoneAssignmentService {
             .map(this::toResponse).toList();
     }
 
+    public List<String> getActiveRingtoneUrls(List<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByRingtoneUrlInAndStatusIn(urls, List.of(SyncStatus.ACTIVE, SyncStatus.SYNCING)).stream()
+            .map(RingtoneAssignment::getRingtoneUrl)
+            .distinct()
+            .toList();
+    }
+
     private AssignmentResponse toResponse(RingtoneAssignment a) {
         return new AssignmentResponse(a.getId(), a.getMsisdn(), a.getRingtoneUrl(),
             a.getStatus(), a.getMytoneTransactionId(), a.getErrorMessage(), a.getCreatedAt());

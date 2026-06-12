@@ -217,6 +217,26 @@ class FileServiceTest {
                 .satisfies(e -> assertThat(((BaseException) e).getErrorCode()).isEqualTo(FileErrorCode.FILE_TOO_LARGE));
     }
 
+    @Test
+    void deleteFileByUrl_success() throws Exception {
+        String url = "http://localhost:9000/media-audio/obj-1";
+        FileMetadata metadata = new FileMetadata(1L, "a.png", "obj-1", "media-audio", "image/png", 10, FileStatus.CONFIRMED);
+        
+        when(repository.findByStoredKey("obj-1")).thenReturn(Optional.of(metadata));
+        
+        fileService.deleteFileByUrl(url);
+        
+        verify(minioClient).removeObject(any(io.minio.RemoveObjectArgs.class));
+        assertThat(metadata.getStatus()).isEqualTo(FileStatus.DELETED);
+        verify(repository).save(metadata);
+    }
+
+    @Test
+    void deleteFileByUrl_invalidUrl_throws() {
+        assertThatThrownBy(() -> fileService.deleteFileByUrl("invalid_url"))
+                .isInstanceOf(BaseException.class);
+    }
+
     private void setId(FileMetadata metadata, Long id) {
         try {
             var field = FileMetadata.class.getDeclaredField("id");

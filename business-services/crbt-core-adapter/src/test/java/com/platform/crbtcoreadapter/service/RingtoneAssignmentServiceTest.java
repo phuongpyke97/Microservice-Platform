@@ -74,4 +74,18 @@ class RingtoneAssignmentServiceTest {
         assertEquals(3, assignment.getRetryCount());
         verify(rabbitTemplate).convertAndSend(eq(RabbitDlqConfig.DEAD_LETTER_EXCHANGE), eq(RabbitDlqConfig.DEAD_LETTER_ROUTING_KEY), any(String.class));
     }
+
+    @Test
+    void getActiveRingtoneUrls_shouldReturnOnlyActiveUrls() {
+        java.util.List<String> urls = java.util.List.of("http://url1", "http://url2");
+        RingtoneAssignment activeAss = new RingtoneAssignment(1L, "959123456", "http://url1");
+        activeAss.setStatus(SyncStatus.ACTIVE);
+        
+        when(repository.findByRingtoneUrlInAndStatusIn(urls, java.util.List.of(SyncStatus.ACTIVE, SyncStatus.SYNCING)))
+            .thenReturn(java.util.List.of(activeAss));
+
+        java.util.List<String> result = service.getActiveRingtoneUrls(urls);
+        assertEquals(1, result.size());
+        assertEquals("http://url1", result.get(0));
+    }
 }

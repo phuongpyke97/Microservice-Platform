@@ -31,6 +31,9 @@ public interface FileServiceClient {
         @PathVariable("fileId") Long fileId,
         @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> request
     );
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/api/files/internal/delete-file")
+    ApiResponse<Void> deleteFileByUrl(@RequestParam("url") String url);
 }
 
 class FileServiceClientFallback implements FileServiceClient {
@@ -61,6 +64,11 @@ class FileServiceClientFallback implements FileServiceClient {
 
     @Override
     public ApiResponse<java.util.Map<String, Object>> confirmFile(Long fileId, java.util.Map<String, String> request) {
+        return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
+    }
+
+    @Override
+    public ApiResponse<Void> deleteFileByUrl(String url) {
         return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
     }
 }
