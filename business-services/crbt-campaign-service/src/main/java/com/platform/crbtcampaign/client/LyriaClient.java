@@ -6,6 +6,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -88,11 +89,34 @@ public class LyriaClient {
 
     @CircuitBreaker(name = "lyria")
     public byte[] generateMusic(String prompt) {
+        // Default path: deterministic output (seed=0 omits the seed override).
+        return generateMusic(prompt, 0L);
+    }
+
+    /**
+     * Generate music with a per-request {@code seed} so repeated calls with the
+     * same prompt produce distinct audio. A non-positive seed leaves seed unset
+     * (model default behaviour).
+     */
+    @CircuitBreaker(name = "lyria")
+    public byte[] generateMusic(String prompt, long seed) {
         if (apiKey == null || apiKey.isBlank() || "changeme".equals(apiKey)) {
             throw new IllegalArgumentException("GEMINI_API_KEY is not configured or is empty");
         }
 
-        log.info("[LYRIA-API-CALL] Sending prompt to Gemini API... Prompt length: {}", prompt != null ? prompt.length() : 0);
+        log.info("[LYRIA-API-CALL] Sending prompt to Gemini API... Prompt length: {}, seed: {}",
+                 prompt != null ? prompt.length() : 0, seed);
+
+        // generationConfig steers diversity: temperature widens sampling, seed makes
+        // each regeneration distinct while keeping the same genre/mood/instrument prompt.
+        Map<String, Object> generationConfig = new HashMap<>();
+        generationConfig.put("temperature", 1.0);
+        if (seed > 0) {
+            generationConfig.put("seed", seed);
+        }
+        Map<String, Object> requestBody = Map.of(
+            "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+            "generationConfig", generationConfig);
 
         // Google Gemini Lyria 3 API endpoint
         // Read as byte[] to handle both application/json and application/octet-stream responses
@@ -103,7 +127,7 @@ public class LyriaClient {
                     .path("/models/" + model + ":generateContent")
                     .queryParam("key", apiKey)
                     .build())
-                .body(Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt))))))
+                .body(requestBody)
                 .retrieve()
                 .body(byte[].class);
             jsonResponse = rawBytes != null ? new String(rawBytes, java.nio.charset.StandardCharsets.UTF_8) : null;

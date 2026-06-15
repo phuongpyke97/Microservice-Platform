@@ -202,12 +202,16 @@ public class MusicGenerationService {
     }
 
     private String generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
-        String prompt = promptConfig.buildPrompt(genre, mood, instrument);
-        log.info("[LYRIA-GENERATE] msisdn={} genre={} mood={} instrument={}", mask(msisdn), genre, mood, instrument);
+        // Random per-generation variation (tempo/key/seed) so repeated requests with the
+        // same genre/mood/instrument yield audibly distinct tracks.
+        LyriaSystemPromptConfig.MusicVariation variation = LyriaSystemPromptConfig.MusicVariation.random();
+        String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation);
+        log.info("[LYRIA-GENERATE] msisdn={} genre={} mood={} instrument={} bpm={} key={} seed={}",
+            mask(msisdn), genre, mood, instrument, variation.bpm(), variation.key(), variation.seed());
 
         byte[] audioBytes;
         try {
-            audioBytes = lyriaClient.generateMusic(prompt);
+            audioBytes = lyriaClient.generateMusic(prompt, variation.seed());
             log.info("[LYRIA-GENERATE-OK] Gemini generated audio bytes count: {}", audioBytes != null ? audioBytes.length : 0);
 
             try {
