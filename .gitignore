@@ -26,3 +26,10 @@ minio.tar
 .cursor/
 AGENTS.md
 docs/sdlc/
+
+# Agent generated artifacts
+scratch/
+reports/
+c_utf8.txt
+flow_analysis_results.md
+*.docx
