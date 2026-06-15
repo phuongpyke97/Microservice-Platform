@@ -287,12 +287,26 @@ public class AudioGenerationService {
         }
         job.setMsisdn(msisdn);
 
-        String title = request.title();
-        if (title == null || title.isBlank()) {
-            title = "DIY Ringback Tone";
+        String baseTitle = request.title();
+        if (baseTitle == null || baseTitle.isBlank()) {
+            baseTitle = "DIY Ringback Tone";
             if (request.prompt() != null && !request.prompt().isBlank()) {
                 String cleaned = request.prompt().trim();
-                title = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+                baseTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+            }
+        } else {
+            // Drop any existing _Vn suffix so we re-number from the true generation count.
+            baseTitle = stripVersionSuffix(baseTitle.trim());
+        }
+
+        // Same user re-submitting the exact same prompt -> append _V2, _V3, ... so regenerated
+        // tones with an identical prompt are distinguishable in the user's library.
+        String title = baseTitle;
+        String jobType = request.type() != null ? request.type() : "DIY";
+        if (request.prompt() != null && !request.prompt().isBlank()) {
+            long priorCount = jobRepository.countByUserIdAndJobTypeAndPrompt(userId, jobType, request.prompt());
+            if (priorCount > 0) {
+                title = baseTitle + " _V" + (priorCount + 1);
             }
         }
         job.setTitle(title);
@@ -598,6 +612,14 @@ public class AudioGenerationService {
             job.setDeleted(true);
             jobRepository.save(job);
         }
+    }
+
+    /** Remove a trailing version marker like " _V2" / "_V10" so titles aren't double-versioned. */
+    private static String stripVersionSuffix(String title) {
+        if (title == null) {
+            return null;
+        }
+        return title.replaceFirst("\\s*_V\\d+$", "");
     }
 
     private AudioJobResponse toResponse(AudioJob job) {

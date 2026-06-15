@@ -16,5 +16,12 @@ public interface AudioJobRepository extends JpaRepository<AudioJob, Long>, JpaSp
     @Query("SELECT COUNT(j) FROM AudioJob j WHERE j.userId = :userId AND j.status IN ('PENDING', 'PROCESSING')")
     long countActiveJobsByUserId(Long userId);
 
+    /**
+     * Count how many jobs this user has already submitted with the exact same prompt for the
+     * given job type. Used to append a _V2/_V3... suffix to the title so re-generated tones
+     * with an identical prompt are distinguishable in the user's library.
+     */
+    long countByUserIdAndJobTypeAndPrompt(Long userId, String jobType, String prompt);
+
     List<AudioJob> findByIdGreaterThanAndCreatedAtBeforeAndDeletedFalseOrderByIdAsc(Long id, java.time.Instant dateTime, org.springframework.data.domain.Pageable pageable);
 }
