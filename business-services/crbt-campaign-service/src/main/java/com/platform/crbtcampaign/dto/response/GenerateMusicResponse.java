@@ -1,3 +1,3 @@
 package com.platform.crbtcampaign.dto.response;
 
-public record GenerateMusicResponse(String url) {}
+public record GenerateMusicResponse(String url, String title) {}

@@ -175,15 +175,17 @@ public class MusicGenerationService {
 
             redisTemplate.opsForSet().add(seenKey, url);
 
+            // Build the display title up-front so we can both persist it and return it to FE.
+            String title = generateTitle(genre, mood, instrument);
+            // Same user re-generating the exact same prompt (genre+mood+instrument) -> append
+            // _V2, _V3, ... so they can tell repeated generations apart in their library.
+            long priorCount = historyRepository.countSamePromptGenerations(userId, genre, mood, instrument);
+            if (priorCount > 0) {
+                title = title + " _V" + (priorCount + 1);
+            }
+
             // Save to user history DB
             try {
-                String title = generateTitle(genre, mood, instrument);
-                // Same user re-generating the exact same prompt (genre+mood+instrument) -> append
-                // _V2, _V3, ... so they can tell repeated generations apart in their library.
-                long priorCount = historyRepository.countSamePromptGenerations(userId, genre, mood, instrument);
-                if (priorCount > 0) {
-                    title = title + " _V" + (priorCount + 1);
-                }
                 UserLyriaHistory history = new UserLyriaHistory(userId, msisdn, title, genre, mood, instrument, url);
                 historyRepository.save(history);
                 log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}", userId, title, url);
@@ -192,8 +194,8 @@ public class MusicGenerationService {
                 // Do not fail the request if history database insertion fails
             }
 
-            log.info("[GENERATE-SUCCESS] Successfully processed request for msisdn={}, returned url={}", mask(msisdn), url);
-            return new GenerateMusicResponse(url);
+            log.info("[GENERATE-SUCCESS] Successfully processed request for msisdn={}, returned url={} title={}", mask(msisdn), url, title);
+            return new GenerateMusicResponse(url, title);
 
 
         } catch (Exception e) {
