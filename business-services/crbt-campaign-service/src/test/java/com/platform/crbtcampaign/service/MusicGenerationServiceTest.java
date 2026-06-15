@@ -127,7 +127,7 @@ class MusicGenerationServiceTest {
         List<MyLibraryItemResponse> library;
         try {
             // Execute
-            com.platform.common.core.response.PageResponse<MyLibraryItemResponse> res = musicGenerationService.getMyLibrary(userId, null, null, 0, 10);
+            com.platform.common.core.response.PageResponse<MyLibraryItemResponse> res = musicGenerationService.getMyLibrary(userId, null, -1, 0, 10);
             library = res.content();
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();

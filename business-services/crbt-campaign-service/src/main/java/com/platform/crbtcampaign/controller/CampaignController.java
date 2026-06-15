@@ -117,7 +117,7 @@ public class CampaignController {
     @GetMapping("/my-library")
     public ApiResponse<com.platform.common.core.response.PageResponse<MyLibraryItemResponse>> getMyLibrary(
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "-1") int source,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Long userId = SecurityUtils.getCurrentUserId();

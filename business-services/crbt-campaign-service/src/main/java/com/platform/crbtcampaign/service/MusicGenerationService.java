@@ -352,15 +352,15 @@ public class MusicGenerationService {
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
 
-    public PageResponse<MyLibraryItemResponse> getMyLibrary(Long userId, String search, String source, int page, int size) {
+    public PageResponse<MyLibraryItemResponse> getMyLibrary(Long userId, String search, int source, int page, int size) {
         log.info("[MY-LIBRARY] Fetching library items for userId={}, search={}, source={}, page={}, size={}", userId, search, source, page, size);
         
         List<MyLibraryItemResponse> aiResults = new ArrayList<>();
         List<MyLibraryItemResponse> diyResults = new ArrayList<>();
 
-        // Handle source mapping from FE. "AI Composer" -> "AI", "Studio Mix" -> "DIY", "All songs" -> null or "All"
-        boolean fetchAi = source == null || source.isBlank() || "All".equalsIgnoreCase(source) || "AI".equalsIgnoreCase(source) || "AI Composer".equalsIgnoreCase(source);
-        boolean fetchDiy = source == null || source.isBlank() || "All".equalsIgnoreCase(source) || "DIY".equalsIgnoreCase(source) || "Studio Mix".equalsIgnoreCase(source);
+        // Handle source mapping from FE: -1 -> All, 0 -> AI, 1 -> DIY
+        boolean fetchAi = source == -1 || source == 0;
+        boolean fetchDiy = source == -1 || source == 1;
 
         if (fetchAi) {
             Specification<UserLyriaHistory> spec = Specification.<UserLyriaHistory>where((root, query, cb) -> cb.equal(root.get("deleted"), false))
