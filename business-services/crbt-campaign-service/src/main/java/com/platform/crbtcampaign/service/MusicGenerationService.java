@@ -352,74 +352,114 @@ public class MusicGenerationService {
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
 
-    public List<MyLibraryItemResponse> getMyLibrary(Long userId) {
-        log.info("[MY-LIBRARY] Fetching library items for userId={}", userId);
-        List<UserLyriaHistory> aiList = historyRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId);
+    public PageResponse<MyLibraryItemResponse> getMyLibrary(Long userId, String search, String source, int page, int size) {
+        log.info("[MY-LIBRARY] Fetching library items for userId={}, search={}, source={}, page={}, size={}", userId, search, source, page, size);
+        
+        List<MyLibraryItemResponse> aiResults = new ArrayList<>();
+        List<MyLibraryItemResponse> diyResults = new ArrayList<>();
 
-        String authHeader = getAuthHeader();
+        // Handle source mapping from FE. "AI Composer" -> "AI", "Studio Mix" -> "DIY", "All songs" -> null or "All"
+        boolean fetchAi = source == null || source.isBlank() || "All".equalsIgnoreCase(source) || "AI".equalsIgnoreCase(source) || "AI Composer".equalsIgnoreCase(source);
+        boolean fetchDiy = source == null || source.isBlank() || "All".equalsIgnoreCase(source) || "DIY".equalsIgnoreCase(source) || "Studio Mix".equalsIgnoreCase(source);
 
-        List<DiyJobResponse> diyList = new ArrayList<>();
-        if (authHeader != null) {
-            try {
-                ApiResponse<List<DiyJobResponse>> diyResp = audioGenerationClient.getUserJobs(authHeader);
-                if (diyResp != null && diyResp.success() && diyResp.data() != null) {
-                    diyList = diyResp.data();
+        if (fetchAi) {
+            Specification<UserLyriaHistory> spec = Specification.<UserLyriaHistory>where((root, query, cb) -> cb.equal(root.get("deleted"), false))
+                .and((root, query, cb) -> cb.equal(root.get("userId"), userId));
+                
+            if (search != null && !search.isBlank()) {
+                String pattern = "%" + search.toLowerCase() + "%";
+                spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("title")), pattern),
+                    cb.like(cb.lower(root.get("genre")), pattern),
+                    cb.like(cb.lower(root.get("mood")), pattern)
+                ));
+            }
+            List<UserLyriaHistory> aiList = historyRepository.findAll(spec);
+            for (UserLyriaHistory item : aiList) {
+                List<String> tags = new ArrayList<>();
+                if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
+                if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
+                if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
+                tags.add(item.getDurationSeconds() + "s");
+
+                aiResults.add(new MyLibraryItemResponse(
+                    "AI_" + item.getId(),
+                    item.getTitle(),
+                    "AI",
+                    tags,
+                    item.getAudioUrl(),
+                    item.getCreatedAt()
+                ));
+            }
+        }
+
+        if (fetchDiy) {
+            String authHeader = getAuthHeader();
+            if (authHeader != null) {
+                try {
+                    ApiResponse<List<DiyJobResponse>> diyResp = audioGenerationClient.getUserJobs(authHeader);
+                    if (diyResp != null && diyResp.success() && diyResp.data() != null) {
+                        for (DiyJobResponse item : diyResp.data()) {
+                            if (!"COMPLETED".equalsIgnoreCase(item.status())) {
+                                continue;
+                            }
+                            
+                            String displayTitle = item.title();
+                            if (displayTitle == null || displayTitle.isBlank()) {
+                                displayTitle = "DIY Ringback Tone";
+                                if (item.prompt() != null && !item.prompt().isBlank()) {
+                                    String cleaned = item.prompt().trim();
+                                    displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+                                }
+                            }
+                            
+                            // Apply search filter for DIY in memory
+                            if (search != null && !search.isBlank()) {
+                                String s = search.toLowerCase();
+                                boolean matchesTitle = displayTitle.toLowerCase().contains(s);
+                                boolean matchesPrompt = item.prompt() != null && item.prompt().toLowerCase().contains(s);
+                                if (!matchesTitle && !matchesPrompt) {
+                                    continue;
+                                }
+                            }
+
+                            String url = item.resultUrl();
+                            // Do NOT split by comma. Send full link to FE
+
+                            diyResults.add(new MyLibraryItemResponse(
+                                "DIY_" + item.id(),
+                                displayTitle,
+                                "DIY",
+                                List.of("diy", "mixed"),
+                                url,
+                                item.createdAt()
+                            ));
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("[MY-LIBRARY-DIY-ERR] Feign call to audio-generation-service failed: {}", e.getMessage(), e);
                 }
-            } catch (Exception e) {
-                log.error("[MY-LIBRARY-DIY-ERR] Feign call to audio-generation-service failed: {}", e.getMessage(), e);
             }
         }
 
         List<MyLibraryItemResponse> combined = new ArrayList<>();
+        combined.addAll(aiResults);
+        combined.addAll(diyResults);
         
-        // Map AI history
-        for (UserLyriaHistory item : aiList) {
-            List<String> tags = new ArrayList<>();
-            if (item.getGenre() != null && !item.getGenre().isBlank()) tags.add(item.getGenre().toLowerCase());
-            if (item.getMood() != null && !item.getMood().isBlank()) tags.add(item.getMood().toLowerCase());
-            if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
-            tags.add(item.getDurationSeconds() + "s");
-
-            combined.add(new MyLibraryItemResponse(
-                "AI_" + item.getId(),
-                item.getTitle(),
-                "AI",
-                tags,
-                item.getAudioUrl(),
-                item.getCreatedAt()
-            ));
-        }
-
-        // Map DIY history (completed items only)
-        for (DiyJobResponse item : diyList) {
-            if (!"COMPLETED".equalsIgnoreCase(item.status())) {
-                continue;
-            }
-            String url = item.resultUrl();
-            if (url != null && url.contains(",")) {
-                url = url.split(",")[0];
-            }
-            String displayTitle = item.title();
-            if (displayTitle == null || displayTitle.isBlank()) {
-                displayTitle = "DIY Ringback Tone";
-                if (item.prompt() != null && !item.prompt().isBlank()) {
-                    String cleaned = item.prompt().trim();
-                    displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
-                }
-            }
-            combined.add(new MyLibraryItemResponse(
-                "DIY_" + item.id(),
-                displayTitle,
-                "DIY",
-                List.of("diy", "mixed"),
-                url,
-                item.createdAt()
-            ));
-        }
-
         // Sort by createdAt DESC
         combined.sort((a, b) -> b.createdAt().compareTo(a.createdAt()));
-        return combined;
+
+        long totalElements = combined.size();
+        int totalPages = (size > 0) ? (int) Math.ceil((double) totalElements / size) : 0;
+
+        int fromIndex = page * size;
+        if (fromIndex >= combined.size()) {
+            return new PageResponse<>(List.of(), page, size, totalElements, totalPages);
+        }
+        int toIndex = Math.min(fromIndex + size, combined.size());
+        List<MyLibraryItemResponse> content = combined.subList(fromIndex, toIndex);
+
+        return new PageResponse<>(content, page, size, totalElements, totalPages);
     }
 
     @Transactional

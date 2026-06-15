@@ -91,7 +91,7 @@ class MusicGenerationServiceTest {
         ai2.setDeleted(false);
         setCreatedAt(ai2, now.minus(5, ChronoUnit.MINUTES));
 
-        when(historyRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId))
+        when(historyRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
             .thenReturn(List.of(ai2, ai1)); // ai2 is newer
 
         // Create mock DIY jobs (one completed, one pending/failed)
@@ -127,7 +127,8 @@ class MusicGenerationServiceTest {
         List<MyLibraryItemResponse> library;
         try {
             // Execute
-            library = musicGenerationService.getMyLibrary(userId);
+            com.platform.common.core.response.PageResponse<MyLibraryItemResponse> res = musicGenerationService.getMyLibrary(userId, null, null, 0, 10);
+            library = res.content();
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         }

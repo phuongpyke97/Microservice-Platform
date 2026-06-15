@@ -115,12 +115,16 @@ public class CampaignController {
     }
 
     @GetMapping("/my-library")
-    public ApiResponse<List<MyLibraryItemResponse>> getMyLibrary() {
+    public ApiResponse<com.platform.common.core.response.PageResponse<MyLibraryItemResponse>> getMyLibrary(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Long userId = SecurityUtils.getCurrentUserId();
         if (userId == null) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
-        return ApiResponse.success(musicGenerationService.getMyLibrary(userId));
+        return ApiResponse.success(musicGenerationService.getMyLibrary(userId, search, source, page, size));
     }
 
     @DeleteMapping("/my-library/{unifiedId}")
