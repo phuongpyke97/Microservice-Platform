@@ -248,8 +248,16 @@ public class AudioGenerationService {
 
         // Validate DIY specific constraints
         if ("DIY".equalsIgnoreCase(request.type())) {
-            // BR-02-01: Limit prompt to 100 characters and English only (ASCII)
-            if (request.prompt() == null || request.prompt().length() > 100 || !request.prompt().matches("^[\\p{ASCII}]+$")) {
+            // BR-02-01: Limit prompt to 100 characters. Language depends on voice locale:
+            //  - Burmese voice (my-MM-*) -> Burmese text allowed
+            //  - Otherwise (English voice) -> ASCII only
+            String prompt = request.prompt();
+            String voiceId = request.voiceId();
+            boolean burmeseVoice = voiceId != null && voiceId.startsWith("my-MM");
+            boolean invalidLength = prompt == null || prompt.length() > 100;
+            boolean invalidCharset = !burmeseVoice
+                && (prompt == null || !prompt.matches("^[\\p{ASCII}]+$"));
+            if (invalidLength || invalidCharset) {
                 redisTemplate.opsForValue().decrement(ACTIVE_JOBS_KEY + userId);
                 throw new BaseException(AudioGenerationErrorCode.INVALID_PROMPT);
             }
