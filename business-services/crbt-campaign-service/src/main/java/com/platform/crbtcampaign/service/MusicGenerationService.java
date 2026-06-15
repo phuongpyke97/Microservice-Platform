@@ -399,10 +399,13 @@ public class MusicGenerationService {
             if (url != null && url.contains(",")) {
                 url = url.split(",")[0];
             }
-            String displayTitle = "DIY Ringback Tone";
-            if (item.prompt() != null && !item.prompt().isBlank()) {
-                String cleaned = item.prompt().trim();
-                displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+            String displayTitle = item.title();
+            if (displayTitle == null || displayTitle.isBlank()) {
+                displayTitle = "DIY Ringback Tone";
+                if (item.prompt() != null && !item.prompt().isBlank()) {
+                    String cleaned = item.prompt().trim();
+                    displayTitle = cleaned.length() > 35 ? cleaned.substring(0, 32) + "..." : cleaned;
+                }
             }
             combined.add(new MyLibraryItemResponse(
                 "DIY_" + item.id(),
