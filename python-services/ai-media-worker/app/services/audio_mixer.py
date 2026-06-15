@@ -1,29 +1,46 @@
 import os
+import random
 import subprocess
 import tempfile
 import uuid
 from app.config import settings
 
-def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str, start_time: float = 0.0, end_time: float = 0.0) -> bytes:
+def mix_audio_tracks(
+    vocal_bytes: bytes,
+    accompaniment_bytes: bytes,
+    mode: str,
+    start_time: float = 0.0,
+    end_time: float = 0.0,
+    seed: int | None = None,
+) -> bytes:
     """
     Mix vocal (or TTS) and accompaniment bytes using FFmpeg.
     mode can be 'v1' (voice prominent), 'v2' (balanced), or 'v3' (music prominent).
+
+    `seed` drives per-generation variation so that re-generating the same inputs
+    produces an audibly different result. When seed is None a random one is used.
+    Randomized aspects: vocal entry delay, music tempo, a light treble/EQ jitter
+    and small volume jitter. The mix is still normalized to -18 LUFS at the end.
+
     Returns the mixed MP3 bytes.
     """
+    # Deterministic-but-varying RNG. Different seed -> different mix.
+    rng = random.Random(seed if seed is not None else uuid.uuid4().int)
+
     work_dir = os.path.join(settings.tmp_dir, f"mix_{uuid.uuid4().hex}")
     os.makedirs(work_dir, exist_ok=True)
-    
+
     vocal_path = os.path.join(work_dir, "vocal.mp3")
     bg_path = os.path.join(work_dir, "accompaniment.wav")
     out_path = os.path.join(work_dir, "output.mp3")
-    
+
     try:
         # Write inputs
         with open(vocal_path, "wb") as f:
             f.write(vocal_bytes)
         with open(bg_path, "wb") as f:
             f.write(accompaniment_bytes)
-            
+
         # Check if we should crop accompaniment
         should_crop = (end_time > start_time)
         bg_input_args = []
@@ -31,28 +48,54 @@ def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str, 
             duration = end_time - start_time
             bg_input_args = ["-ss", f"{start_time:.3f}", "-t", f"{duration:.3f}"]
 
-        # Define volume weights for filter complexes
+        # Define base volume weights for filter complexes
         # BR-03-03 and BR-03-04: final mix normalize to -18 LUFS
-        v_vol = "1.0"
-        m_vol = "0.6"
+        v_vol = 1.0
+        m_vol = 0.6
         if mode == 'v1':
-            v_vol = "1.0"
-            m_vol = "0.25"
+            v_vol = 1.0
+            m_vol = 0.25
         elif mode == 'v3':
-            v_vol = "0.25"
-            m_vol = "1.0"
+            v_vol = 0.25
+            m_vol = 1.0
 
-        # Apply 5s delay to vocal track and select mix duration behaviour
+        # --- Per-generation randomization -------------------------------------
+        # Vocal entry delay: was hardcoded at 5000ms. Vary so the voice enters at
+        # a different point relative to the music on every generation.
+        delay_ms = rng.randint(3000, 7000)
+        # Music tempo nudge (keep subtle so it stays musical).
+        tempo = round(rng.uniform(0.96, 1.04), 3)
+        # Light treble jitter (dB) for a slightly different tone each time.
+        treble_g = round(rng.uniform(-2.0, 2.0), 2)
+        # Small volume jitter on top of the base balance.
+        v_vol_final = round(v_vol * rng.uniform(0.92, 1.08), 3)
+        m_vol_final = round(m_vol * rng.uniform(0.92, 1.08), 3)
+        # ----------------------------------------------------------------------
+
+        vocal_chain = f"adelay={delay_ms}:all=1,volume={v_vol_final}"
+        music_chain = f"volume={m_vol_final},atempo={tempo},treble=g={treble_g}"
+
+        # Apply mix duration behaviour
         if should_crop:
             # We crop the accompaniment. The output mix duration should match the accompaniment's duration.
             # In amix, the first input determines the output duration with duration=first.
             # So we feed accompaniment [m] as the first input to amix: [m][v]amix.
-            filter_complex = f"[0:a]adelay=5000:all=1,volume={v_vol}[v];[1:a]volume={m_vol}[m];[m][v]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
+            filter_complex = (
+                f"[0:a]{vocal_chain}[v];"
+                f"[1:a]{music_chain}[m];"
+                f"[m][v]amix=inputs=2:duration=first[mix];"
+                f"[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
+            )
         else:
             # Original behavior (e.g. without crop), output duration is determined by vocal duration.
             # Vocal [v] is the first input to amix: [v][m]amix.
-            filter_complex = f"[0:a]adelay=5000:all=1,volume={v_vol}[v];[1:a]volume={m_vol}[m];[v][m]amix=inputs=2:duration=first[mix];[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
-            
+            filter_complex = (
+                f"[0:a]{vocal_chain}[v];"
+                f"[1:a]{music_chain}[m];"
+                f"[v][m]amix=inputs=2:duration=first[mix];"
+                f"[mix]loudnorm=I=-18:TP=-1.5:LRA=11[out]"
+            )
+
         cmd = [
             "ffmpeg", "-y",
             "-i", vocal_path,
@@ -64,10 +107,10 @@ def mix_audio_tracks(vocal_bytes: bytes, accompaniment_bytes: bytes, mode: str, 
             "-ab", "128k",
             out_path
         ]
-        
+
         # Run FFmpeg command
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        
+
         with open(out_path, "rb") as f:
             return f.read()
     except subprocess.CalledProcessError as e:

@@ -44,14 +44,15 @@ async def mix_audio_endpoint(
     accompaniment: UploadFile, 
     mode: str = "v2",
     start_time: float = 0.0,
-    end_time: float = 0.0
+    end_time: float = 0.0,
+    seed: int | None = None
 ):
     vocal_bytes = await vocal.read()
     accompaniment_bytes = await accompaniment.read()
     if mode not in ["v1", "v2", "v3"]:
         raise HTTPException(status_code=400, detail="Invalid mode, choose from v1, v2, v3")
     try:
-        mixed_bytes = mix_audio_tracks(vocal_bytes, accompaniment_bytes, mode, start_time, end_time)
+        mixed_bytes = mix_audio_tracks(vocal_bytes, accompaniment_bytes, mode, start_time, end_time, seed)
         return Response(content=mixed_bytes, media_type="audio/mpeg")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

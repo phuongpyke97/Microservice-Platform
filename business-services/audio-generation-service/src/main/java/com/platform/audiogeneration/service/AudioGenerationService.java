@@ -379,9 +379,12 @@ public class AudioGenerationService {
                     Double vocalStart = job.getVocalStart() != null ? job.getVocalStart() : 0.0;
                     Double vocalEnd = job.getVocalEnd() != null ? job.getVocalEnd() : 0.0;
 
-                    byte[] mixV1 = aiClient.mixAudio(vocalPart, bgPart, "v1", vocalStart, vocalEnd);
-                    byte[] mixV2 = aiClient.mixAudio(vocalPart, bgPart, "v2", vocalStart, vocalEnd);
-                    byte[] mixV3 = aiClient.mixAudio(vocalPart, bgPart, "v3", vocalStart, vocalEnd);
+                    // Per-generation random seed so each (re-)generation sounds different.
+                    // Distinct seed per variant keeps v1/v2/v3 audibly distinct too.
+                    long mixSeed = java.util.concurrent.ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+                    byte[] mixV1 = aiClient.mixAudio(vocalPart, bgPart, "v1", vocalStart, vocalEnd, mixSeed);
+                    byte[] mixV2 = aiClient.mixAudio(vocalPart, bgPart, "v2", vocalStart, vocalEnd, mixSeed + 1);
+                    byte[] mixV3 = aiClient.mixAudio(vocalPart, bgPart, "v3", vocalStart, vocalEnd, mixSeed + 2);
 
                     updateProgress(job.getId(), "Uploading mixed versions to storage...");
                     ApiResponse<String> uploadV1 = fileServiceClient.uploadAudioBytes(mixV1, "media-audio");
