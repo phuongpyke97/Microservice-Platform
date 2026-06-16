@@ -219,6 +219,36 @@ public class FileService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public byte[] downloadFileByUrl(String url) {
+        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+            try {
+                java.net.URL parsedUrl = new java.net.URL(url);
+                String path = parsedUrl.getPath();
+                if (path.startsWith("/")) {
+                    path = path.substring(1);
+                }
+                url = java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                // Ignore parsing error, try to split as is
+            }
+        }
+
+        String[] parts = url.split("/", 2);
+        if (parts.length != 2) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Invalid file URL format");
+        }
+        try (InputStream is = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(parts[0])
+                        .object(parts[1])
+                        .build())) {
+            return is.readAllBytes();
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Failed to download from URL");
+        }
+    }
+
     @Transactional
     public PresignedUrlResponse getUploadUrl(Long userId, String originalName, String contentType) {
         validate(1, contentType);

@@ -26,6 +26,9 @@ public interface FileServiceClient {
     @GetMapping("/api/files/{fileId}/internal/download")
     feign.Response downloadFile(@PathVariable("fileId") Long fileId);
 
+    @GetMapping("/api/files/internal/download-by-url")
+    feign.Response downloadFileByUrl(@RequestParam("url") String url);
+
     @PostMapping("/api/files/{fileId}/confirm")
     ApiResponse<java.util.Map<String, Object>> confirmFile(
         @PathVariable("fileId") Long fileId,
@@ -59,6 +62,11 @@ class FileServiceClientFallback implements FileServiceClient {
 
     @Override
     public feign.Response downloadFile(Long fileId) {
+        throw new RuntimeException("File service is currently down");
+    }
+
+    @Override
+    public feign.Response downloadFileByUrl(String url) {
         throw new RuntimeException("File service is currently down");
     }
 

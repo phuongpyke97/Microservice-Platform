@@ -52,6 +52,14 @@ public class FileController {
                 .body(data);
     }
 
+    @GetMapping("/internal/download-by-url")
+    public ResponseEntity<byte[]> downloadFileByUrl(@RequestParam String url) {
+        byte[] data = fileService.downloadFileByUrl(url);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/octet-stream")
+                .body(data);
+    }
+
     @PostMapping("/{fileId}/confirm")
     public ResponseEntity<ApiResponse<FileMetadataResponse>> confirm(@PathVariable Long fileId,
                                                                      @Valid @RequestBody ConfirmFileRequest request) {

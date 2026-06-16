@@ -177,10 +177,18 @@ public class AudioGenerationService {
         long t0 = System.currentTimeMillis();
         File tempFile = null;
         try {
-            Long fileId = Long.parseLong(audioFileKey);
             long tDownload = System.currentTimeMillis();
             byte[] fileBytes;
-            try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
+            
+            feign.Response response;
+            if (audioFileKey.contains("/")) {
+                response = fileServiceClient.downloadFileByUrl(audioFileKey);
+            } else {
+                Long fileId = Long.parseLong(audioFileKey);
+                response = fileServiceClient.downloadFile(fileId);
+            }
+            
+            try {
                 if (response.status() >= 400) {
                     throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
                 }
@@ -189,6 +197,10 @@ public class AudioGenerationService {
                 }
                 try (InputStream is = response.body().asInputStream()) {
                     fileBytes = is.readAllBytes();
+                }
+            } finally {
+                if (response != null) {
+                    response.close();
                 }
             }
             log.info("[PERF] downloadFile took {} ms", System.currentTimeMillis() - tDownload);
@@ -359,9 +371,17 @@ public class AudioGenerationService {
                 }
 
                 updateProgress(job.getId(), "Fetching background music from storage...");
-                Long fileId = Long.parseLong(job.getAudioFileKey());
                 byte[] bgBytes;
-                try (feign.Response response = fileServiceClient.downloadFile(fileId)) {
+                
+                feign.Response response;
+                if (job.getAudioFileKey().contains("/")) {
+                    response = fileServiceClient.downloadFileByUrl(job.getAudioFileKey());
+                } else {
+                    Long fileId = Long.parseLong(job.getAudioFileKey());
+                    response = fileServiceClient.downloadFile(fileId);
+                }
+                
+                try {
                     if (response.status() >= 400) {
                         throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File service returned error status: " + response.status());
                     }
@@ -370,6 +390,10 @@ public class AudioGenerationService {
                     }
                     try (InputStream is = response.body().asInputStream()) {
                         bgBytes = is.readAllBytes();
+                    }
+                } finally {
+                    if (response != null) {
+                        response.close();
                     }
                 }
 
