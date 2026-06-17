@@ -39,4 +39,18 @@ class LyriaSystemPromptConfigTest {
 
         assertThat(prompt).contains("genre=jazz");
     }
+
+    @Test
+    void buildPrompt_withVariation_includesVariationDetails() {
+        LyriaSystemPromptConfig.MusicVariation variation = new LyriaSystemPromptConfig.MusicVariation(
+            120, "D major", 42L, "flute and harp", "swing rhythm", "concert hall vibe"
+        );
+        String prompt = config.buildPrompt("jazz", "happy", "piano", variation);
+
+        assertThat(prompt).contains("tempo around 120 BPM");
+        assertThat(prompt).contains("key of D major");
+        assertThat(prompt).contains("Instrumentation details: flute and harp");
+        assertThat(prompt).contains("Tempo and groove feel: swing rhythm");
+        assertThat(prompt).contains("Acoustic environment/vibe: concert hall vibe");
+    }
 }
