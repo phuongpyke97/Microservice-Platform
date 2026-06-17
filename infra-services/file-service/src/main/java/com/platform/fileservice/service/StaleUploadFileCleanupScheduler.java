@@ -34,8 +34,8 @@ public class StaleUploadFileCleanupScheduler {
         this.properties = properties;
     }
 
-    // Temporarily scheduled to run every minute for testing in local/UAT
-    @Scheduled(cron = "0 */1 * * * *")
+    // Externalisable via file-service.cleanup.cron property (default: daily at 02:00)
+    @Scheduled(cron = "${file-service.cleanup.cron:0 0 2 * * *}")
     public void cleanupStaleUploads() {
         log.info("[STALE-CLEANUP] Starting stale file upload cleanup job...");
         Instant cutoffTime = Instant.now().minus(24, ChronoUnit.HOURS);

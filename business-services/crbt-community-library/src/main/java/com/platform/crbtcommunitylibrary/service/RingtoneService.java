@@ -24,7 +24,7 @@ import com.platform.crbtcommunitylibrary.util.AudioDurationParser;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
 import jakarta.persistence.criteria.Predicate;
-import java.net.URL;
+import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RingtoneService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RingtoneService.class);
 
     private final RingtoneRepository ringtoneRepository;
     private final CategoryRepository categoryRepository;
@@ -316,8 +318,10 @@ public class RingtoneService {
 
         // Delete from MinIO storage
         try {
-            URL url = new URL(ringtone.getAudioUrl());
-            String path = url.getPath();
+            // Use URI.getPath() which auto-decodes percent-encoding (e.g. %20 → space)
+            // so the decoded key matches what MinIO SDK expects
+            URI uri = new URI(ringtone.getAudioUrl());
+            String path = uri.getPath();
             if (path.startsWith("/")) {
                 path = path.substring(1);
             }
@@ -334,7 +338,9 @@ public class RingtoneService {
                 );
             }
         } catch (Exception e) {
-            // Keep going, but log the warning
+            // File metadata will still be deleted; log for storage audit/cleanup
+            log.warn("[deleteRingtone] Failed to delete MinIO object for ringtone id={}, url={}: {}",
+                     id, ringtone.getAudioUrl(), e.getMessage());
         }
 
         // Hard delete metadata

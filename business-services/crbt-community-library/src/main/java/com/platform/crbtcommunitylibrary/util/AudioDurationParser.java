@@ -22,6 +22,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
@@ -74,10 +75,11 @@ public class AudioDurationParser {
 
         try {
             // Establish connection and download the file content
-            URL url = new URL(downloadUrl);
+            // Use URI to properly encode special characters (spaces, etc.) in the URL path
+            URL url = encodeUrl(downloadUrl);
             URLConnection connection = url.openConnection();
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
+            connection.setConnectTimeout(5_000);   // 5s to establish connection
+            connection.setReadTimeout(30_000);     // 30s to read — large audio files need more time
 
             tempFile = File.createTempFile("audio-analysis-", ".tmp");
             try (InputStream is = new BufferedInputStream(connection.getInputStream());
@@ -131,6 +133,27 @@ public class AudioDurationParser {
         }
 
         return new AudioAnalysisResult(durationSeconds, sizeBytes, hasVocal);
+    }
+
+    /**
+     * Encodes a URL string properly, handling spaces and special characters in the path.
+     * java.net.URL does not encode the path automatically, which causes issues with
+     * filenames containing spaces or non-ASCII characters when calling openConnection().
+     */
+    private URL encodeUrl(String rawUrl) throws Exception {
+        // Parse with java.net.URL first to split components
+        URL tmp = new URL(rawUrl);
+        // Reconstruct via URI which performs proper percent-encoding on path/query
+        URI uri = new URI(
+            tmp.getProtocol(),
+            tmp.getUserInfo(),
+            tmp.getHost(),
+            tmp.getPort(),
+            tmp.getPath(),
+            tmp.getQuery(),
+            tmp.getRef()
+        );
+        return uri.toURL();
     }
 
     private boolean detectVocalPresence(File file) {

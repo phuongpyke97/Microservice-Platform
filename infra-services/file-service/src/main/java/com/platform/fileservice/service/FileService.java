@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.text.Normalizer;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -221,17 +222,36 @@ public class FileService {
 
     @Transactional(readOnly = true)
     public byte[] downloadFileByUrl(String url) {
-        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+        if (url == null || url.isBlank()) {
+            throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "URL cannot be empty");
+        }
+
+        if (url.startsWith("http://") || url.startsWith("https://")) {
             try {
-                java.net.URL parsedUrl = new java.net.URL(url);
-                String path = parsedUrl.getPath();
+                java.net.URI parsedUri = new java.net.URI(url);
+                String scheme = parsedUri.getScheme();
+                // Guard against file://, jar:// and other non-HTTP schemes
+                if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                    throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Invalid URL scheme: " + scheme);
+                }
+                // URI.getPath() auto-decodes percent-encoding (%20 → space)
+                // which is what MinIO SDK expects as the raw object key
+                String path = parsedUri.getPath();
                 if (path.startsWith("/")) {
                     path = path.substring(1);
                 }
-                url = java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8.name());
+                url = path;
+            } catch (BaseException e) {
+                throw e;
             } catch (Exception e) {
-                // Ignore parsing error, try to split as is
+                throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Malformed file URL: " + e.getMessage());
             }
+        }
+
+        // Strip query string that may appear in presigned URLs (e.g. ?X-Amz-Signature=...)
+        int qIdx = url.indexOf('?');
+        if (qIdx != -1) {
+            url = url.substring(0, qIdx);
         }
 
         String[] parts = url.split("/", 2);
@@ -317,6 +337,12 @@ public class FileService {
     }
 
     public String uploadAudioBytes(byte[] bytes, String bucket) {
+        // Whitelist allowed buckets to prevent caller-controlled bucket injection
+        Set<String> allowedBuckets = Set.of(properties.bucketAudio(), properties.bucketAudioLib());
+        if (!allowedBuckets.contains(bucket)) {
+            throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET,
+                "Bucket '" + bucket + "' is not allowed for audio upload");
+        }
         String objectName = "lyria-" + UUID.randomUUID() + ".mp3";
         try (java.io.InputStream is = new java.io.ByteArrayInputStream(bytes)) {
             minioClient.putObject(
@@ -327,14 +353,52 @@ public class FileService {
                     .contentType("audio/mpeg")
                     .build()
             );
+        } catch (BaseException e) {
+            throw e;
         } catch (Exception e) {
             throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
         }
         return properties.publicEndpoint() + "/" + bucket + "/" + objectName;
     }
 
+    /**
+     * Builds a safe, URL-friendly object key for MinIO storage.
+     * Sanitizes the original filename by:
+     *  1. Stripping Unicode accents/diacritics (e.g. tiếng Việt, Ba Lan, ...)
+     *  2. Replacing whitespace and unsafe URL characters with hyphens
+     *  3. Collapsing consecutive hyphens
+     *  4. Prepending a UUID to guarantee uniqueness
+     */
     private String buildObjectKey(String originalName) {
-        return UUID.randomUUID() + "-" + originalName;
+        if (originalName == null || originalName.isBlank()) {
+            return UUID.randomUUID() + ".bin";
+        }
+
+        // Separate base name and extension
+        int dotIdx = originalName.lastIndexOf('.');
+        String baseName  = dotIdx >= 0 ? originalName.substring(0, dotIdx) : originalName;
+        // Sanitise extension: keep only alphanumeric + dot, cap at 10 chars to prevent traversal
+        String rawExt    = dotIdx >= 0 ? originalName.substring(dotIdx) : "";
+        String extension = rawExt.replaceAll("[^a-zA-Z0-9.]", "");
+        if (extension.length() > 10) {
+            extension = extension.substring(0, 10);
+        }
+
+        // 1. Decompose Unicode (NFD) then strip combining diacritical marks (accents)
+        String normalized = Normalizer.normalize(baseName, Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+
+        // 2. Replace whitespace and any non-alphanumeric/hyphen/dot with hyphen
+        String safe = normalized
+                .replaceAll("[^a-zA-Z0-9.\\-_]+", "-")
+                .replaceAll("-{2,}", "-")          // collapse consecutive hyphens
+                .replaceAll("^-+|-+$", "");         // trim leading/trailing hyphens
+
+        if (safe.isBlank()) {
+            safe = "file";
+        }
+
+        return UUID.randomUUID() + "-" + safe + extension;
     }
 
     private void checkVocal(byte[] fileBytes, String filename, String contentType) {

@@ -463,6 +463,7 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      AI_WORKER_HOST: ${AI_WORKER_HOST:-ai-media-worker}
     volumes:
       - ./logs:/logs
     depends_on:
