@@ -163,11 +163,13 @@ public class FileService {
             }
         }
 
+        String targetKey = sanitizeKey(metadata.getStoredKey());
+
         try {
             minioClient.copyObject(
                     CopyObjectArgs.builder()
                             .bucket(targetBucket)
-                            .object(metadata.getStoredKey())
+                            .object(targetKey)
                             .source(io.minio.CopySource.builder()
                                     .bucket(metadata.getBucket())
                                     .object(metadata.getStoredKey())
@@ -186,6 +188,7 @@ public class FileService {
             throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED);
         }
 
+        metadata.setStoredKey(targetKey);
         metadata.setBucket(targetBucket);
         metadata.setStatus(FileStatus.CONFIRMED);
         return toResponse(repository.save(metadata));
@@ -399,6 +402,15 @@ public class FileService {
         }
 
         return UUID.randomUUID() + "-" + safe + extension;
+    }
+
+    private String sanitizeKey(String key) {
+        if (key == null || key.isBlank()) {
+            return key;
+        }
+        return key.replaceAll("[^a-zA-Z0-9.\\-_]+", "-")
+                  .replaceAll("-{2,}", "-")
+                  .replaceAll("^-+|-+$", "");
     }
 
     private void checkVocal(byte[] fileBytes, String filename, String contentType) {

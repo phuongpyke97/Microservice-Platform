@@ -116,6 +116,25 @@ class FileServiceTest {
     }
 
     @Test
+    void confirm_uploadedTempFileWithSpacesInKey_movesAndSanitizesKey() throws Exception {
+        FileMetadata metadata = new FileMetadata(1L, "a.png", "obj 1 space.png", "temp", "image/png", 10, FileStatus.UPLOADED);
+        setId(metadata, 33L);
+        when(repository.findById(33L)).thenReturn(Optional.of(metadata));
+        when(repository.save(any(FileMetadata.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        
+        io.minio.StatObjectResponse statResponse = mock(io.minio.StatObjectResponse.class);
+        when(statResponse.size()).thenReturn(10L);
+        when(minioClient.statObject(any())).thenReturn(statResponse);
+
+        FileMetadataResponse response = fileService.confirm(33L, "image");
+
+        assertThat(response.bucket()).isEqualTo("image");
+        assertThat(response.storedKey()).isEqualTo("obj-1-space.png");
+        assertThat(response.status()).isEqualTo(FileStatus.CONFIRMED);
+        verify(repository).save(any(FileMetadata.class));
+    }
+
+    @Test
     void softDelete_marksDeleted() {
         FileMetadata metadata = new FileMetadata(1L, "a.png", "obj-1", "image", "image/png", 10, FileStatus.CONFIRMED);
         setId(metadata, 4L);
