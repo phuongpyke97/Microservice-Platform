@@ -45,7 +45,10 @@ def mix_audio_tracks(
         should_crop = (end_time > start_time)
         bg_input_args = []
         if should_crop:
-            duration = end_time - start_time
+            # Add a small padding (0.05s) to prevent MP3/FFmpeg frame truncation from
+            # reducing the output duration slightly below the target, which would cause
+            # UI players (using Math.floor) to display 1s less (e.g. 59s instead of 60s).
+            duration = end_time - start_time + 0.05
             bg_input_args = ["-ss", f"{start_time:.3f}", "-t", f"{duration:.3f}"]
 
         # Define base volume weights for filter complexes
