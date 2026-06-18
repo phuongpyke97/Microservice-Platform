@@ -59,17 +59,17 @@ def mix_audio_tracks(
             v_vol = 0.25
             m_vol = 1.0
 
-        # --- Per-generation randomization -------------------------------------
-        # Vocal entry delay: was hardcoded at 5000ms. Vary so the voice enters at
-        # a different point relative to the music on every generation.
-        delay_ms = rng.randint(3000, 7000)
-        # Music tempo nudge (keep subtle so it stays musical).
-        tempo = round(rng.uniform(0.96, 1.04), 3)
-        # Light treble jitter (dB) for a slightly different tone each time.
-        treble_g = round(rng.uniform(-2.0, 2.0), 2)
-        # Small volume jitter on top of the base balance.
-        v_vol_final = round(v_vol * rng.uniform(0.92, 1.08), 3)
-        m_vol_final = round(m_vol * rng.uniform(0.92, 1.08), 3)
+        # --- Per-generation randomization removed -----------------------------
+        # Fixed to ensure the output duration matches the input duration (40s is 40s)
+        # Vocal entry delay: fixed to 5000ms
+        delay_ms = 5000
+        # Music tempo: fixed to 1.0 (no tempo changes to keep duration exact)
+        tempo = 1.0
+        # Light treble: fixed to 0.0
+        treble_g = 0.0
+        # Volume levels: fixed to the base volumes for the selected mode
+        v_vol_final = v_vol
+        m_vol_final = m_vol
         # ----------------------------------------------------------------------
 
         vocal_chain = f"adelay={delay_ms}:all=1,volume={v_vol_final}"
