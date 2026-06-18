@@ -2,6 +2,7 @@ package com.platform.crbtcommunitylibrary.repository;
 
 import com.platform.crbtcommunitylibrary.entity.Ringtone;
 import java.util.Optional;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -27,4 +28,9 @@ public interface RingtoneRepository extends JpaRepository<Ringtone, Long>, JpaSp
     long countByCategoryIdAndDeletedFalse(Long categoryId);
 
     long countByMoodIdAndDeletedFalse(Long moodId);
+
+    Optional<Ringtone> findByAudioUrlAndDeletedFalse(String audioUrl);
+
+    @Query("SELECT r FROM Ringtone r WHERE r.deleted = false AND r.audioUrl LIKE %:filename")
+    List<Ringtone> findByAudioUrlContainingAndDeletedFalse(@Param("filename") String filename);
 }

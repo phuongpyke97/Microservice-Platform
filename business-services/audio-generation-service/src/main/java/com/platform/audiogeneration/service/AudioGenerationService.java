@@ -524,7 +524,7 @@ public class AudioGenerationService {
     private void publishEvent(AudioJob job) {
         AudioGeneratedEvent event = new AudioGeneratedEvent(
             job.getUserId(), job.getId().toString(), job.getResultUrl(),
-            job.getStatus().name(), System.currentTimeMillis());
+            job.getStatus().name(), System.currentTimeMillis(), job.getAudioFileKey());
         rabbitTemplate.convertAndSend(RmqExchanges.AUDIO_EVENTS, RmqRoutingKeys.AUDIO_GENERATED, event);
     }
 

@@ -462,4 +462,41 @@ public class RingtoneService {
             ringtone.getUpdatedAt()
         );
     }
+
+    @CacheEvict(value = "ringtones", allEntries = true)
+    @Transactional
+    public void incrementSelectionCountByKey(String audioFileKey) {
+        if (audioFileKey == null || audioFileKey.isBlank()) {
+            return;
+        }
+        Optional<Ringtone> ringtoneOpt = Optional.empty();
+        try {
+            Long id = Long.parseLong(audioFileKey);
+            ringtoneOpt = ringtoneRepository.findById(id);
+        } catch (NumberFormatException e) {
+            if (audioFileKey.contains("/")) {
+                ringtoneOpt = ringtoneRepository.findByAudioUrlAndDeletedFalse(audioFileKey);
+                if (ringtoneOpt.isEmpty()) {
+                    String[] parts = audioFileKey.split("/");
+                    if (parts.length > 0) {
+                        String filename = parts[parts.length - 1];
+                        List<Ringtone> list = ringtoneRepository.findByAudioUrlContainingAndDeletedFalse(filename);
+                        if (list != null && !list.isEmpty()) {
+                            ringtoneOpt = Optional.of(list.get(0));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (ringtoneOpt.isPresent()) {
+            Ringtone ringtone = ringtoneOpt.get();
+            ringtone.incrementSelectionCount();
+            ringtoneRepository.save(ringtone);
+            log.info("Successfully incremented selection count for Ringtone ID: {}, title: {}, new count: {}",
+                    ringtone.getId(), ringtone.getTitle(), ringtone.getSelectionCount());
+        } else {
+            log.warn("No Ringtone found in community library matching key: {}", audioFileKey);
+        }
+    }
 }

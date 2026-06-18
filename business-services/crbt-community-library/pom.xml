@@ -24,6 +24,10 @@
             <artifactId>common-security</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.platform</groupId>
+            <artifactId>common-rmq</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

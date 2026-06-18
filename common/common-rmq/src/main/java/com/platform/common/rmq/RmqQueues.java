@@ -10,6 +10,7 @@ public final class RmqQueues {
     public static final String AUDIT_LOG = "audit-log-queue";
     public static final String NOTIFICATION_PAYMENT = "notification-payment-queue";
     public static final String CREDIT_TRANSACTION_HISTORY = "credit-transaction-history-queue";
+    public static final String LIBRARY_AUDIO_GENERATED = "library-audio-generated-queue";
 
     private RmqQueues() {
     }
