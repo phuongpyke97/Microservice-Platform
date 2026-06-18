@@ -153,7 +153,7 @@ class MusicGenerationServiceTest {
         assertEquals("pop", ai1Tags.get(0));
         assertEquals("chill", ai1Tags.get(1));
         assertEquals("piano", ai1Tags.get(2));
-        assertEquals("45s", ai1Tags.get(3));
+        assertEquals("30s", ai1Tags.get(3));
 
         List<String> diyTags = library.get(0).tags();
         assertEquals(2, diyTags.size());

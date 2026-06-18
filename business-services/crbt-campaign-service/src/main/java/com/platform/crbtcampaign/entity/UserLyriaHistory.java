@@ -39,7 +39,7 @@ public class UserLyriaHistory {
     private String audioUrl;
 
     @Column(name = "duration_seconds", nullable = false)
-    private int durationSeconds = 45;
+    private int durationSeconds = 30;
 
     @Column(nullable = false)
     private boolean deleted = false;
@@ -58,7 +58,7 @@ public class UserLyriaHistory {
         this.mood = mood;
         this.instrument = instrument;
         this.audioUrl = audioUrl;
-        this.durationSeconds = 45;
+        this.durationSeconds = 30;
         this.deleted = false;
     }
 
