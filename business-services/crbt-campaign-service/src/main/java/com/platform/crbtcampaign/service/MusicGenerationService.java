@@ -165,12 +165,23 @@ public class MusicGenerationService {
             log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
 
             String url;
+            int durationSeconds = 30;
             if (!available.isEmpty()) {
                 url = available.get(random.nextInt(available.size()));
                 log.info("[LYRIA-CACHE-HIT] msisdn={} hashKey={} url={}", mask(msisdn), hashKey, url);
+                try {
+                    List<UserLyriaHistory> existing = historyRepository.findByAudioUrl(url);
+                    if (!existing.isEmpty()) {
+                        durationSeconds = existing.get(0).getDurationSeconds();
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to retrieve duration for cached URL from DB: {}", e.getMessage());
+                }
             } else {
                 log.info("[LYRIA-CACHE-MISS] No available tracks in cache pool for hashKey={}. Calling AI generation...", hashKey);
-                url = generateAndCache(msisdn, genre, mood, instrument, poolKey);
+                GenerationResult genResult = generateAndCache(msisdn, genre, mood, instrument, poolKey);
+                url = genResult.url();
+                durationSeconds = genResult.durationSeconds();
             }
 
             redisTemplate.opsForSet().add(seenKey, url);
@@ -187,8 +198,9 @@ public class MusicGenerationService {
             // Save to user history DB
             try {
                 UserLyriaHistory history = new UserLyriaHistory(userId, msisdn, title, genre, mood, instrument, url);
+                history.setDurationSeconds(durationSeconds);
                 historyRepository.save(history);
-                log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}", userId, title, url);
+                log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}, durationSeconds={}", userId, title, url, durationSeconds);
             } catch (Exception dbEx) {
                 log.error("[GENERATE-HISTORY-ERROR] Failed to save history to DB: {}", dbEx.getMessage(), dbEx);
                 // Do not fail the request if history database insertion fails
@@ -217,7 +229,7 @@ public class MusicGenerationService {
         }
     }
 
-    private String generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
+    private GenerationResult generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
         int maxRetries = 2;
         byte[] audioBytes = null;
 
@@ -279,6 +291,9 @@ public class MusicGenerationService {
             throw e;
         }
 
+        int durationSeconds = getMp3DurationSeconds(audioBytes);
+        log.info("[LYRIA-DURATION-PARSED] Parsed generated music duration: {}s", durationSeconds);
+
         try {
             String entry = toJson(new PoolEntry(url, msisdn));
             redisTemplate.opsForList().rightPush(poolKey, entry);
@@ -291,7 +306,7 @@ public class MusicGenerationService {
             log.error("[LYRIA-CACHE-SAVE-FAILED] Failed to save generated track info to Redis pool: {}", e.getMessage(), e);
         }
 
-        return url;
+        return new GenerationResult(url, durationSeconds);
     }
 
     private List<String> buildAvailable(List<String> poolEntries, Set<String> seenUrls, String msisdn) {
@@ -830,15 +845,48 @@ public class MusicGenerationService {
                 if (request.tags().size() > 2) instrument = request.tags().get(2);
             }
 
+            int durationSeconds = 30;
+            boolean durationFound = false;
+            if (request.tags() != null) {
+                for (String tag : request.tags()) {
+                    if (tag.endsWith("s") && tag.length() > 1) {
+                        try {
+                            durationSeconds = Integer.parseInt(tag.substring(0, tag.length() - 1));
+                            durationFound = true;
+                            break;
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+
+            if (!durationFound && request.audioUrl() != null && !request.audioUrl().isBlank()) {
+                durationSeconds = getMp3DurationSecondsFromUrl(request.audioUrl());
+            }
+
             String targetMsisdn = request.msisdn() != null ? request.msisdn() : "0000000000";
             UserLyriaHistory item = new UserLyriaHistory(0L, targetMsisdn, request.title(), genre, mood, instrument, request.audioUrl());
+            item.setDurationSeconds(durationSeconds);
             historyRepository.save(item);
+
+            List<String> responseTags = new ArrayList<>();
+            if (request.tags() != null) {
+                for (String tag : request.tags()) {
+                    if (!(tag.endsWith("s") && tag.substring(0, tag.length() - 1).matches("\\d+"))) {
+                        responseTags.add(tag);
+                    }
+                }
+            } else {
+                responseTags.add(genre);
+                responseTags.add(mood);
+                responseTags.add(instrument);
+            }
+            responseTags.add(durationSeconds + "s");
 
             return new MyLibraryItemResponse(
                 "AI_" + item.getId(),
                 item.getTitle(),
                 "AI",
-                request.tags(),
+                responseTags,
                 item.getAudioUrl(),
                 item.getCreatedAt(),
                 item.getMsisdn()
@@ -964,4 +1012,68 @@ public class MusicGenerationService {
 
     private record PoolEntry(String url, String owner) {}
 
+    private record GenerationResult(String url, int durationSeconds) {}
+
+    private int getMp3DurationSeconds(byte[] mp3Bytes) {
+        if (mp3Bytes == null || mp3Bytes.length == 0) {
+            return 30;
+        }
+        java.io.File tempFile = null;
+        try {
+            tempFile = java.io.File.createTempFile("lyria-temp-", ".mp3");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
+                fos.write(mp3Bytes);
+            }
+            com.mpatric.mp3agic.Mp3File mp3File = new com.mpatric.mp3agic.Mp3File(tempFile.getAbsolutePath());
+            return (int) mp3File.getLengthInSeconds();
+        } catch (Exception e) {
+            log.warn("Failed to parse MP3 duration, using default 30s: {}", e.getMessage());
+            return 30;
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                try {
+                    java.nio.file.Files.delete(tempFile.toPath());
+                } catch (Exception ex) {
+                    log.error("Failed to delete temp audio file: {}", tempFile.getAbsolutePath(), ex);
+                }
+            }
+        }
+    }
+
+    private int getMp3DurationSecondsFromUrl(String audioUrl) {
+        if (audioUrl == null || audioUrl.isBlank()) {
+            return 30;
+        }
+        java.io.File tempFile = null;
+        try {
+            java.net.URL url = new java.net.URL(audioUrl);
+            java.net.URLConnection connection = url.openConnection();
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(10000);
+            tempFile = java.io.File.createTempFile("lyria-admin-", ".mp3");
+            try (java.io.InputStream is = new java.io.BufferedInputStream(connection.getInputStream());
+                 java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, bytesRead);
+                }
+            }
+            com.mpatric.mp3agic.Mp3File mp3File = new com.mpatric.mp3agic.Mp3File(tempFile.getAbsolutePath());
+            return (int) mp3File.getLengthInSeconds();
+        } catch (Exception e) {
+            log.warn("Failed to parse MP3 duration from URL {}, using default 30s: {}", audioUrl, e.getMessage());
+            return 30;
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                try {
+                    java.nio.file.Files.delete(tempFile.toPath());
+                } catch (Exception ex) {
+                    log.error("Failed to delete admin temp audio file: {}", tempFile.getAbsolutePath(), ex);
+                }
+            }
+        }
+    }
+
 }
+

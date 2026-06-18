@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UserLyriaHistoryRepository extends JpaRepository<UserLyriaHistory, Long>, JpaSpecificationExecutor<UserLyriaHistory> {
     List<UserLyriaHistory> findByUserIdAndDeletedFalseOrderByCreatedAtDesc(Long userId);
+    List<UserLyriaHistory> findByAudioUrl(String audioUrl);
 
     /**
      * Count how many times this user has already generated a track with the exact same

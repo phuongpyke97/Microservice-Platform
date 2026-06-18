@@ -72,6 +72,7 @@ public class UserLyriaHistory {
     public String getInstrument() { return instrument; }
     public String getAudioUrl() { return audioUrl; }
     public int getDurationSeconds() { return durationSeconds; }
+    public void setDurationSeconds(int durationSeconds) { this.durationSeconds = durationSeconds; }
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public Instant getCreatedAt() { return createdAt; }

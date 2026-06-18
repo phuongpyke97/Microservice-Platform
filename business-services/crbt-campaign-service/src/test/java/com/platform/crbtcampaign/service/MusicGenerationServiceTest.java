@@ -416,6 +416,30 @@ class MusicGenerationServiceTest {
         verify(creditWalletClient, times(1)).add(eq(userId), any());
     }
 
+    @Test
+    void createMusicItemAdmin_shouldParseDurationFromTags() {
+        MyLibraryItemResponse req = new MyLibraryItemResponse(
+            null,
+            "Chill Pop Vibes",
+            "AI",
+            List.of("pop", "chill", "piano", "45s"),
+            "http://minio/ai.mp3",
+            null,
+            "0912345678"
+        );
+
+        when(historyRepository.save(any(UserLyriaHistory.class))).thenAnswer(invocation -> {
+            UserLyriaHistory item = invocation.getArgument(0);
+            // Verify duration was parsed correctly from "45s"
+            assertEquals(45, item.getDurationSeconds());
+            return item;
+        });
+
+        MyLibraryItemResponse result = musicGenerationService.createMusicItemAdmin(req);
+        org.junit.jupiter.api.Assertions.assertNotNull(result);
+        org.junit.jupiter.api.Assertions.assertTrue(result.tags().contains("45s"));
+    }
+
     private void setCreatedAt(UserLyriaHistory target, Instant time) {
         try {
             java.lang.reflect.Field field = UserLyriaHistory.class.getDeclaredField("createdAt");
