@@ -159,11 +159,20 @@ public class LyriaClient {
                 ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
                 if (attributes != null) {
                     HttpServletRequest request = attributes.getRequest();
-                    request.setAttribute("lyria_token_usage", Map.of(
-                        "prompt_tokens", promptTokens,
-                        "candidate_tokens", candidateTokens,
-                        "total_tokens", totalTokens
-                    ));
+                    Object existingUsage = request.getAttribute("lyria_token_usage");
+                    if (existingUsage instanceof Map) {
+                        Map<String, Object> tokenUsage = new HashMap<>((Map<String, Object>) existingUsage);
+                        tokenUsage.put("prompt_tokens", promptTokens);
+                        tokenUsage.put("candidate_tokens", candidateTokens);
+                        tokenUsage.put("total_tokens", totalTokens);
+                        request.setAttribute("lyria_token_usage", tokenUsage);
+                    } else {
+                        request.setAttribute("lyria_token_usage", Map.of(
+                            "prompt_tokens", promptTokens,
+                            "candidate_tokens", candidateTokens,
+                            "total_tokens", totalTokens
+                        ));
+                    }
                 }
                 log.info("[LYRIA-TOKEN-USAGE] input_tokens={}, output_tokens={}, total_tokens={}", 
                          promptTokens, candidateTokens, totalTokens);
