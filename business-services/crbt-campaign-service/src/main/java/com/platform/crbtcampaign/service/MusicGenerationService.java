@@ -198,6 +198,14 @@ public class MusicGenerationService {
             return new GenerateMusicResponse(url, title);
 
 
+        } catch (BaseException e) {
+            log.error("[GENERATE-FAILURE-KNOWN] Generation failed for userId={} with custom error. Refunding credit with txnRef={}", userId, txnRef, e);
+            try {
+                refundCreditSynchronously(userId, genre, mood, instrument, txnRef);
+            } catch (Exception ex) {
+                log.error("[REFUND-ERROR] Failed to refund credit for userId={}: {}", userId, ex.getMessage(), ex);
+            }
+            throw e;
         } catch (Exception e) {
             log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit with txnRef={}", userId, txnRef, e);
             try {
@@ -210,40 +218,52 @@ public class MusicGenerationService {
     }
 
     private String generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
-        // Random per-generation variation (tempo/key/seed) so repeated requests with the
-        // same genre/mood/instrument yield audibly distinct tracks.
-        LyriaSystemPromptConfig.MusicVariation variation = LyriaSystemPromptConfig.MusicVariation.random();
-        String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation);
-        log.info("[LYRIA-GENERATE] msisdn={} genre={} mood={} instrument={} bpm={} key={} seed={}",
-            mask(msisdn), genre, mood, instrument, variation.bpm(), variation.key(), variation.seed());
+        int maxRetries = 2;
+        byte[] audioBytes = null;
 
-        byte[] audioBytes;
-        try {
-            audioBytes = lyriaClient.generateMusic(prompt, variation.seed());
-            log.info("[LYRIA-GENERATE-OK] Gemini generated audio bytes count: {}", audioBytes != null ? audioBytes.length : 0);
+        for (int attempt = 1; attempt <= maxRetries + 1; attempt++) {
+            // Random per-generation variation (tempo/key/seed) so repeated requests with the
+            // same genre/mood/instrument yield audibly distinct tracks.
+            LyriaSystemPromptConfig.MusicVariation variation = LyriaSystemPromptConfig.MusicVariation.random();
+            String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation);
+            log.info("[LYRIA-GENERATE] Attempt {}/{} - msisdn={} genre={} mood={} instrument={} bpm={} key={} seed={}",
+                attempt, maxRetries + 1, mask(msisdn), genre, mood, instrument, variation.bpm(), variation.key(), variation.seed());
 
             try {
-                org.springframework.web.context.request.ServletRequestAttributes attributes = 
-                    (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
-                if (attributes != null) {
-                    jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
-                    Object tokenUsageObj = request.getAttribute("lyria_token_usage");
-                    if (tokenUsageObj instanceof Map) {
-                        Map<String, Object> tokenUsage = new HashMap<>((Map<String, Object>) tokenUsageObj);
-                        tokenUsage.put("msisdn", msisdn);
-                        tokenUsage.put("model", "lyria-3-clip-preview");
-                        tokenUsage.put("genre", genre);
-                        tokenUsage.put("mood", mood);
-                        tokenUsage.put("instrument", instrument);
-                        request.setAttribute("lyria_token_usage", tokenUsage);
+                audioBytes = lyriaClient.generateMusic(prompt, variation.seed());
+                log.info("[LYRIA-GENERATE-OK] Gemini generated audio bytes count: {}", audioBytes != null ? audioBytes.length : 0);
+
+                try {
+                    org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                        (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+                    if (attributes != null) {
+                        jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
+                        Object tokenUsageObj = request.getAttribute("lyria_token_usage");
+                        if (tokenUsageObj instanceof Map) {
+                            Map<String, Object> tokenUsage = new HashMap<>((Map<String, Object>) tokenUsageObj);
+                            tokenUsage.put("msisdn", msisdn);
+                            tokenUsage.put("model", "lyria-3-clip-preview");
+                            tokenUsage.put("genre", genre);
+                            tokenUsage.put("mood", mood);
+                            tokenUsage.put("instrument", instrument);
+                            request.setAttribute("lyria_token_usage", tokenUsage);
+                        }
                     }
+                } catch (Exception ex) {
+                    log.warn("[LYRIA-ENRICH-WARN] Failed to enrich request attributes with token metadata: {}", ex.getMessage());
                 }
-            } catch (Exception ex) {
-                log.warn("[LYRIA-ENRICH-WARN] Failed to enrich request attributes with token metadata: {}", ex.getMessage());
+                break;
+            } catch (LyriaClient.LyriaContentFilteredException e) {
+                log.warn("[LYRIA-GENERATE-FILTERED] Attempt {} failed due to content filtering: {}", attempt, e.getMessage());
+                if (attempt > maxRetries) {
+                    log.error("[LYRIA-GENERATE-FILTERED-MAX] Content filtering hit max retries, throwing exception");
+                    throw new BaseException(CampaignErrorCode.LYRIA_GENERATION_FILTERED, e.getMessage());
+                }
+                log.info("[LYRIA-GENERATE-RETRY] Retrying generation with a new variation and seed...");
+            } catch (Exception e) {
+                log.error("[LYRIA-GENERATE-FAILED] Gemini Lyria music generation failed: {}", e.getMessage(), e);
+                throw e;
             }
-        } catch (Exception e) {
-            log.error("[LYRIA-GENERATE-FAILED] Gemini Lyria music generation failed: {}", e.getMessage(), e);
-            throw e;
         }
 
         String url;

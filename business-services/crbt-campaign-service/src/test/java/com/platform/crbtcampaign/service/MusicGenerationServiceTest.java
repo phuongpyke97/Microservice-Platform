@@ -3,6 +3,7 @@ package com.platform.crbtcampaign.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -23,6 +24,10 @@ import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
 import com.platform.crbtcampaign.entity.UserLyriaHistory;
 import com.platform.crbtcampaign.repository.UserLyriaHistoryRepository;
 import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
+import com.platform.crbtcampaign.entity.UserSubscription;
+import com.platform.crbtcampaign.client.dto.WalletResponse;
+import com.platform.crbtcampaign.exception.CampaignErrorCode;
+import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -320,6 +325,95 @@ class MusicGenerationServiceTest {
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         }
+    }
+
+    @Test
+    void generate_shouldRetryOnContentFilteredAndSucceed() {
+        String msisdn = "09673259486";
+        Long userId = 3L;
+        String genre = "pop";
+        String mood = "energize";
+        String instrument = "saxophone";
+
+        com.platform.crbtcampaign.client.dto.UserCreditResponse userCredit =
+            new com.platform.crbtcampaign.client.dto.UserCreditResponse(userId, "username");
+        when(authServiceClient.getUserCredit(msisdn)).thenReturn(userCredit);
+
+        UserSubscription sub = mock(UserSubscription.class);
+        when(sub.getExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE))
+            .thenReturn(List.of(sub));
+
+        WalletResponse wallet = new WalletResponse(userId, 10);
+        when(creditWalletClient.getBalance(userId)).thenReturn(ApiResponse.success(wallet));
+        when(creditWalletClient.deduct(eq(userId), any())).thenReturn(ApiResponse.success(wallet));
+
+        org.springframework.data.redis.core.ListOperations<String, String> listOps = mock(org.springframework.data.redis.core.ListOperations.class);
+        org.springframework.data.redis.core.SetOperations<String, String> setOps = mock(org.springframework.data.redis.core.SetOperations.class);
+        when(redisTemplate.opsForList()).thenReturn(listOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
+        when(setOps.members(any())).thenReturn(null);
+
+        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        
+        // Mock LyriaClient behavior: 1st call throws filtered exception, 2nd call succeeds
+        when(lyriaClient.generateMusic(any(), anyLong()))
+            .thenThrow(new LyriaClient.LyriaContentFilteredException("Filtered"))
+            .thenReturn(new byte[]{1, 2, 3});
+
+        when(fileServiceClient.uploadAudio(any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
+
+        GenerateMusicResponse resp = musicGenerationService.generate(msisdn, genre, mood, instrument);
+
+        assertNotNull(resp);
+        assertEquals("http://minio/success.mp3", resp.url());
+        verify(lyriaClient, times(2)).generateMusic(any(), anyLong());
+    }
+
+    @Test
+    void generate_shouldFailWhenMaxRetriesExceeded() {
+        String msisdn = "09673259486";
+        Long userId = 3L;
+        String genre = "pop";
+        String mood = "energize";
+        String instrument = "saxophone";
+
+        com.platform.crbtcampaign.client.dto.UserCreditResponse userCredit =
+            new com.platform.crbtcampaign.client.dto.UserCreditResponse(userId, "username");
+        when(authServiceClient.getUserCredit(msisdn)).thenReturn(userCredit);
+
+        UserSubscription sub = mock(UserSubscription.class);
+        when(sub.getExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE))
+            .thenReturn(List.of(sub));
+
+        WalletResponse wallet = new WalletResponse(userId, 10);
+        when(creditWalletClient.getBalance(userId)).thenReturn(ApiResponse.success(wallet));
+        when(creditWalletClient.deduct(eq(userId), any())).thenReturn(ApiResponse.success(wallet));
+
+        org.springframework.data.redis.core.ListOperations<String, String> listOps = mock(org.springframework.data.redis.core.ListOperations.class);
+        org.springframework.data.redis.core.SetOperations<String, String> setOps = mock(org.springframework.data.redis.core.SetOperations.class);
+        when(redisTemplate.opsForList()).thenReturn(listOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
+        when(setOps.members(any())).thenReturn(null);
+
+        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+
+        // Mock LyriaClient behavior: all 3 attempts throw filtered exception
+        when(lyriaClient.generateMusic(any(), anyLong()))
+            .thenThrow(new LyriaClient.LyriaContentFilteredException("Filtered"));
+
+        com.platform.common.core.exception.BaseException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            com.platform.common.core.exception.BaseException.class,
+            () -> musicGenerationService.generate(msisdn, genre, mood, instrument)
+        );
+
+        assertEquals(CampaignErrorCode.LYRIA_GENERATION_FILTERED, ex.getErrorCode());
+        verify(lyriaClient, times(3)).generateMusic(any(), anyLong());
+        // Verify refund is executed on failure
+        verify(creditWalletClient, times(1)).add(eq(userId), any());
     }
 
     private void setCreatedAt(UserLyriaHistory target, Instant time) {

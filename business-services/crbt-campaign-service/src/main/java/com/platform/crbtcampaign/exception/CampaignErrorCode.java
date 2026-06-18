@@ -9,6 +9,7 @@ public enum CampaignErrorCode implements ErrorCode {
     CAMPAIGN_SUBSCRIPTION_NOT_FOUND("CAMPAIGN_SUBSCRIPTION_NOT_FOUND", "Subscription not found", HttpStatus.NOT_FOUND),
     CAMPAIGN_INSUFFICIENT_CREDIT("CAMPAIGN_INSUFFICIENT_CREDIT", "Insufficient credits to generate music", HttpStatus.PAYMENT_REQUIRED),
     CAMPAIGN_FILE_UPLOAD_FAILED("CAMPAIGN_FILE_UPLOAD_FAILED", "Failed to upload generated audio", HttpStatus.INTERNAL_SERVER_ERROR),
+    LYRIA_GENERATION_FILTERED("LYRIA_GENERATION_FILTERED", "Giai điệu tạo ra trùng lặp bản quyền nhạc đã có sẵn. Vui lòng thử lại để sinh giai điệu khác!", HttpStatus.BAD_REQUEST),
     ALREADY_SUBSCRIBED("ALREADY_SUBSCRIBED", "Already subscribed to this package", HttpStatus.BAD_REQUEST),
     ACTIVE_SUBSCRIPTION_EXISTS("ACTIVE_SUBSCRIPTION_EXISTS", "Active subscription already exists. Confirm change to switch.", HttpStatus.BAD_REQUEST),
     SUBSCRIBER_NOT_ACTIVE("SUBSCRIBER_NOT_ACTIVE", "Subscriber is not active", HttpStatus.BAD_REQUEST),

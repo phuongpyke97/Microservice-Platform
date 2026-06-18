@@ -171,7 +171,15 @@ public class LyriaClient {
 
             JsonNode candidates = rootNode.path("candidates");
             if (candidates.isArray() && candidates.size() > 0) {
-                JsonNode parts = candidates.get(0).path("content").path("parts");
+                JsonNode firstCandidate = candidates.get(0);
+                String finishReason = firstCandidate.path("finishReason").asText();
+                String finishMessage = firstCandidate.path("finishMessage").asText();
+                if (finishReason != null && !finishReason.isEmpty() && !"STOP".equalsIgnoreCase(finishReason)) {
+                    log.warn("[LYRIA-API-FILTERED] Gemini Lyria content filtered (reason={}): {}", finishReason, finishMessage);
+                    throw new LyriaContentFilteredException(finishMessage != null && !finishMessage.isEmpty() ? finishMessage : "Content filtered with reason: " + finishReason);
+                }
+
+                JsonNode parts = firstCandidate.path("content").path("parts");
                 if (parts.isArray()) {
                     for (JsonNode part : parts) {
                         JsonNode inlineData = part.path("inlineData");
@@ -188,6 +196,9 @@ public class LyriaClient {
             }
             log.error("[LYRIA-API-ERROR] Failed to locate audio data (inlineData) in JSON response: {}", jsonResponse);
             throw new IllegalStateException("Failed to find inlineData/audio in Gemini Lyria API response");
+        } catch (LyriaContentFilteredException e) {
+            // Re-throw directly
+            throw e;
         } catch (IllegalStateException e) {
             // Re-throw directly — do not double-wrap
             throw e;
@@ -228,5 +239,11 @@ public class LyriaClient {
     private String maskKey(String key) {
         if (key == null || key.length() <= 4) return "***";
         return key.substring(0, 4) + "***";
+    }
+
+    public static class LyriaContentFilteredException extends RuntimeException {
+        public LyriaContentFilteredException(String message) {
+            super(message);
+        }
     }
 }
