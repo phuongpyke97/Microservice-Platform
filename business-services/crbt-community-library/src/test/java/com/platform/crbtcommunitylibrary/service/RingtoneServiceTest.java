@@ -333,4 +333,34 @@ class RingtoneServiceTest {
             () -> ringtoneService.approveAiTone(requestNoPrefix)
         );
     }
+
+    @Test
+    void createRingtone_shouldThrowExceptionWhenAudioUrlAlreadyExists() {
+        RingtoneRequest request = new RingtoneRequest("Title", "Artist", "http://existing-audio.mp3", null, 30, false, 1L, true, 1L);
+        Category category = new Category("Pop", "");
+        Mood mood = new Mood("Vui", "");
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(moodRepository.findById(1L)).thenReturn(Optional.of(mood));
+        
+        Ringtone existingRingtone = new Ringtone("Title", "Artist", "http://existing-audio.mp3", null, 30, false, mood, true, category);
+        when(ringtoneRepository.findByAudioUrlAndDeletedFalse("http://existing-audio.mp3")).thenReturn(Optional.of(existingRingtone));
+
+        assertThrows(BaseException.class, () -> ringtoneService.createRingtone(request));
+    }
+
+    @Test
+    void approveAiTone_shouldThrowExceptionWhenAudioUrlAlreadyExists() {
+        CampaignClient.UserLyriaHistoryResponse history = new CampaignClient.UserLyriaHistoryResponse(
+            10L, 1L, "0987654321", "Title", "Pop", "Vui", "", "http://existing-audio.mp3", 30
+        );
+        when(campaignClient.getLyriaHistory(10L)).thenReturn(ApiResponse.success(history));
+
+        Category category = new Category("Pop", "");
+        Mood mood = new Mood("Vui", "");
+        Ringtone existingRingtone = new Ringtone("Title", "Artist", "http://existing-audio.mp3", null, 30, false, mood, true, category);
+        when(ringtoneRepository.findByAudioUrlAndDeletedFalse("http://existing-audio.mp3")).thenReturn(Optional.of(existingRingtone));
+
+        ApproveAiToneRequest request = new ApproveAiToneRequest("AI_10", null, null, null, null, null, null, null);
+        assertThrows(BaseException.class, () -> ringtoneService.approveAiTone(request));
+    }
 }

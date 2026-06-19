@@ -153,6 +153,13 @@ public class RingtoneService {
         Mood mood = moodRepository.findById(request.moodId())
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng không tồn tại."));
 
+        if (request.audioUrl() != null && !request.audioUrl().isBlank()) {
+            Optional<Ringtone> existing = ringtoneRepository.findByAudioUrlAndDeletedFalse(request.audioUrl().trim());
+            if (existing.isPresent()) {
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Bài nhạc này đã tồn tại trong thư viện.");
+            }
+        }
+
         AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(request.audioUrl());
 
         // BR-Size: must be < 50MB
@@ -211,6 +218,13 @@ public class RingtoneService {
         }
 
         CampaignClient.UserLyriaHistoryResponse history = historyResponse.data();
+
+        if (history.audioUrl() != null && !history.audioUrl().isBlank()) {
+            Optional<Ringtone> existing = ringtoneRepository.findByAudioUrlAndDeletedFalse(history.audioUrl().trim());
+            if (existing.isPresent()) {
+                throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Bài nhạc AI này đã được duyệt và tồn tại trong thư viện.");
+            }
+        }
 
         Category category;
         if (request.categoryId() != null) {
