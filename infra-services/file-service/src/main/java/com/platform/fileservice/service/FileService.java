@@ -394,8 +394,11 @@ public class FileService {
      *  4. Prepending a UUID to guarantee uniqueness
      */
     private String buildObjectKey(Long userId, String folderType, String originalName) {
+        java.time.LocalDateTime nowVal = java.time.LocalDateTime.now();
+        String dateHourStr = nowVal.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
+
         if (originalName == null || originalName.isBlank()) {
-            return "temp/" + java.time.LocalDate.now().toString() + "/" + userId + "/" + UUID.randomUUID() + ".bin";
+            return "temp/" + dateHourStr + "/" + userId + "/" + UUID.randomUUID() + ".bin";
         }
 
         // Separate base name and extension
@@ -423,16 +426,15 @@ public class FileService {
         }
 
         String safeName = UUID.randomUUID() + "-" + safe + extension;
-        String dateStr = java.time.LocalDate.now().toString();
 
         if ("temp".equalsIgnoreCase(folderType)) {
-            return String.format("temp/%s/%d/%s", dateStr, userId, safeName);
+            return String.format("temp/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("diy-lib".equalsIgnoreCase(folderType)) {
             return String.format("diy/users/%d/%s", userId, safeName);
         } else if ("ai-tone".equalsIgnoreCase(folderType)) {
-            return String.format("tones/ai/%s/%d/%s", dateStr, userId, safeName);
+            return String.format("tones/ai/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("diy-tone".equalsIgnoreCase(folderType)) {
-            return String.format("tones/diy/%s/%d/%s", dateStr, userId, safeName);
+            return String.format("tones/diy/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("system-tone".equalsIgnoreCase(folderType)) {
             return String.format("tones/system/%s", safeName);
         }

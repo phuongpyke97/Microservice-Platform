@@ -425,8 +425,8 @@ public class AudioGenerationService {
                     byte[] mixV3 = aiClient.mixAudio(vocalPart, bgPart, "v3", vocalStart, vocalEnd, mixSeed + 2);
 
                     updateProgress(job.getId(), "Uploading mixed versions to storage...");
-                    String dateStr = java.time.LocalDate.now().toString();
-                    String prefix = String.format("tones/diy/%s/%d", dateStr, job.getUserId());
+                    String dateHourStr = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
+                    String prefix = String.format("tones/diy/%s/%d", dateHourStr, job.getUserId());
                     ApiResponse<String> uploadV1 = fileServiceClient.uploadAudioBytes(mixV1, "media-audio", prefix);
                     ApiResponse<String> uploadV2 = fileServiceClient.uploadAudioBytes(mixV2, "media-audio", prefix);
                     ApiResponse<String> uploadV3 = fileServiceClient.uploadAudioBytes(mixV3, "media-audio", prefix);
@@ -451,8 +451,8 @@ public class AudioGenerationService {
                 ));
                 updateProgress(job.getId(), "TTS generation completed.");
 
-                String dateStr = java.time.LocalDate.now().toString();
-                String prefix = String.format("tones/ai/%s/%d", dateStr, job.getUserId());
+                String dateHourStr = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
+                String prefix = String.format("tones/ai/%s/%d", dateHourStr, job.getUserId());
                 ApiResponse<String> uploadResp = fileServiceClient.uploadAudioBytes(audioBytes, "media-audio", prefix);
                 if (uploadResp == null || uploadResp.data() == null) {
                     throw new RuntimeException("Failed to upload TTS audio to file service");

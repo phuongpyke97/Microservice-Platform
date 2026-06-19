@@ -90,8 +90,9 @@ public class FileController {
     @PostMapping(value = "/internal/upload-audio", consumes = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<ApiResponse<String>> uploadAudio(
             @RequestBody byte[] audioBytes,
-            @RequestParam(defaultValue = "media-audio") String bucket) {
-        String url = fileService.uploadAudioBytes(audioBytes, bucket);
+            @RequestParam(defaultValue = "media-audio") String bucket,
+            @RequestParam(value = "prefix", required = false) String prefix) {
+        String url = fileService.uploadAudioBytes(audioBytes, bucket, prefix);
         return ResponseEntity.ok(ApiResponse.success(url));
     }
 
