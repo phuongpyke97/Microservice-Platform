@@ -313,7 +313,7 @@ public class MusicGenerationService {
         String url;
         try {
             log.info("[LYRIA-UPLOAD-START] Uploading generated audio bytes to MinIO...");
-            String dateHourStr = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
+            String dateHourStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
             String prefix = String.format("tones/ai/%s/%d", dateHourStr, userId);
             url = fileServiceClient.uploadAudio(audioBytes, "media-audio", prefix).data();
             if (url == null || url.isBlank()) {

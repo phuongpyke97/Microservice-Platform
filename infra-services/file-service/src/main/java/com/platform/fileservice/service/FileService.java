@@ -170,7 +170,7 @@ public class FileService {
 
         String targetKey;
         if (targetBucket.equals(properties.bucketAudioLib())) {
-            java.time.LocalDateTime nowVal = java.time.LocalDateTime.now();
+            java.time.LocalDateTime nowVal = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
             String dateHourStr = nowVal.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
             targetKey = String.format("diy/users/%s/%d/%s", dateHourStr, metadata.getUserId(), sanitizeKey(filename));
         } else if (targetBucket.equals(properties.bucketAudio())) {
@@ -396,7 +396,7 @@ public class FileService {
      *  4. Prepending a UUID to guarantee uniqueness
      */
     private String buildObjectKey(Long userId, String folderType, String originalName) {
-        java.time.LocalDateTime nowVal = java.time.LocalDateTime.now();
+        java.time.LocalDateTime nowVal = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         String dateHourStr = nowVal.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
 
         if (originalName == null || originalName.isBlank()) {
