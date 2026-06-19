@@ -60,6 +60,22 @@ public class FileController {
                 .body(data);
     }
 
+    @GetMapping("/{fileId}")
+    public ResponseEntity<ApiResponse<FileMetadataResponse>> getFileMetadata(@PathVariable Long fileId) {
+        return ResponseEntity.ok(ApiResponse.success(fileService.getFileMetadata(fileId)));
+    }
+
+    @GetMapping("/candidates")
+    public ResponseEntity<ApiResponse<java.util.List<FileMetadataResponse>>> getCandidates() {
+        return ResponseEntity.ok(ApiResponse.success(fileService.getCandidates()));
+    }
+
+    @PostMapping("/internal/copy-to-public")
+    public ResponseEntity<ApiResponse<String>> copyToPublic(@RequestParam Long fileId, @RequestParam String targetBucket) {
+        String url = fileService.copyFile(fileId, targetBucket);
+        return ResponseEntity.ok(ApiResponse.success(url));
+    }
+
     @PostMapping("/{fileId}/confirm")
     public ResponseEntity<ApiResponse<FileMetadataResponse>> confirm(@PathVariable Long fileId,
                                                                      @Valid @RequestBody ConfirmFileRequest request) {

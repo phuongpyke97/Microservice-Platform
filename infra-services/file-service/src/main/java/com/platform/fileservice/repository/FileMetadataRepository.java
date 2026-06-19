@@ -13,4 +13,9 @@ public interface FileMetadataRepository extends JpaRepository<FileMetadata, Long
             java.time.Instant cutoffTime, 
             org.springframework.data.domain.Pageable pageable
     );
+    java.util.List<FileMetadata> findByBucketAndStatusAndContentTypeStartingWith(
+            String bucket, 
+            com.platform.fileservice.entity.FileStatus status, 
+            String contentTypePrefix
+    );
 }

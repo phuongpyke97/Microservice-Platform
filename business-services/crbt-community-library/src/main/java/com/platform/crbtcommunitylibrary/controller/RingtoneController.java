@@ -123,6 +123,11 @@ public class RingtoneController {
         return ApiResponse.success(ringtoneService.approveAiTone(request));
     }
 
+    @PostMapping("/ringtones/approve-diy")
+    public ApiResponse<RingtoneResponse> approveDiyTone(@Valid @RequestBody com.platform.crbtcommunitylibrary.dto.request.ApproveDiyToneRequest request) {
+        return ApiResponse.success(ringtoneService.approveDiyTone(request));
+    }
+
     @GetMapping("/ringtones/fallback")
     public ApiResponse<RingtoneResponse> getFallbackRingtone(
             @RequestParam String genre,

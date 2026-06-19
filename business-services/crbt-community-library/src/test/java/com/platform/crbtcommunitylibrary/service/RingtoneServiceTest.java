@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 
 import com.platform.common.core.exception.BaseException;
 import com.platform.crbtcommunitylibrary.client.CampaignClient;
+import com.platform.crbtcommunitylibrary.client.FileServiceClient;
 import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
+import com.platform.crbtcommunitylibrary.dto.request.ApproveDiyToneRequest;
 import com.platform.common.core.response.ApiResponse;
 import java.util.List;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
@@ -60,6 +62,9 @@ class RingtoneServiceTest {
 
     @Mock
     private CampaignClient campaignClient;
+
+    @Mock
+    private FileServiceClient fileServiceClient;
 
     // ─── Category tests ────────────────────────────────────────────────────────
 
@@ -362,5 +367,45 @@ class RingtoneServiceTest {
 
         ApproveAiToneRequest request = new ApproveAiToneRequest("AI_10", null, null, null, null, null, null, null);
         assertThrows(BaseException.class, () -> ringtoneService.approveAiTone(request));
+    }
+
+    @Test
+    void approveDiyTone_shouldMapSuccessfullyAndSave() {
+        FileServiceClient.FileMetadataResponse metadata = new FileServiceClient.FileMetadataResponse(
+            123L, 3L, "user-bg.mp3", "123-user-bg.mp3", "media-audio-lib", "audio/mpeg", 2000000L, "CONFIRMED"
+        );
+        when(fileServiceClient.getFileMetadata(123L)).thenReturn(ApiResponse.success(metadata));
+        when(fileServiceClient.copyToPublic(123L, "media-audio")).thenReturn(ApiResponse.success("http://external/media-audio/123-user-bg.mp3"));
+
+        Category category = new Category("EDM", "EDM music");
+        Mood mood = new Mood("Calm", "");
+        when(categoryRepository.findAll()).thenReturn(List.of(category));
+        when(moodRepository.findAll()).thenReturn(List.of(mood));
+
+        when(audioDurationParser.analyzeAudio("http://external/media-audio/123-user-bg.mp3"))
+            .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(45, 2000000L, false));
+
+        Ringtone savedRingtone = new Ringtone("DIY Tone", "DIY Composer", "http://external/media-audio/123-user-bg.mp3", null, 45, false, mood, true, category);
+        savedRingtone.setAiGenerated(false);
+        when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(savedRingtone);
+
+        ApproveDiyToneRequest request = new ApproveDiyToneRequest(123L, null, null, null, null, null, null, null);
+        RingtoneResponse response = ringtoneService.approveDiyTone(request);
+
+        assertNotNull(response);
+        assertEquals("DIY Tone", response.title());
+        assertEquals("DIY Composer", response.artistName());
+        assertEquals(false, response.isAiGenerated());
+    }
+
+    @Test
+    void approveDiyTone_shouldThrowExceptionWhenFileNotConfirmed() {
+        FileServiceClient.FileMetadataResponse metadata = new FileServiceClient.FileMetadataResponse(
+            123L, 3L, "user-bg.mp3", "123-user-bg.mp3", "media-temp", "audio/mpeg", 2000000L, "UPLOADED"
+        );
+        when(fileServiceClient.getFileMetadata(123L)).thenReturn(ApiResponse.success(metadata));
+
+        ApproveDiyToneRequest request = new ApproveDiyToneRequest(123L, null, null, null, null, null, null, null);
+        assertThrows(BaseException.class, () -> ringtoneService.approveDiyTone(request));
     }
 }

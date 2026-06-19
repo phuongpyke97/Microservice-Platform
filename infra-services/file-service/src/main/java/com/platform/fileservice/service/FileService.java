@@ -73,7 +73,7 @@ public class FileService {
     @Transactional
     public FileMetadataResponse uploadTemp(Long userId, MultipartFile file) {
         validate(file.getSize(), file.getContentType());
-        String objectKey = buildObjectKey(file.getOriginalFilename());
+        String objectKey = buildObjectKey(userId, "temp", file.getOriginalFilename());
 
         try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
@@ -163,7 +163,19 @@ public class FileService {
             }
         }
 
-        String targetKey = sanitizeKey(metadata.getStoredKey());
+        String filename = metadata.getStoredKey();
+        if (filename.contains("/")) {
+            filename = filename.substring(filename.lastIndexOf('/') + 1);
+        }
+
+        String targetKey;
+        if (targetBucket.equals(properties.bucketAudioLib())) {
+            targetKey = String.format("diy/users/%d/%s", metadata.getUserId(), sanitizeKey(filename));
+        } else if (targetBucket.equals(properties.bucketAudio())) {
+            targetKey = String.format("tones/system/%s", sanitizeKey(filename));
+        } else {
+            targetKey = sanitizeKey(metadata.getStoredKey());
+        }
 
         try {
             minioClient.copyObject(
@@ -275,7 +287,7 @@ public class FileService {
     @Transactional
     public PresignedUrlResponse getUploadUrl(Long userId, String originalName, String contentType) {
         validate(1, contentType);
-        String objectKey = buildObjectKey(originalName);
+        String objectKey = buildObjectKey(userId, "temp", originalName);
         FileMetadata metadata = repository.save(new FileMetadata(
                 userId,
                 originalName,
@@ -340,13 +352,22 @@ public class FileService {
     }
 
     public String uploadAudioBytes(byte[] bytes, String bucket) {
+        return uploadAudioBytes(bytes, bucket, null);
+    }
+
+    public String uploadAudioBytes(byte[] bytes, String bucket, String prefix) {
         // Whitelist allowed buckets to prevent caller-controlled bucket injection
         Set<String> allowedBuckets = Set.of(properties.bucketAudio(), properties.bucketAudioLib());
         if (!allowedBuckets.contains(bucket)) {
             throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET,
                 "Bucket '" + bucket + "' is not allowed for audio upload");
         }
-        String objectName = "lyria-" + UUID.randomUUID() + ".mp3";
+        String objectName;
+        if (prefix != null && !prefix.isBlank()) {
+            objectName = prefix + "/" + UUID.randomUUID() + ".mp3";
+        } else {
+            objectName = "lyria-" + UUID.randomUUID() + ".mp3";
+        }
         try (java.io.InputStream is = new java.io.ByteArrayInputStream(bytes)) {
             minioClient.putObject(
                 io.minio.PutObjectArgs.builder()
@@ -372,9 +393,9 @@ public class FileService {
      *  3. Collapsing consecutive hyphens
      *  4. Prepending a UUID to guarantee uniqueness
      */
-    private String buildObjectKey(String originalName) {
+    private String buildObjectKey(Long userId, String folderType, String originalName) {
         if (originalName == null || originalName.isBlank()) {
-            return UUID.randomUUID() + ".bin";
+            return "temp/" + java.time.LocalDate.now().toString() + "/" + userId + "/" + UUID.randomUUID() + ".bin";
         }
 
         // Separate base name and extension
@@ -401,14 +422,29 @@ public class FileService {
             safe = "file";
         }
 
-        return UUID.randomUUID() + "-" + safe + extension;
+        String safeName = UUID.randomUUID() + "-" + safe + extension;
+        String dateStr = java.time.LocalDate.now().toString();
+
+        if ("temp".equalsIgnoreCase(folderType)) {
+            return String.format("temp/%s/%d/%s", dateStr, userId, safeName);
+        } else if ("diy-lib".equalsIgnoreCase(folderType)) {
+            return String.format("diy/users/%d/%s", userId, safeName);
+        } else if ("ai-tone".equalsIgnoreCase(folderType)) {
+            return String.format("tones/ai/%s/%d/%s", dateStr, userId, safeName);
+        } else if ("diy-tone".equalsIgnoreCase(folderType)) {
+            return String.format("tones/diy/%s/%d/%s", dateStr, userId, safeName);
+        } else if ("system-tone".equalsIgnoreCase(folderType)) {
+            return String.format("tones/system/%s", safeName);
+        }
+
+        return safeName;
     }
 
     private String sanitizeKey(String key) {
         if (key == null || key.isBlank()) {
             return key;
         }
-        return key.replaceAll("[^a-zA-Z0-9.\\-_]+", "-")
+        return key.replaceAll("[^a-zA-Z0-9.\\-_/]+", "-")
                   .replaceAll("-{2,}", "-")
                   .replaceAll("^-+|-+$", "");
     }
@@ -530,6 +566,64 @@ public class FileService {
         } catch (Exception e) {
             throw new BaseException(FileErrorCode.FILE_NOT_FOUND, "Failed to delete file: " + e.getMessage());
         }
+    }
+
+    @Transactional(readOnly = true)
+    public FileMetadataResponse getFileMetadata(Long fileId) {
+        FileMetadata metadata = repository.findById(fileId)
+                .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));
+        return toResponse(metadata);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<FileMetadataResponse> getCandidates() {
+        java.util.List<FileMetadata> list = repository.findByBucketAndStatusAndContentTypeStartingWith(
+                properties.bucketAudioLib(),
+                FileStatus.CONFIRMED,
+                "audio/"
+        );
+        return list.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public String copyFile(Long fileId, String targetBucket) {
+        FileMetadata metadata = repository.findById(fileId)
+                .orElseThrow(() -> new BaseException(FileErrorCode.FILE_NOT_FOUND));
+
+        if (!targetBucket.equals(properties.bucketAudio())
+                && !targetBucket.equals(properties.bucketImage())
+                && !targetBucket.equals(properties.bucketAudioLib())) {
+            throw new BaseException(FileErrorCode.FILE_INVALID_TARGET_BUCKET);
+        }
+
+        String filename = metadata.getStoredKey();
+        if (filename.contains("/")) {
+            filename = filename.substring(filename.lastIndexOf('/') + 1);
+        }
+
+        String targetKey;
+        if (targetBucket.equals(properties.bucketAudio())) {
+            targetKey = String.format("tones/system/%s", sanitizeKey(filename));
+        } else {
+            targetKey = sanitizeKey(metadata.getStoredKey());
+        }
+
+        try {
+            minioClient.copyObject(
+                    CopyObjectArgs.builder()
+                            .bucket(targetBucket)
+                            .object(targetKey)
+                            .source(io.minio.CopySource.builder()
+                                    .bucket(metadata.getBucket())
+                                    .object(metadata.getStoredKey())
+                                    .build())
+                            .build()
+                    );
+        } catch (Exception e) {
+            throw new BaseException(FileErrorCode.FILE_UPLOAD_FAILED, "Failed to copy file in MinIO: " + e.getMessage());
+        }
+
+        return properties.publicEndpoint() + "/" + targetBucket + "/" + targetKey;
     }
 
     private FileMetadataResponse toResponse(FileMetadata metadata) {

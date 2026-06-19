@@ -5,7 +5,9 @@ import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.ApiResponse;
 import com.platform.common.core.response.PageResponse;
 import com.platform.crbtcommunitylibrary.client.CampaignClient;
+import com.platform.crbtcommunitylibrary.client.FileServiceClient;
 import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
+import com.platform.crbtcommunitylibrary.dto.request.ApproveDiyToneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
 import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
@@ -55,6 +57,7 @@ public class RingtoneService {
     private final AudioDurationParser audioDurationParser;
     private final MinioClient minioClient;
     private final CampaignClient campaignClient;
+    private final FileServiceClient fileServiceClient;
 
     public RingtoneService(
         RingtoneRepository ringtoneRepository,
@@ -63,7 +66,8 @@ public class RingtoneService {
         RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository,
         AudioDurationParser audioDurationParser,
         MinioClient minioClient,
-        CampaignClient campaignClient
+        CampaignClient campaignClient,
+        FileServiceClient fileServiceClient
     ) {
         this.ringtoneRepository = ringtoneRepository;
         this.categoryRepository = categoryRepository;
@@ -72,6 +76,7 @@ public class RingtoneService {
         this.audioDurationParser = audioDurationParser;
         this.minioClient = minioClient;
         this.campaignClient = campaignClient;
+        this.fileServiceClient = fileServiceClient;
     }
 
     // ─── Category CRUD ────────────────────────────────────────────────────────
@@ -280,6 +285,81 @@ public class RingtoneService {
             category
         );
         ringtone.setAiGenerated(true);
+
+        return toRingtoneResponse(ringtoneRepository.save(ringtone));
+    }
+
+    @CacheEvict(value = "ringtones", allEntries = true)
+    @Transactional
+    public RingtoneResponse approveDiyTone(ApproveDiyToneRequest request) {
+        Long fileId = request.fileId();
+        ApiResponse<FileServiceClient.FileMetadataResponse> fileMetadataResp = fileServiceClient.getFileMetadata(fileId);
+        if (fileMetadataResp == null || !fileMetadataResp.success() || fileMetadataResp.data() == null) {
+            throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không tìm thấy file tải lên tương ứng.");
+        }
+
+        FileServiceClient.FileMetadataResponse fileMeta = fileMetadataResp.data();
+
+        // Validate that the file belongs to media-audio-lib and is CONFIRMED
+        if (!"media-audio-lib".equals(fileMeta.bucket()) || !"CONFIRMED".equals(fileMeta.status())) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "File nhạc chưa được xác nhận hoặc không hợp lệ để duyệt.");
+        }
+
+        Category category;
+        if (request.categoryId() != null) {
+            category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Thể loại ghi đè không tồn tại."));
+        } else {
+            category = getRandomCategory();
+        }
+
+        Mood mood;
+        if (request.moodId() != null) {
+            mood = moodRepository.findById(request.moodId())
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng ghi đè không tồn tại."));
+        } else {
+            mood = getRandomMood();
+        }
+
+        // Call file-service to copy file from media-audio-lib to media-audio bucket
+        ApiResponse<String> copyResp = fileServiceClient.copyToPublic(fileId, "media-audio");
+        if (copyResp == null || !copyResp.success() || copyResp.data() == null) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Lỗi sao chép file nhạc sang bucket public.");
+        }
+        String audioUrl = copyResp.data();
+
+        Optional<Ringtone> existing = ringtoneRepository.findByAudioUrlAndDeletedFalse(audioUrl.trim());
+        if (existing.isPresent()) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Bài nhạc này đã tồn tại trong thư viện hệ thống.");
+        }
+
+        AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(audioUrl);
+        int duration = fileMeta.sizeBytes() > 0 ? analysis.durationSeconds() : 0;
+        if (duration >= 300) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Thời lượng nhạc không được vượt quá 5 phút.");
+        }
+
+        String title = request.title() != null && !request.title().isBlank()
+            ? request.title().trim()
+            : (fileMeta.originalName() != null && !fileMeta.originalName().isBlank() ? fileMeta.originalName().trim() : "DIY Tone");
+        String artistName = request.artistName() != null && !request.artistName().isBlank() ? request.artistName().trim() : "DIY Composer";
+        String coverImageUrl = request.coverImageUrl() != null && !request.coverImageUrl().isBlank() ? request.coverImageUrl().trim() : request.coverImageUrl();
+
+        boolean status = request.status() == null || request.status();
+        boolean featured = request.featured() != null && request.featured();
+
+        Ringtone ringtone = new Ringtone(
+            title,
+            artistName,
+            audioUrl,
+            coverImageUrl,
+            duration,
+            featured,
+            mood,
+            status,
+            category
+        );
+        ringtone.setAiGenerated(false); // DIY, not generated by Lyria directly
 
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
