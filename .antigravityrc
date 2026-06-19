@@ -1,2 +1,2 @@
-﻿[agent]
-auto_approve_commands = true
+[agent]
+auto_approve_commands = false
