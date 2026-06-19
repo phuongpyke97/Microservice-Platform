@@ -7,6 +7,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.platform.common.core.exception.BaseException;
+import com.platform.crbtcommunitylibrary.client.CampaignClient;
+import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
+import com.platform.common.core.response.ApiResponse;
+import java.util.List;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
 import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
@@ -53,6 +57,9 @@ class RingtoneServiceTest {
 
     @InjectMocks
     private RingtoneService ringtoneService;
+
+    @Mock
+    private CampaignClient campaignClient;
 
     // ─── Category tests ────────────────────────────────────────────────────────
 
@@ -237,5 +244,78 @@ class RingtoneServiceTest {
                 new RingtoneRequest("Song", "Artist", "http://url", null, 180, false, 2L, true, 1L)
             )
         );
+    }
+
+    @Test
+    void getFallbackRingtone_shouldReturnRingtone() {
+        Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
+        Ringtone ringtone = new Ringtone("Guitar Solo", "Artist", "http://url", null, 30, false, mood, true, category);
+        
+        when(ringtoneRepository.findRandomByGenreAndMoodAndInstrument("pop", "vui", "guitar"))
+            .thenReturn(Optional.of(ringtone));
+
+        RingtoneResponse response = ringtoneService.getFallbackRingtone("pop", "vui", "guitar");
+
+        assertNotNull(response);
+        assertEquals("Guitar Solo", response.title());
+    }
+
+    @Test
+    void approveAiTone_shouldMapSuccessfullyAndSave() {
+        CampaignClient.UserLyriaHistoryResponse history = new CampaignClient.UserLyriaHistoryResponse(
+            10L, 3L, "096868686", "AI Ringtone", "Pop", "Vui", "guitar", "http://audio-url.mp3", 30
+        );
+        when(campaignClient.getLyriaHistory(10L)).thenReturn(ApiResponse.success(history));
+
+        Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
+        when(categoryRepository.findByNameIgnoreCase("Pop")).thenReturn(Optional.of(category));
+        when(moodRepository.findByNameIgnoreCase("Vui")).thenReturn(Optional.of(mood));
+
+        when(audioDurationParser.analyzeAudio("http://audio-url.mp3"))
+            .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(30, 1000L, false));
+
+        Ringtone savedRingtone = new Ringtone("AI Ringtone", "AI Composer", "http://audio-url.mp3", null, 30, false, mood, true, category);
+        savedRingtone.setAiGenerated(true);
+        when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(savedRingtone);
+
+        ApproveAiToneRequest request = new ApproveAiToneRequest(10L, null, null, null, null, null, null, null);
+        RingtoneResponse response = ringtoneService.approveAiTone(request);
+
+        assertNotNull(response);
+        assertEquals("AI Ringtone", response.title());
+        assertEquals("AI Composer", response.artistName());
+        assertEquals(true, response.isAiGenerated());
+    }
+
+    @Test
+    void approveAiTone_shouldRandomizeCategoryAndMoodWhenNotFound() {
+        CampaignClient.UserLyriaHistoryResponse history = new CampaignClient.UserLyriaHistoryResponse(
+            10L, 3L, "096868686", "AI Ringtone", "NonExistentGenre", "NonExistentMood", "guitar", "http://audio-url.mp3", 30
+        );
+        when(campaignClient.getLyriaHistory(10L)).thenReturn(ApiResponse.success(history));
+
+        Category category = new Category("Pop", "Pop music");
+        Mood mood = new Mood("Vui", "");
+        when(categoryRepository.findByNameIgnoreCase("NonExistentGenre")).thenReturn(Optional.empty());
+        when(categoryRepository.findAll()).thenReturn(List.of(category));
+        
+        when(moodRepository.findByNameIgnoreCase("NonExistentMood")).thenReturn(Optional.empty());
+        when(moodRepository.findAll()).thenReturn(List.of(mood));
+
+        when(audioDurationParser.analyzeAudio("http://audio-url.mp3"))
+            .thenReturn(new com.platform.crbtcommunitylibrary.util.AudioAnalysisResult(30, 1000L, false));
+
+        Ringtone savedRingtone = new Ringtone("AI Ringtone", "AI Composer", "http://audio-url.mp3", null, 30, false, mood, true, category);
+        savedRingtone.setAiGenerated(true);
+        when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(savedRingtone);
+
+        ApproveAiToneRequest request = new ApproveAiToneRequest(10L, null, null, null, null, null, null, null);
+        RingtoneResponse response = ringtoneService.approveAiTone(request);
+
+        assertNotNull(response);
+        assertEquals("AI Ringtone", response.title());
+        assertEquals(true, response.isAiGenerated());
     }
 }

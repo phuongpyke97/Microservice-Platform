@@ -117,4 +117,17 @@ public class RingtoneController {
     public ApiResponse<RingtoneResponse> getRandom(@RequestParam(required = false) String genre) {
         return ApiResponse.success(ringtoneService.getRandomRingtone(genre));
     }
+
+    @PostMapping("/ringtones/approve-ai")
+    public ApiResponse<RingtoneResponse> approveAiTone(@Valid @RequestBody com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest request) {
+        return ApiResponse.success(ringtoneService.approveAiTone(request));
+    }
+
+    @GetMapping("/ringtones/fallback")
+    public ApiResponse<RingtoneResponse> getFallbackRingtone(
+            @RequestParam String genre,
+            @RequestParam String mood,
+            @RequestParam(required = false) String instrument) {
+        return ApiResponse.success(ringtoneService.getFallbackRingtone(genre, mood, instrument));
+    }
 }

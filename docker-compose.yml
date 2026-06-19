@@ -422,6 +422,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_API_URL: ${GEMINI_API_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_MODEL: ${GEMINI_MODEL:-lyria-3-clip-preview}
     volumes:
       - ./logs:/logs
     depends_on:

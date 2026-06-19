@@ -11,6 +11,7 @@ import com.platform.crbtcampaign.dto.response.CampaignResponse;
 import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
 import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
 import com.platform.crbtcampaign.dto.response.SubscriptionResponse;
+import com.platform.crbtcampaign.dto.response.UserLyriaHistoryResponse;
 
 import com.platform.crbtcampaign.service.CampaignService;
 import com.platform.crbtcampaign.service.MusicGenerationService;
@@ -98,7 +99,7 @@ public class CampaignController {
                 jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
                 Map<String, Object> initialTokenUsage = new HashMap<>();
                 initialTokenUsage.put("msisdn", msisdn);
-                initialTokenUsage.put("model", "lyria-3-clip-preview");
+                initialTokenUsage.put("model", musicGenerationService.getModelName());
                 initialTokenUsage.put("prompt_tokens", 0);
                 initialTokenUsage.put("candidate_tokens", 0);
                 initialTokenUsage.put("total_tokens", 0);
@@ -146,6 +147,11 @@ public class CampaignController {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
         return ApiResponse.success(musicGenerationService.updateLibraryItem(userId, unifiedId, request));
+    }
+
+    @GetMapping("/internal/campaign/lyria-history/{id}")
+    public ApiResponse<UserLyriaHistoryResponse> getLyriaHistory(@PathVariable Long id) {
+        return ApiResponse.success(musicGenerationService.getLyriaHistory(id));
     }
 }
 

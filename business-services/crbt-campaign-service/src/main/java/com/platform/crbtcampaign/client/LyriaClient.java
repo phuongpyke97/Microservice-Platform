@@ -87,6 +87,10 @@ public class LyriaClient {
                  model, maskKey(apiKey), connectTimeout, readTimeout, poolMaxTotal, poolMaxPerRoute, poolConnTtlSec);
     }
 
+    public String getModel() {
+        return this.model;
+    }
+
     @CircuitBreaker(name = "lyria")
     public byte[] generateMusic(String prompt) {
         // Default path: deterministic output (seed=0 omits the seed override).

@@ -19,6 +19,7 @@ import com.platform.crbtcampaign.client.AuthServiceClient;
 import com.platform.crbtcampaign.client.CreditWalletClient;
 import com.platform.crbtcampaign.client.FileServiceClient;
 import com.platform.crbtcampaign.client.LyriaClient;
+import com.platform.crbtcampaign.client.LibraryClient;
 import com.platform.crbtcampaign.client.dto.DiyJobResponse;
 import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
 import com.platform.crbtcampaign.entity.UserLyriaHistory;
@@ -57,6 +58,7 @@ class MusicGenerationServiceTest {
     @Mock ObjectMapper objectMapper;
     @Mock UserLyriaHistoryRepository historyRepository;
     @Mock AudioGenerationClient audioGenerationClient;
+    @Mock LibraryClient libraryClient;
 
     MusicGenerationService musicGenerationService;
 
@@ -73,8 +75,12 @@ class MusicGenerationServiceTest {
             rabbitTemplate,
             objectMapper,
             historyRepository,
-            audioGenerationClient
+            audioGenerationClient,
+            libraryClient
         );
+        when(promptConfig.randomVariation()).thenReturn(new LyriaSystemPromptConfig.MusicVariation(
+            120, "C major", 12345L, "solo acoustic guitar", "relaxed groove", "studio"
+        ));
     }
 
     @Test

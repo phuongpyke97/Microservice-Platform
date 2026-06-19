@@ -15,6 +15,6 @@ public record RingtoneResponse(
     CategoryResponse category,
     MoodResponse mood,
     Instant createdAt,
-    Instant updatedAt
-) {
-}
+    Instant updatedAt,
+    Boolean isAiGenerated
+) {}

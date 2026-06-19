@@ -52,6 +52,9 @@ public class Ringtone {
     @Column(nullable = false)
     private boolean deleted = false;
 
+    @Column(name = "is_ai_generated", nullable = false)
+    private boolean isAiGenerated = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
@@ -167,6 +170,14 @@ public class Ringtone {
 
     public void setDeleted(boolean deleted) {
         this.deleted = deleted;
+    }
+
+    public boolean isAiGenerated() {
+        return isAiGenerated;
+    }
+
+    public void setAiGenerated(boolean aiGenerated) {
+        isAiGenerated = aiGenerated;
     }
 
     public Category getCategory() {

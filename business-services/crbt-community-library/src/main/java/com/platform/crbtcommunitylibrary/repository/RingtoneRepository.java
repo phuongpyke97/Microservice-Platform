@@ -13,6 +13,19 @@ public interface RingtoneRepository extends JpaRepository<Ringtone, Long>, JpaSp
     @Query(value = "SELECT r.* FROM ringtones r JOIN categories c ON r.category_id = c.id WHERE r.deleted = false AND r.status = true AND LOWER(c.name) = LOWER(:genre) ORDER BY RANDOM() LIMIT 1", nativeQuery = true)
     Optional<Ringtone> findRandomByGenre(@Param("genre") String genre);
 
+    @Query(value = "SELECT r.* FROM ringtones r " +
+                   "JOIN categories c ON r.category_id = c.id " +
+                   "JOIN moods m ON r.mood_id = m.id " +
+                   "WHERE r.deleted = false AND r.status = true " +
+                   "AND LOWER(c.name) = LOWER(:genre) " +
+                   "AND LOWER(m.name) = LOWER(:mood) " +
+                   "AND (:instrument IS NULL OR :instrument = '' OR LOWER(r.title) LIKE CONCAT('%', LOWER(:instrument), '%')) " +
+                   "ORDER BY RANDOM() LIMIT 1", nativeQuery = true)
+    Optional<Ringtone> findRandomByGenreAndMoodAndInstrument(
+        @Param("genre") String genre,
+        @Param("mood") String mood,
+        @Param("instrument") String instrument);
+
     @Query(value = "SELECT * FROM ringtones WHERE deleted = false AND status = true ORDER BY RANDOM() LIMIT 1", nativeQuery = true)
     Optional<Ringtone> findRandom();
 

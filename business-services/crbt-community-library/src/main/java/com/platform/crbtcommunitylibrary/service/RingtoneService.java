@@ -2,7 +2,10 @@ package com.platform.crbtcommunitylibrary.service;
 
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
+import com.platform.common.core.response.ApiResponse;
 import com.platform.common.core.response.PageResponse;
+import com.platform.crbtcommunitylibrary.client.CampaignClient;
+import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
 import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
@@ -51,6 +54,7 @@ public class RingtoneService {
     private final RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository;
     private final AudioDurationParser audioDurationParser;
     private final MinioClient minioClient;
+    private final CampaignClient campaignClient;
 
     public RingtoneService(
         RingtoneRepository ringtoneRepository,
@@ -58,7 +62,8 @@ public class RingtoneService {
         MoodRepository moodRepository,
         RingtoneDeletedHistoryRepository ringtoneDeletedHistoryRepository,
         AudioDurationParser audioDurationParser,
-        MinioClient minioClient
+        MinioClient minioClient,
+        CampaignClient campaignClient
     ) {
         this.ringtoneRepository = ringtoneRepository;
         this.categoryRepository = categoryRepository;
@@ -66,6 +71,7 @@ public class RingtoneService {
         this.ringtoneDeletedHistoryRepository = ringtoneDeletedHistoryRepository;
         this.audioDurationParser = audioDurationParser;
         this.minioClient = minioClient;
+        this.campaignClient = campaignClient;
     }
 
     // ─── Category CRUD ────────────────────────────────────────────────────────
@@ -182,6 +188,82 @@ public class RingtoneService {
             status,
             category
         );
+        return toRingtoneResponse(ringtoneRepository.save(ringtone));
+    }
+
+    @CacheEvict(value = "ringtones", allEntries = true)
+    @Transactional
+    public RingtoneResponse approveAiTone(ApproveAiToneRequest request) {
+        ApiResponse<CampaignClient.UserLyriaHistoryResponse> historyResponse = campaignClient.getLyriaHistory(request.lyriaHistoryId());
+        if (historyResponse == null || !historyResponse.success() || historyResponse.data() == null) {
+            throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không tìm thấy lịch sử tạo nhạc AI tương ứng.");
+        }
+
+        CampaignClient.UserLyriaHistoryResponse history = historyResponse.data();
+
+        Category category;
+        if (request.categoryId() != null) {
+            category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Thể loại ghi đè không tồn tại."));
+        } else {
+            String genre = history.genre();
+            category = categoryRepository.findByNameIgnoreCase(genre)
+                .orElseGet(() -> {
+                    List<Category> all = categoryRepository.findAll();
+                    if (all.isEmpty()) {
+                        throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có thể loại nào trong hệ thống.");
+                    }
+                    return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
+                });
+        }
+
+        Mood mood;
+        if (request.moodId() != null) {
+            mood = moodRepository.findById(request.moodId())
+                .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng ghi đè không tồn tại."));
+        } else {
+            String moodName = history.mood();
+            mood = moodRepository.findByNameIgnoreCase(moodName)
+                .orElseGet(() -> {
+                    List<Mood> all = moodRepository.findAll();
+                    if (all.isEmpty()) {
+                        throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có tâm trạng nào trong hệ thống.");
+                    }
+                    return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
+                });
+        }
+
+        AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(history.audioUrl());
+
+        int duration = history.durationSeconds() > 0 ? history.durationSeconds() : analysis.durationSeconds();
+        if (duration >= 300) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Thời lượng bài nhạc không được vượt quá 5 phút.");
+        }
+
+        if (analysis.hasVocal()) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Nhạc có lời không được phép sử dụng cho AI Composer. Vui lòng duyệt nhạc không lời.");
+        }
+
+        String title = request.title() != null && !request.title().isBlank() ? request.title().trim() : history.title();
+        String artistName = request.artistName() != null && !request.artistName().isBlank() ? request.artistName().trim() : "AI Composer";
+        String coverImageUrl = request.coverImageUrl() != null && !request.coverImageUrl().isBlank() ? request.coverImageUrl().trim() : request.coverImageUrl();
+
+        boolean status = request.status() == null || request.status();
+        boolean featured = request.featured() != null && request.featured();
+
+        Ringtone ringtone = new Ringtone(
+            title,
+            artistName,
+            history.audioUrl(),
+            coverImageUrl,
+            duration,
+            featured,
+            mood,
+            status,
+            category
+        );
+        ringtone.setAiGenerated(true);
+
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
 
@@ -357,6 +439,13 @@ public class RingtoneService {
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
+    public RingtoneResponse getFallbackRingtone(String genre, String mood, String instrument) {
+        Optional<Ringtone> ringtone = ringtoneRepository.findRandomByGenreAndMoodAndInstrument(genre, mood, instrument);
+        return ringtone.map(this::toRingtoneResponse)
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+    }
+
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
     private Specification<Ringtone> buildSearchSpecification(RingtoneSearchRequest searchRequest) {
@@ -459,7 +548,8 @@ public class RingtoneService {
             toCategoryResponse(ringtone.getCategory()),
             toMoodResponse(ringtone.getMood()),
             ringtone.getCreatedAt(),
-            ringtone.getUpdatedAt()
+            ringtone.getUpdatedAt(),
+            ringtone.isAiGenerated()
         );
     }
 

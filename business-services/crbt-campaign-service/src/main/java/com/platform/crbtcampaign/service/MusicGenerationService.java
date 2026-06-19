@@ -3,6 +3,7 @@ package com.platform.crbtcampaign.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.common.ai.LyriaSystemPromptConfig;
+import com.platform.crbtcampaign.client.LibraryClient;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.exception.CommonErrorCode;
 import com.platform.common.core.response.ApiResponse;
@@ -16,6 +17,7 @@ import com.platform.crbtcampaign.client.dto.WalletAmountRequest;
 import com.platform.crbtcampaign.client.AudioGenerationClient;
 import com.platform.crbtcampaign.client.dto.DiyJobResponse;
 import com.platform.crbtcampaign.dto.response.MyLibraryItemResponse;
+import com.platform.crbtcampaign.dto.response.UserLyriaHistoryResponse;
 import com.platform.crbtcampaign.entity.UserLyriaHistory;
 import com.platform.crbtcampaign.repository.UserLyriaHistoryRepository;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +71,7 @@ public class MusicGenerationService {
     private final ObjectMapper objectMapper;
     private final UserLyriaHistoryRepository historyRepository;
     private final AudioGenerationClient audioGenerationClient;
+    private final LibraryClient libraryClient;
     private final Random random = new Random();
 
     public MusicGenerationService(AuthServiceClient authServiceClient,
@@ -81,7 +84,8 @@ public class MusicGenerationService {
                                   RabbitTemplate rabbitTemplate,
                                   ObjectMapper objectMapper,
                                   UserLyriaHistoryRepository historyRepository,
-                                  AudioGenerationClient audioGenerationClient) {
+                                  AudioGenerationClient audioGenerationClient,
+                                  LibraryClient libraryClient) {
         this.authServiceClient = authServiceClient;
         this.fileServiceClient = fileServiceClient;
         this.lyriaClient = lyriaClient;
@@ -93,6 +97,11 @@ public class MusicGenerationService {
         this.objectMapper = objectMapper;
         this.historyRepository = historyRepository;
         this.audioGenerationClient = audioGenerationClient;
+        this.libraryClient = libraryClient;
+    }
+
+    public String getModelName() {
+        return this.lyriaClient.getModel();
     }
 
 
@@ -179,9 +188,29 @@ public class MusicGenerationService {
                 }
             } else {
                 log.info("[LYRIA-CACHE-MISS] No available tracks in cache pool for hashKey={}. Calling AI generation...", hashKey);
-                GenerationResult genResult = generateAndCache(msisdn, genre, mood, instrument, poolKey);
-                url = genResult.url();
-                durationSeconds = genResult.durationSeconds();
+                try {
+                    GenerationResult genResult = generateAndCache(msisdn, genre, mood, instrument, poolKey);
+                    url = genResult.url();
+                    durationSeconds = genResult.durationSeconds();
+                } catch (Exception e) {
+                    log.warn("[LYRIA-GENERATE-FAILED-FALLBACK] Lyria generation failed, attempting community library fallback for 3 keys: genre={}, mood={}, instrument={}", genre, mood, instrument);
+                    try {
+                        ApiResponse<Object> fallbackResp = libraryClient.getFallbackRingtone(genre, mood, instrument);
+                        if (fallbackResp != null && fallbackResp.success() && fallbackResp.data() != null) {
+                            Map<String, Object> data = objectMapper.convertValue(fallbackResp.data(), Map.class);
+                            url = (String) data.get("audioUrl");
+                            if (data.get("durationSeconds") != null) {
+                                durationSeconds = ((Number) data.get("durationSeconds")).intValue();
+                            }
+                            log.info("[LYRIA-FALLBACK-SUCCESS] Found fallback ringtone in library: url={}, duration={}", url, durationSeconds);
+                        } else {
+                            throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND);
+                        }
+                    } catch (Exception fallbackEx) {
+                        log.error("[LYRIA-FALLBACK-FAILED] Library fallback failed or returned no results: {}", fallbackEx.getMessage());
+                        throw e; // re-throw original Lyria exception to refund credit and return SYSTEM_BUSY
+                    }
+                }
             }
 
             redisTemplate.opsForSet().add(seenKey, url);
@@ -236,7 +265,7 @@ public class MusicGenerationService {
         for (int attempt = 1; attempt <= maxRetries + 1; attempt++) {
             // Random per-generation variation (tempo/key/seed) so repeated requests with the
             // same genre/mood/instrument yield audibly distinct tracks.
-            LyriaSystemPromptConfig.MusicVariation variation = LyriaSystemPromptConfig.MusicVariation.random();
+            LyriaSystemPromptConfig.MusicVariation variation = promptConfig.randomVariation();
             String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation);
             log.info("[LYRIA-GENERATE] Attempt {}/{} - msisdn={} genre={} mood={} instrument={} bpm={} key={} seed={}",
                 attempt, maxRetries + 1, mask(msisdn), genre, mood, instrument, variation.bpm(), variation.key(), variation.seed());
@@ -254,7 +283,7 @@ public class MusicGenerationService {
                         if (tokenUsageObj instanceof Map) {
                             Map<String, Object> tokenUsage = new HashMap<>((Map<String, Object>) tokenUsageObj);
                             tokenUsage.put("msisdn", msisdn);
-                            tokenUsage.put("model", "lyria-3-clip-preview");
+                            tokenUsage.put("model", getModelName());
                             tokenUsage.put("genre", genre);
                             tokenUsage.put("mood", mood);
                             tokenUsage.put("instrument", instrument);
@@ -1075,5 +1104,21 @@ public class MusicGenerationService {
         }
     }
 
+    public UserLyriaHistoryResponse getLyriaHistory(Long id) {
+        UserLyriaHistory history = historyRepository.findById(id)
+            .filter(h -> !h.isDeleted())
+            .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+        return new UserLyriaHistoryResponse(
+            history.getId(),
+            history.getUserId(),
+            history.getMsisdn(),
+            history.getTitle(),
+            history.getGenre(),
+            history.getMood(),
+            history.getInstrument(),
+            history.getAudioUrl(),
+            history.getDurationSeconds()
+        );
+    }
 }
 

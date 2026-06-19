@@ -1,0 +1,1 @@
+ALTER TABLE ringtones ADD COLUMN is_ai_generated BOOLEAN DEFAULT FALSE;

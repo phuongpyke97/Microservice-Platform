@@ -24,7 +24,7 @@ spring:
 
 lyria:
   api-key: ${GEMINI_API_KEY:}
-  model: lyria-3-clip-preview
+  model: ${GEMINI_MODEL:lyria-3-clip-preview}
   daily-quota: 100
   timeout:
     connect-ms: ${LYRIA_CONNECT_TIMEOUT_MS:5000}
