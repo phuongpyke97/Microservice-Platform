@@ -368,7 +368,7 @@ class MusicGenerationServiceTest {
             .thenThrow(new LyriaClient.LyriaContentFilteredException("Filtered"))
             .thenReturn(new byte[]{1, 2, 3});
 
-        when(fileServiceClient.uploadAudio(any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
+        when(fileServiceClient.uploadAudio(any(), any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
 
         GenerateMusicResponse resp = musicGenerationService.generate(msisdn, genre, mood, instrument);
 
@@ -457,7 +457,7 @@ class MusicGenerationServiceTest {
             .thenThrow(new org.springframework.web.client.HttpServerErrorException(org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, "Gateway Timeout"))
             .thenReturn(new byte[]{1, 2, 3});
 
-        when(fileServiceClient.uploadAudio(any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
+        when(fileServiceClient.uploadAudio(any(), any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
 
         GenerateMusicResponse resp = musicGenerationService.generate(msisdn, genre, mood, instrument);
 

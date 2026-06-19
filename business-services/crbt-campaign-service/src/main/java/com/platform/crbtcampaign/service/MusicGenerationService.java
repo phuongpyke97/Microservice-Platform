@@ -189,7 +189,7 @@ public class MusicGenerationService {
             } else {
                 log.info("[LYRIA-CACHE-MISS] No available tracks in cache pool for hashKey={}. Calling AI generation...", hashKey);
                 try {
-                    GenerationResult genResult = generateAndCache(msisdn, genre, mood, instrument, poolKey);
+                    GenerationResult genResult = generateAndCache(userId, msisdn, genre, mood, instrument, poolKey);
                     url = genResult.url();
                     durationSeconds = genResult.durationSeconds();
                 } catch (Exception e) {
@@ -258,7 +258,7 @@ public class MusicGenerationService {
         }
     }
 
-    private GenerationResult generateAndCache(String msisdn, String genre, String mood, String instrument, String poolKey) {
+    private GenerationResult generateAndCache(Long userId, String msisdn, String genre, String mood, String instrument, String poolKey) {
         int maxRetries = 2;
         byte[] audioBytes = null;
 
@@ -313,7 +313,9 @@ public class MusicGenerationService {
         String url;
         try {
             log.info("[LYRIA-UPLOAD-START] Uploading generated audio bytes to MinIO...");
-            url = fileServiceClient.uploadAudio(audioBytes, "media-audio").data();
+            String dateStr = java.time.LocalDate.now().toString();
+            String prefix = String.format("tones/ai/%s/%d", dateStr, userId);
+            url = fileServiceClient.uploadAudio(audioBytes, "media-audio", prefix).data();
             if (url == null || url.isBlank()) {
                 throw new BaseException(CampaignErrorCode.CAMPAIGN_FILE_UPLOAD_FAILED);
             }

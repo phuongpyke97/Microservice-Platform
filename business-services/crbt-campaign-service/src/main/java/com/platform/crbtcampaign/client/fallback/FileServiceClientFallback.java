@@ -14,7 +14,7 @@ public class FileServiceClientFallback implements FallbackFactory<FileServiceCli
     public FileServiceClient create(Throwable cause) {
         return new FileServiceClient() {
             @Override
-            public ApiResponse<String> uploadAudio(byte[] bytes, String bucket) {
+            public ApiResponse<String> uploadAudio(byte[] bytes, String bucket, String prefix) {
                 throw new BaseException(CampaignErrorCode.CAMPAIGN_FILE_UPLOAD_FAILED);
             }
 

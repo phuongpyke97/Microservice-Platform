@@ -14,7 +14,8 @@ public interface FileServiceClient {
     @PostMapping(value = "/api/files/internal/upload-audio",
                  consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     ApiResponse<String> uploadAudio(@RequestBody byte[] bytes,
-                                    @RequestParam(defaultValue = "media-audio") String bucket);
+                                    @RequestParam(defaultValue = "media-audio") String bucket,
+                                    @RequestParam(value = "prefix", required = false) String prefix);
 
     @org.springframework.web.bind.annotation.DeleteMapping("/api/files/internal/delete-file")
     ApiResponse<Void> deleteFileByUrl(@RequestParam("url") String url);

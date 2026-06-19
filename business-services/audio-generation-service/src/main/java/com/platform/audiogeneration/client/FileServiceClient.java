@@ -15,7 +15,11 @@ public interface FileServiceClient {
     ApiResponse<String> uploadFile(@RequestPart("file") MultipartFile file, @RequestParam("bucket") String bucket);
 
     @PostMapping(value = "/api/files/internal/upload-audio", consumes = "application/octet-stream")
-    ApiResponse<String> uploadAudioBytes(byte[] audioBytes, @RequestParam("bucket") String bucket);
+    ApiResponse<String> uploadAudioBytes(
+        @org.springframework.web.bind.annotation.RequestBody byte[] audioBytes,
+        @RequestParam("bucket") String bucket,
+        @RequestParam(value = "prefix", required = false) String prefix
+    );
 
     @GetMapping("/api/files/{fileId}/presigned/download")
     ApiResponse<java.util.Map<String, Object>> getDownloadUrl(@PathVariable("fileId") Long fileId);
@@ -46,7 +50,7 @@ class FileServiceClientFallback implements FileServiceClient {
     }
 
     @Override
-    public ApiResponse<String> uploadAudioBytes(byte[] audioBytes, String bucket) {
+    public ApiResponse<String> uploadAudioBytes(byte[] audioBytes, String bucket, String prefix) {
         return ApiResponse.error("FILE_SERVICE_UNAVAILABLE", "File service is currently down");
     }
 
