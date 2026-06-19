@@ -218,14 +218,9 @@ public class RingtoneService {
                 .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Thể loại ghi đè không tồn tại."));
         } else {
             String genre = history.genre();
-            category = categoryRepository.findByNameIgnoreCase(genre)
-                .orElseGet(() -> {
-                    List<Category> all = categoryRepository.findAll();
-                    if (all.isEmpty()) {
-                        throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có thể loại nào trong hệ thống.");
-                    }
-                    return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
-                });
+            category = (genre != null && !genre.isBlank())
+                ? categoryRepository.findByNameIgnoreCase(genre.trim()).orElseGet(this::getRandomCategory)
+                : getRandomCategory();
         }
 
         Mood mood;
@@ -234,14 +229,9 @@ public class RingtoneService {
                 .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Tâm trạng ghi đè không tồn tại."));
         } else {
             String moodName = history.mood();
-            mood = moodRepository.findByNameIgnoreCase(moodName)
-                .orElseGet(() -> {
-                    List<Mood> all = moodRepository.findAll();
-                    if (all.isEmpty()) {
-                        throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có tâm trạng nào trong hệ thống.");
-                    }
-                    return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
-                });
+            mood = (moodName != null && !moodName.isBlank())
+                ? moodRepository.findByNameIgnoreCase(moodName.trim()).orElseGet(this::getRandomMood)
+                : getRandomMood();
         }
 
         AudioAnalysisResult analysis = audioDurationParser.analyzeAudio(history.audioUrl());
@@ -255,7 +245,9 @@ public class RingtoneService {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Nhạc có lời không được phép sử dụng cho AI Composer. Vui lòng duyệt nhạc không lời.");
         }
 
-        String title = request.title() != null && !request.title().isBlank() ? request.title().trim() : history.title();
+        String title = request.title() != null && !request.title().isBlank()
+            ? request.title().trim()
+            : (history.title() != null && !history.title().isBlank() ? history.title().trim() : "AI Tone");
         String artistName = request.artistName() != null && !request.artistName().isBlank() ? request.artistName().trim() : "AI Composer";
         String coverImageUrl = request.coverImageUrl() != null && !request.coverImageUrl().isBlank() ? request.coverImageUrl().trim() : request.coverImageUrl();
 
@@ -455,6 +447,22 @@ public class RingtoneService {
         Optional<Ringtone> ringtone = ringtoneRepository.findRandomByGenreAndMoodAndInstrument(genre, mood, instrument);
         return ringtone.map(this::toRingtoneResponse)
             .orElseThrow(() -> new BaseException(CommonErrorCode.COMMON_NOT_FOUND));
+    }
+
+    private Category getRandomCategory() {
+        List<Category> all = categoryRepository.findAll();
+        if (all.isEmpty()) {
+            throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có thể loại nào trong hệ thống.");
+        }
+        return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
+    }
+
+    private Mood getRandomMood() {
+        List<Mood> all = moodRepository.findAll();
+        if (all.isEmpty()) {
+            throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không có tâm trạng nào trong hệ thống.");
+        }
+        return all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
     }
 
     // ─── Internal helpers ─────────────────────────────────────────────────────
