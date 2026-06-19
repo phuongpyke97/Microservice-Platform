@@ -170,7 +170,9 @@ public class FileService {
 
         String targetKey;
         if (targetBucket.equals(properties.bucketAudioLib())) {
-            targetKey = String.format("diy/users/%d/%s", metadata.getUserId(), sanitizeKey(filename));
+            java.time.LocalDateTime nowVal = java.time.LocalDateTime.now();
+            String dateHourStr = nowVal.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd/HH"));
+            targetKey = String.format("diy/users/%s/%d/%s", dateHourStr, metadata.getUserId(), sanitizeKey(filename));
         } else if (targetBucket.equals(properties.bucketAudio())) {
             targetKey = String.format("tones/system/%s", sanitizeKey(filename));
         } else {
@@ -430,7 +432,7 @@ public class FileService {
         if ("temp".equalsIgnoreCase(folderType)) {
             return String.format("temp/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("diy-lib".equalsIgnoreCase(folderType)) {
-            return String.format("diy/users/%d/%s", userId, safeName);
+            return String.format("diy/users/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("ai-tone".equalsIgnoreCase(folderType)) {
             return String.format("tones/ai/%s/%d/%s", dateHourStr, userId, safeName);
         } else if ("diy-tone".equalsIgnoreCase(folderType)) {
