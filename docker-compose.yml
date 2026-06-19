@@ -152,6 +152,9 @@ services:
       EUREKA_PASSWORD: ${EUREKA_PASSWORD:-eureka-secret}
       CONFIG_SERVER_USER: ${CONFIG_SERVER_USER:-configuser}
       CONFIG_SERVER_PASSWORD: ${CONFIG_SERVER_PASSWORD:-configsecret}
+      TOMCAT_MAX_THREADS: ${TOMCAT_MAX_THREADS}
+      TOMCAT_ACCEPT_COUNT: ${TOMCAT_ACCEPT_COUNT}
+      TOMCAT_MAX_CONNECTIONS: ${TOMCAT_MAX_CONNECTIONS}
     volumes:
       - ./logs:/logs
     depends_on:
