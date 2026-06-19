@@ -194,7 +194,18 @@ public class RingtoneService {
     @CacheEvict(value = "ringtones", allEntries = true)
     @Transactional
     public RingtoneResponse approveAiTone(ApproveAiToneRequest request) {
-        ApiResponse<CampaignClient.UserLyriaHistoryResponse> historyResponse = campaignClient.getLyriaHistory(request.lyriaHistoryId());
+        String unifiedId = request.lyriaHistoryId();
+        if (unifiedId == null || !unifiedId.startsWith("AI_")) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "ID nhạc AI không hợp lệ. Phải bắt đầu bằng 'AI_'.");
+        }
+        Long historyId;
+        try {
+            historyId = Long.parseLong(unifiedId.substring(3));
+        } catch (NumberFormatException e) {
+            throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "ID nhạc AI không đúng định dạng phần số.");
+        }
+
+        ApiResponse<CampaignClient.UserLyriaHistoryResponse> historyResponse = campaignClient.getLyriaHistory(historyId);
         if (historyResponse == null || !historyResponse.success() || historyResponse.data() == null) {
             throw new BaseException(CommonErrorCode.COMMON_NOT_FOUND, "Không tìm thấy lịch sử tạo nhạc AI tương ứng.");
         }

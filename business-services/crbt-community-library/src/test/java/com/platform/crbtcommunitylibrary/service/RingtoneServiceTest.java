@@ -280,7 +280,7 @@ class RingtoneServiceTest {
         savedRingtone.setAiGenerated(true);
         when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(savedRingtone);
 
-        ApproveAiToneRequest request = new ApproveAiToneRequest(10L, null, null, null, null, null, null, null);
+        ApproveAiToneRequest request = new ApproveAiToneRequest("AI_10", null, null, null, null, null, null, null);
         RingtoneResponse response = ringtoneService.approveAiTone(request);
 
         assertNotNull(response);
@@ -311,11 +311,26 @@ class RingtoneServiceTest {
         savedRingtone.setAiGenerated(true);
         when(ringtoneRepository.save(any(Ringtone.class))).thenReturn(savedRingtone);
 
-        ApproveAiToneRequest request = new ApproveAiToneRequest(10L, null, null, null, null, null, null, null);
+        ApproveAiToneRequest request = new ApproveAiToneRequest("AI_10", null, null, null, null, null, null, null);
         RingtoneResponse response = ringtoneService.approveAiTone(request);
 
         assertNotNull(response);
         assertEquals("AI Ringtone", response.title());
         assertEquals(true, response.isAiGenerated());
+    }
+
+    @Test
+    void approveAiTone_shouldThrowExceptionWhenInvalidIdFormat() {
+        ApproveAiToneRequest requestDiy = new ApproveAiToneRequest("DIY_10", null, null, null, null, null, null, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+            com.platform.common.core.exception.BaseException.class,
+            () -> ringtoneService.approveAiTone(requestDiy)
+        );
+
+        ApproveAiToneRequest requestNoPrefix = new ApproveAiToneRequest("10", null, null, null, null, null, null, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+            com.platform.common.core.exception.BaseException.class,
+            () -> ringtoneService.approveAiTone(requestNoPrefix)
+        );
     }
 }

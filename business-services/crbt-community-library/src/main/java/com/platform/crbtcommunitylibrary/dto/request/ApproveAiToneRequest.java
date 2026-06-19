@@ -1,9 +1,9 @@
 package com.platform.crbtcommunitylibrary.dto.request;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 
 public record ApproveAiToneRequest(
-    @NotNull Long lyriaHistoryId,
+    @NotBlank String lyriaHistoryId,
     String title,
     String artistName,
     String coverImageUrl,
