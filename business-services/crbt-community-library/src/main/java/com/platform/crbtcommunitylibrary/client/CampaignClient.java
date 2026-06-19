@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "crbt-campaign-service")
 public interface CampaignClient {
 
-    @GetMapping("/internal/campaign/lyria-history/{id}")
+    @GetMapping("/campaigns/internal/campaign/lyria-history/{id}")
     ApiResponse<UserLyriaHistoryResponse> getLyriaHistory(@PathVariable("id") Long id);
 
     record UserLyriaHistoryResponse(
