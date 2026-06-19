@@ -302,8 +302,11 @@ public class MusicGenerationService {
                 }
                 log.info("[LYRIA-GENERATE-RETRY] Retrying generation with a new variation and seed...");
             } catch (Exception e) {
-                log.error("[LYRIA-GENERATE-FAILED] Gemini Lyria music generation failed: {}", e.getMessage(), e);
-                throw e;
+                log.error("[LYRIA-GENERATE-FAILED] Gemini Lyria music generation failed on attempt {}: {}", attempt, e.getMessage(), e);
+                if (attempt > maxRetries) {
+                    throw e;
+                }
+                log.info("[LYRIA-GENERATE-RETRY] Retrying generation with a new variation and seed...");
             }
         }
 

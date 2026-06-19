@@ -423,6 +423,97 @@ class MusicGenerationServiceTest {
     }
 
     @Test
+    void generate_shouldRetryOnGeneralExceptionAndSucceed() {
+        String msisdn = "09673259486";
+        Long userId = 3L;
+        String genre = "pop";
+        String mood = "energize";
+        String instrument = "saxophone";
+
+        com.platform.crbtcampaign.client.dto.UserCreditResponse userCredit =
+            new com.platform.crbtcampaign.client.dto.UserCreditResponse(userId, "username");
+        when(authServiceClient.getUserCredit(msisdn)).thenReturn(userCredit);
+
+        UserSubscription sub = mock(UserSubscription.class);
+        when(sub.getExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE))
+            .thenReturn(List.of(sub));
+
+        WalletResponse wallet = new WalletResponse(userId, 10);
+        when(creditWalletClient.getBalance(userId)).thenReturn(ApiResponse.success(wallet));
+        when(creditWalletClient.deduct(eq(userId), any())).thenReturn(ApiResponse.success(wallet));
+
+        org.springframework.data.redis.core.ListOperations<String, String> listOps = mock(org.springframework.data.redis.core.ListOperations.class);
+        org.springframework.data.redis.core.SetOperations<String, String> setOps = mock(org.springframework.data.redis.core.SetOperations.class);
+        when(redisTemplate.opsForList()).thenReturn(listOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
+        when(setOps.members(any())).thenReturn(null);
+
+        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        
+        // Mock LyriaClient behavior: 1st call throws RestClientException, 2nd call succeeds
+        when(lyriaClient.generateMusic(any(), anyLong()))
+            .thenThrow(new org.springframework.web.client.HttpServerErrorException(org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, "Gateway Timeout"))
+            .thenReturn(new byte[]{1, 2, 3});
+
+        when(fileServiceClient.uploadAudio(any(), any())).thenReturn(ApiResponse.success("http://minio/success.mp3"));
+
+        GenerateMusicResponse resp = musicGenerationService.generate(msisdn, genre, mood, instrument);
+
+        assertNotNull(resp);
+        assertEquals("http://minio/success.mp3", resp.url());
+        verify(lyriaClient, times(2)).generateMusic(any(), anyLong());
+    }
+
+    @Test
+    void generate_shouldFailOnGeneralExceptionAfterMaxRetries() {
+        String msisdn = "09673259486";
+        Long userId = 3L;
+        String genre = "pop";
+        String mood = "energize";
+        String instrument = "saxophone";
+
+        com.platform.crbtcampaign.client.dto.UserCreditResponse userCredit =
+            new com.platform.crbtcampaign.client.dto.UserCreditResponse(userId, "username");
+        when(authServiceClient.getUserCredit(msisdn)).thenReturn(userCredit);
+
+        UserSubscription sub = mock(UserSubscription.class);
+        when(sub.getExpiresAt()).thenReturn(Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatus(userId, UserSubscription.Status.ACTIVE))
+            .thenReturn(List.of(sub));
+
+        WalletResponse wallet = new WalletResponse(userId, 10);
+        when(creditWalletClient.getBalance(userId)).thenReturn(ApiResponse.success(wallet));
+        when(creditWalletClient.deduct(eq(userId), any())).thenReturn(ApiResponse.success(wallet));
+
+        org.springframework.data.redis.core.ListOperations<String, String> listOps = mock(org.springframework.data.redis.core.ListOperations.class);
+        org.springframework.data.redis.core.SetOperations<String, String> setOps = mock(org.springframework.data.redis.core.SetOperations.class);
+        when(redisTemplate.opsForList()).thenReturn(listOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
+        when(setOps.members(any())).thenReturn(null);
+
+        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+
+        // Mock LyriaClient behavior: all 3 attempts throw RestClientException
+        when(lyriaClient.generateMusic(any(), anyLong()))
+            .thenThrow(new org.springframework.web.client.HttpServerErrorException(org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, "Gateway Timeout"));
+
+        // Since fallback also fails (libraryClient returns null)
+        when(libraryClient.getFallbackRingtone(any(), any(), any())).thenReturn(null);
+
+        com.platform.common.core.exception.BaseException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            com.platform.common.core.exception.BaseException.class,
+            () -> musicGenerationService.generate(msisdn, genre, mood, instrument)
+        );
+
+        verify(lyriaClient, times(3)).generateMusic(any(), anyLong());
+        // Verify refund is executed on failure
+        verify(creditWalletClient, times(1)).add(eq(userId), any());
+    }
+
+    @Test
     void createMusicItemAdmin_shouldParseDurationFromTags() {
         MyLibraryItemResponse req = new MyLibraryItemResponse(
             null,
