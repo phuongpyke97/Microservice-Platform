@@ -48,12 +48,16 @@ public class LyriaReportService {
         List<LyriaDailyStat> stats = dailyStatRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
         long totalTokens = 0;
         int totalSongs = 0;
+        BigDecimal totalCostUsd = BigDecimal.ZERO;
         for (LyriaDailyStat stat : stats) {
             totalTokens += stat.getTotalTokens();
             totalSongs += stat.getTotalRequests();
+            if (stat.getEstimatedCostUsd() != null) {
+                totalCostUsd = totalCostUsd.add(stat.getEstimatedCostUsd());
+            }
         }
         double avgTokens = totalSongs > 0 ? (double) totalTokens / totalSongs : 0.0;
-        return new LyriaSummaryResponse(totalTokens, totalSongs, Math.round(avgTokens * 10.0) / 10.0);
+        return new LyriaSummaryResponse(totalTokens, totalSongs, Math.round(avgTokens * 10.0) / 10.0, totalCostUsd);
     }
 
     @Transactional(readOnly = true)
