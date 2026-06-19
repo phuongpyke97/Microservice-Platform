@@ -26,10 +26,10 @@ public class UserLyriaHistory {
     @Column(nullable = false, length = 255)
     private String title;
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private String genre;
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private String mood;
 
     @Column(length = 50)
