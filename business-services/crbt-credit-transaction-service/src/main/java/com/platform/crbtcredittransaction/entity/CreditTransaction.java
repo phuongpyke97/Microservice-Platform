@@ -35,6 +35,21 @@ public class CreditTransaction {
     @Column(nullable = false)
     private long timestamp;
 
+    @Column(name = "is_free", nullable = false)
+    private boolean isFree;
+
+    @Column(name = "gen_type", nullable = false, length = 50)
+    private String genType;
+
+    @Column(name = "before_balance")
+    private Integer beforeBalance;
+
+    @Column(name = "after_balance")
+    private Integer afterBalance;
+
+    @Column(name = "model", length = 60)
+    private String model;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -42,13 +57,27 @@ public class CreditTransaction {
     protected CreditTransaction() {
     }
 
-    public CreditTransaction(Long userId, int amount, String direction, String reason, String referenceId, long timestamp) {
+    public CreditTransaction(Long userId, int amount, String direction, String reason, String referenceId, long timestamp,
+                             boolean isFree, String genType, Integer beforeBalance, Integer afterBalance, String model) {
         this.userId = userId;
         this.amount = amount;
         this.direction = direction;
         this.reason = reason;
         this.referenceId = referenceId;
         this.timestamp = timestamp;
+        this.isFree = isFree;
+        this.genType = genType;
+        this.beforeBalance = beforeBalance;
+        this.afterBalance = afterBalance;
+        this.model = model;
+    }
+
+    public CreditTransaction(Long userId, int amount, String direction, String reason, String referenceId, long timestamp, boolean isFree, String genType) {
+        this(userId, amount, direction, reason, referenceId, timestamp, isFree, genType, null, null, null);
+    }
+
+    public CreditTransaction(Long userId, int amount, String direction, String reason, String referenceId, long timestamp) {
+        this(userId, amount, direction, reason, referenceId, timestamp, false, "OTHER", null, null, null);
     }
 
     public Long getId() {
@@ -77,6 +106,26 @@ public class CreditTransaction {
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    public boolean isFree() {
+        return isFree;
+    }
+
+    public String getGenType() {
+        return genType;
+    }
+
+    public Integer getBeforeBalance() {
+        return beforeBalance;
+    }
+
+    public Integer getAfterBalance() {
+        return afterBalance;
+    }
+
+    public String getModel() {
+        return model;
     }
 
     public Instant getCreatedAt() {

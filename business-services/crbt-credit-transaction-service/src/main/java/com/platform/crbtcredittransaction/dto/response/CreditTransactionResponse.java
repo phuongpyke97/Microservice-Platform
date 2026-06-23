@@ -10,6 +10,18 @@ public record CreditTransactionResponse(
     String reason,
     String referenceId,
     long timestamp,
-    Instant createdAt
+    Instant createdAt,
+    Boolean isFree,
+    String genType,
+    Integer beforeBalance,
+    Integer afterBalance,
+    String model
 ) {
+    public CreditTransactionResponse(Long id, Long userId, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt, Boolean isFree, String genType) {
+        this(id, userId, amount, direction, reason, referenceId, timestamp, createdAt, isFree, genType, null, null, null);
+    }
+
+    public CreditTransactionResponse(Long id, Long userId, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt) {
+        this(id, userId, amount, direction, reason, referenceId, timestamp, createdAt, false, "OTHER", null, null, null);
+    }
 }

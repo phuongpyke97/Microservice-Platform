@@ -2,9 +2,11 @@ package com.platform.common.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +57,9 @@ public class LyriaSystemPromptConfig {
     private String[] tempoGrooves = DEFAULT_TEMPO_GROOVES;
     private String[] acousticEnvironments = DEFAULT_ACOUSTIC_ENVIRONMENTS;
 
+    @Autowired(required = false)
+    private LyriaPromptProvider provider;
+
     @PostConstruct
     public void init() {
         try {
@@ -89,6 +94,76 @@ public class LyriaSystemPromptConfig {
         }
     }
 
+    private String resolveTemplate(String model) {
+        if (provider != null) {
+            try {
+                String t = (model == null) ? provider.getTemplate() : provider.getTemplate(model);
+                if (t != null && !t.isBlank()) {
+                    return t;
+                }
+            } catch (Exception e) {
+                log.error("[LYRIA-PROMPT-RESOLVE] Failed to resolve template from provider, falling back", e);
+            }
+        }
+        return template;
+    }
+
+    private String[] resolveKeys(String model) {
+        if (provider != null) {
+            try {
+                List<String> list = (model == null) ? provider.getKeys() : provider.getKeys(model);
+                if (list != null && !list.isEmpty()) {
+                    return list.toArray(new String[0]);
+                }
+            } catch (Exception e) {
+                log.error("[LYRIA-PROMPT-RESOLVE] Failed to resolve keys from provider, falling back", e);
+            }
+        }
+        return keys;
+    }
+
+    private String[] resolveSecondaryInstrumentations(String model) {
+        if (provider != null) {
+            try {
+                List<String> list = (model == null) ? provider.getSecondaryInstrumentations() : provider.getSecondaryInstrumentations(model);
+                if (list != null && !list.isEmpty()) {
+                    return list.toArray(new String[0]);
+                }
+            } catch (Exception e) {
+                log.error("[LYRIA-PROMPT-RESOLVE] Failed to resolve secondary instrumentations from provider, falling back", e);
+            }
+        }
+        return secondaryInstrumentations;
+    }
+
+    private String[] resolveTempoGrooves(String model) {
+        if (provider != null) {
+            try {
+                List<String> list = (model == null) ? provider.getTempoGrooves() : provider.getTempoGrooves(model);
+                if (list != null && !list.isEmpty()) {
+                    return list.toArray(new String[0]);
+                }
+            } catch (Exception e) {
+                log.error("[LYRIA-PROMPT-RESOLVE] Failed to resolve tempo grooves from provider, falling back", e);
+            }
+        }
+        return tempoGrooves;
+    }
+
+    private String[] resolveAcousticEnvironments(String model) {
+        if (provider != null) {
+            try {
+                List<String> list = (model == null) ? provider.getAcousticEnvironments() : provider.getAcousticEnvironments(model);
+                if (list != null && !list.isEmpty()) {
+                    return list.toArray(new String[0]);
+                }
+            } catch (Exception e) {
+                log.error("[LYRIA-PROMPT-RESOLVE] Failed to resolve acoustic environments from provider, falling back", e);
+            }
+        }
+        return acousticEnvironments;
+    }
+
     /**
      * Per-generation variation. Different values steer Lyria toward a distinct
      * arrangement even when genre/mood/instrument are identical.
@@ -117,13 +192,26 @@ public class LyriaSystemPromptConfig {
 
     /** Build a fresh random variation for one generation call using loaded configurations. */
     public MusicVariation randomVariation() {
+        return randomVariation(null);
+    }
+
+    /**
+     * Model-aware variation (G1): pulls the active key/instrumentation pools for
+     * the model actually being generated. {@code null}/blank model resolves to
+     * the provider's default-model pools.
+     */
+    public MusicVariation randomVariation(String model) {
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         int bpm = rng.nextInt(90, 141);
-        String key = keys[rng.nextInt(keys.length)];
+        String[] activeKeys = resolveKeys(model);
+        String key = activeKeys[rng.nextInt(activeKeys.length)];
         long seed = rng.nextLong(1, Integer.MAX_VALUE);
-        String secondaryInstrumentation = secondaryInstrumentations[rng.nextInt(secondaryInstrumentations.length)];
-        String tempoGroove = tempoGrooves[rng.nextInt(tempoGrooves.length)];
-        String acousticEnvironment = acousticEnvironments[rng.nextInt(acousticEnvironments.length)];
+        String[] activeSecondaries = resolveSecondaryInstrumentations(model);
+        String secondaryInstrumentation = activeSecondaries[rng.nextInt(activeSecondaries.length)];
+        String[] activeGrooves = resolveTempoGrooves(model);
+        String tempoGroove = activeGrooves[rng.nextInt(activeGrooves.length)];
+        String[] activeEnvironments = resolveAcousticEnvironments(model);
+        String acousticEnvironment = activeEnvironments[rng.nextInt(activeEnvironments.length)];
         return new MusicVariation(bpm, key, seed, secondaryInstrumentation, tempoGroove, acousticEnvironment);
     }
 
@@ -136,13 +224,25 @@ public class LyriaSystemPromptConfig {
 
     /** Prompt that bakes in a per-generation {@link MusicVariation} for output diversity. */
     public String buildPrompt(String genre, String mood, String instrument, MusicVariation variation) {
-        return this.template.formatted(
+        return buildPrompt(genre, mood, instrument, variation, null);
+    }
+
+    /**
+     * Model-aware prompt (G1): resolves the template for the model actually being
+     * generated so CMS edits to a non-default model's prompt take effect.
+     */
+    public String buildPrompt(String genre, String mood, String instrument, MusicVariation variation, String model) {
+        return resolveTemplate(model).formatted(
             safe(genre), safe(mood), safe(instrument),
             variation.bpm(), safe(variation.key()),
             variation.secondaryInstrumentation(),
             variation.tempoGroove(),
             variation.acousticEnvironment()
         );
+    }
+
+    public void setProvider(LyriaPromptProvider provider) {
+        this.provider = provider;
     }
 
     private String safe(String value) {

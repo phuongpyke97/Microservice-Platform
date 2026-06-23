@@ -34,13 +34,19 @@ public class WalletController {
     public ResponseEntity<ApiResponse<WalletResponse>> deduct(@PathVariable Long userId,
                                                               @Valid @RequestBody AmountRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Credit deducted",
-                walletService.deductCredit(userId, request.amount(), request.reason(), request.referenceId())));
+                walletService.deductCredit(userId, request.amount(), request.reason(), request.referenceId(),
+                        request.isFree() != null ? request.isFree() : false,
+                        request.genType() != null ? request.genType() : "OTHER",
+                        request.model())));
     }
 
     @PostMapping("/{userId}/add")
     public ResponseEntity<ApiResponse<WalletResponse>> add(@PathVariable Long userId,
                                                            @Valid @RequestBody AmountRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Credit added",
-                walletService.addCredit(userId, request.amount(), request.reason(), request.referenceId())));
+                walletService.addCredit(userId, request.amount(), request.reason(), request.referenceId(),
+                        request.isFree() != null ? request.isFree() : false,
+                        request.genType() != null ? request.genType() : "OTHER",
+                        request.model())));
     }
 }

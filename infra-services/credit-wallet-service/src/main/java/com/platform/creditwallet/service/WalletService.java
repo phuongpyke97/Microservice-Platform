@@ -89,6 +89,16 @@ public class WalletService {
      */
     @Transactional
     public WalletResponse deductCredit(Long userId, int amount, String reason, String referenceId) {
+        return deductCredit(userId, amount, reason, referenceId, false, "OTHER", null);
+    }
+
+    @Transactional
+    public WalletResponse deductCredit(Long userId, int amount, String reason, String referenceId, Boolean isFree, String genType) {
+        return deductCredit(userId, amount, reason, referenceId, isFree, genType, null);
+    }
+
+    @Transactional
+    public WalletResponse deductCredit(Long userId, int amount, String reason, String referenceId, Boolean isFree, String genType, String model) {
         if (amount <= 0) throw new BaseException(WalletErrorCode.WALLET_INVALID_AMOUNT);
 
         RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + userId);
@@ -103,8 +113,10 @@ public class WalletService {
                 if (wallet.getBalance() < amount) {
                     throw new BaseException(WalletErrorCode.WALLET_INSUFFICIENT_CREDIT);
                 }
+                int beforeBalance = wallet.getBalance();
                 wallet.deductBalance(amount);
                 walletRepository.save(wallet);
+                int afterBalance = wallet.getBalance();
 
                 updateCacheAfterCommit(userId, wallet.getBalance());
 
@@ -112,7 +124,7 @@ public class WalletService {
                         RmqExchanges.CREDIT_EVENTS,
                         RmqRoutingKeys.CREDIT_DEDUCTED,
                         new CreditChangedEvent(userId, amount, "DEDUCT", reason, referenceId,
-                                Instant.now().toEpochMilli())
+                                Instant.now().toEpochMilli(), isFree, genType, beforeBalance, afterBalance, model)
                 );
                 return new WalletResponse(userId, wallet.getBalance());
             } finally {
@@ -131,6 +143,16 @@ public class WalletService {
      */
     @Transactional
     public WalletResponse addCredit(Long userId, int amount, String reason, String referenceId) {
+        return addCredit(userId, amount, reason, referenceId, false, "OTHER", null);
+    }
+
+    @Transactional
+    public WalletResponse addCredit(Long userId, int amount, String reason, String referenceId, Boolean isFree, String genType) {
+        return addCredit(userId, amount, reason, referenceId, isFree, genType, null);
+    }
+
+    @Transactional
+    public WalletResponse addCredit(Long userId, int amount, String reason, String referenceId, Boolean isFree, String genType, String model) {
         if (amount <= 0) throw new BaseException(WalletErrorCode.WALLET_INVALID_AMOUNT);
 
         RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + userId);
@@ -141,8 +163,10 @@ public class WalletService {
             try {
                 Wallet wallet = walletRepository.findByUserId(userId)
                         .orElseGet(() -> walletRepository.save(new Wallet(userId, 2)));
+                int beforeBalance = wallet.getBalance();
                 wallet.addBalance(amount);
                 walletRepository.save(wallet);
+                int afterBalance = wallet.getBalance();
 
                 updateCacheAfterCommit(userId, wallet.getBalance());
 
@@ -150,7 +174,7 @@ public class WalletService {
                         RmqExchanges.CREDIT_EVENTS,
                         RmqRoutingKeys.CREDIT_CHANGED,
                         new CreditChangedEvent(userId, amount, "ADD", reason, referenceId,
-                                Instant.now().toEpochMilli())
+                                Instant.now().toEpochMilli(), isFree, genType, beforeBalance, afterBalance, model)
                 );
                 return new WalletResponse(userId, wallet.getBalance());
             } finally {

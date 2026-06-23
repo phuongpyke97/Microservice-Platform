@@ -52,7 +52,7 @@ class CreditTransactionServiceTest {
         String csv = service.exportCsv(1L, null, null, null, null);
 
         assertNotNull(csv);
-        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("ID,User ID,Amount,Direction,Reason,Reference ID,Timestamp,Created At"));
-        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("1,100,IN,\"Reason\",REF-1,1000"));
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At"));
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("1,,,100,IN,OTHER,,false,\"Reason\",REF-1,1000"));
     }
 }

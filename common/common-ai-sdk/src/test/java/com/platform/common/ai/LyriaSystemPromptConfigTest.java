@@ -53,4 +53,55 @@ class LyriaSystemPromptConfigTest {
         assertThat(prompt).contains("Tempo and groove feel: swing rhythm");
         assertThat(prompt).contains("Acoustic environment/vibe: concert hall vibe");
     }
+
+    @Test
+    void buildPrompt_withModel_usesModelSpecificProviderTemplate() {
+        // G1: when a model is supplied, resolution must read that model's prompt,
+        // not the default-model prompt.
+        LyriaPromptProvider mockProvider = org.mockito.Mockito.mock(LyriaPromptProvider.class);
+        org.mockito.Mockito.when(mockProvider.getTemplate("lyria-3-pro"))
+            .thenReturn("PRO template: genre=%s mood=%s instr=%s bpm=%d key=%s sec=%s groove=%s env=%s");
+        org.mockito.Mockito.when(mockProvider.getKeys("lyria-3-pro")).thenReturn(java.util.List.of("F minor"));
+        org.mockito.Mockito.when(mockProvider.getSecondaryInstrumentations("lyria-3-pro")).thenReturn(java.util.List.of("grand piano"));
+        org.mockito.Mockito.when(mockProvider.getTempoGrooves("lyria-3-pro")).thenReturn(java.util.List.of("slow groove"));
+        org.mockito.Mockito.when(mockProvider.getAcousticEnvironments("lyria-3-pro")).thenReturn(java.util.List.of("studio vibe"));
+
+        LyriaSystemPromptConfig customConfig = new LyriaSystemPromptConfig();
+        customConfig.setProvider(mockProvider);
+
+        LyriaSystemPromptConfig.MusicVariation variation = customConfig.randomVariation("lyria-3-pro");
+        String prompt = customConfig.buildPrompt("jazz", "happy", "piano", variation, "lyria-3-pro");
+
+        assertThat(prompt).contains("PRO template:");
+        assertThat(prompt).contains("key=F minor");
+        assertThat(prompt).contains("sec=grand piano");
+        assertThat(prompt).contains("groove=slow groove");
+        assertThat(prompt).contains("env=studio vibe");
+        org.mockito.Mockito.verify(mockProvider).getTemplate("lyria-3-pro");
+    }
+
+    @Test
+    void buildPrompt_withProvider_usesProviderTemplate() {
+        LyriaPromptProvider mockProvider = org.mockito.Mockito.mock(LyriaPromptProvider.class);
+        org.mockito.Mockito.when(mockProvider.getTemplate()).thenReturn("Custom template: genre=%s mood=%s instr=%s bpm=%d key=%s sec=%s groove=%s env=%s");
+        org.mockito.Mockito.when(mockProvider.getKeys()).thenReturn(java.util.List.of("G major"));
+        org.mockito.Mockito.when(mockProvider.getSecondaryInstrumentations()).thenReturn(java.util.List.of("acoustic guitar"));
+        org.mockito.Mockito.when(mockProvider.getTempoGrooves()).thenReturn(java.util.List.of("fast tempo"));
+        org.mockito.Mockito.when(mockProvider.getAcousticEnvironments()).thenReturn(java.util.List.of("reverb room"));
+
+        LyriaSystemPromptConfig customConfig = new LyriaSystemPromptConfig();
+        customConfig.setProvider(mockProvider);
+
+        LyriaSystemPromptConfig.MusicVariation variation = customConfig.randomVariation();
+        String prompt = customConfig.buildPrompt("jazz", "happy", "piano", variation);
+
+        assertThat(prompt).contains("Custom template:");
+        assertThat(prompt).contains("genre=jazz");
+        assertThat(prompt).contains("mood=happy");
+        assertThat(prompt).contains("instr=piano");
+        assertThat(prompt).contains("key=G major");
+        assertThat(prompt).contains("sec=acoustic guitar");
+        assertThat(prompt).contains("groove=fast tempo");
+        assertThat(prompt).contains("env=reverb room");
+    }
 }

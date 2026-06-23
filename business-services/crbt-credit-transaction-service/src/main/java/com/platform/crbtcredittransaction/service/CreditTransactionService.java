@@ -33,7 +33,12 @@ public class CreditTransactionService {
             event.direction(),
             event.reason(),
             event.referenceId(),
-            event.timestamp()
+            event.timestamp(),
+            event.isFree() != null ? event.isFree() : false,
+            event.genType() != null ? event.genType() : "OTHER",
+            event.beforeBalance(),
+            event.afterBalance(),
+            event.model()
         );
         repository.save(transaction);
     }
@@ -63,13 +68,18 @@ public class CreditTransactionService {
         List<CreditTransaction> transactions = repository.findAll(filter(userId, direction, reason, fromTs, toTs));
 
         StringBuilder csv = new StringBuilder();
-        csv.append("ID,User ID,Amount,Direction,Reason,Reference ID,Timestamp,Created At\n");
+        csv.append("ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At\n");
 
         for (CreditTransaction tx : transactions) {
             csv.append(tx.getId()).append(",")
                .append(tx.getUserId()).append(",")
+               .append(tx.getBeforeBalance() != null ? tx.getBeforeBalance() : "").append(",")
+               .append(tx.getAfterBalance() != null ? tx.getAfterBalance() : "").append(",")
                .append(tx.getAmount()).append(",")
                .append(tx.getDirection()).append(",")
+               .append(tx.getGenType()).append(",")
+               .append(tx.getModel() != null ? tx.getModel() : "").append(",")
+               .append(tx.isFree()).append(",")
                .append("\"").append(tx.getReason()).append("\"").append(",")
                .append(tx.getReferenceId()).append(",")
                .append(tx.getTimestamp()).append(",")
@@ -116,7 +126,12 @@ public class CreditTransactionService {
             transaction.getReason(),
             transaction.getReferenceId(),
             transaction.getTimestamp(),
-            transaction.getCreatedAt()
+            transaction.getCreatedAt(),
+            transaction.isFree(),
+            transaction.getGenType(),
+            transaction.getBeforeBalance(),
+            transaction.getAfterBalance(),
+            transaction.getModel()
         );
     }
 }

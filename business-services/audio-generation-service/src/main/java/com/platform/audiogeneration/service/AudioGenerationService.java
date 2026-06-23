@@ -339,7 +339,7 @@ public class AudioGenerationService {
                 }
 
                 ApiResponse<WalletResponse> deductResp = creditWalletClient.deduct(userId, new WalletAmountRequest(
-                    1, "DIY Ringback Tone generation", "DIY-GEN-" + job.getId()
+                    1, "DIY Ringback Tone generation", "DIY-GEN-" + job.getId(), true, "DIY"
                 ));
                 if (deductResp == null || !deductResp.success() || deductResp.data() == null) {
                     throw new BaseException(AudioGenerationErrorCode.WALLET_INSUFFICIENT_CREDIT);
@@ -478,7 +478,9 @@ public class AudioGenerationService {
                     creditWalletClient.add(job.getUserId(), new WalletAmountRequest(
                         1,
                         "Refund: DIY Ringback Tone generation failed",
-                        "DIY-REFUND-" + job.getId()
+                        "DIY-REFUND-" + job.getId(),
+                        true,
+                        "DIY"
                     ));
                     log.info("Successfully refunded 1 credit to user {} for failed DIY job {}", job.getUserId(), job.getId());
                 } catch (Exception ex) {

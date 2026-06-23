@@ -151,28 +151,29 @@ public class MusicGenerationService {
             throw new BaseException(CampaignErrorCode.INSUFFICIENT_TOKENS);
         }
 
+        // Cache lookup first to determine if we need to call Gemini Lyria (Real) or use Cache (Random)
+        String hashKey = sha256(genre + ":" + mood + ":" + instrument);
+        String poolKey = POOL_KEY_PREFIX + hashKey;
+        String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;
+
+        log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
+        List<String> poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
+        Set<String> seenUrls = redisTemplate.opsForSet().members(seenKey);
+        if (seenUrls == null) seenUrls = Set.of();
+        log.info("[GENERATE-CACHE-STATS] Redis poolEntries size={}, seenUrls size={}", 
+            poolEntries != null ? poolEntries.size() : 0, seenUrls.size());
+
+        List<String> available = buildAvailable(poolEntries, seenUrls, msisdn);
+        log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
+
+        boolean isReal = available.isEmpty();
         String txnRef = "MUSIC-" + UUID.randomUUID();
 
         // 3. Deduct credit synchronously on credit-wallet-service to keep in sync
-        log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}, txnRef={}", userId, txnRef);
-        deductCreditSynchronously(userId, genre, mood, instrument, txnRef);
+        log.info("[GENERATE-DEDUCT] Deducting credit first before generation for userId={}, txnRef={}, isReal={}", userId, txnRef, isReal);
+        deductCreditSynchronously(userId, genre, mood, instrument, txnRef, isReal);
 
         try {
-            // Cache lookup
-            String hashKey = sha256(genre + ":" + mood + ":" + instrument);
-            String poolKey = POOL_KEY_PREFIX + hashKey;
-            String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;
-
-            log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
-            List<String> poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
-            Set<String> seenUrls = redisTemplate.opsForSet().members(seenKey);
-            if (seenUrls == null) seenUrls = Set.of();
-            log.info("[GENERATE-CACHE-STATS] Redis poolEntries size={}, seenUrls size={}", 
-                poolEntries != null ? poolEntries.size() : 0, seenUrls.size());
-
-            List<String> available = buildAvailable(poolEntries, seenUrls, msisdn);
-            log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
-
             String url;
             int durationSeconds = 30;
             if (!available.isEmpty()) {
@@ -242,7 +243,7 @@ public class MusicGenerationService {
         } catch (BaseException e) {
             log.error("[GENERATE-FAILURE-KNOWN] Generation failed for userId={} with custom error. Refunding credit with txnRef={}", userId, txnRef, e);
             try {
-                refundCreditSynchronously(userId, genre, mood, instrument, txnRef);
+                refundCreditSynchronously(userId, genre, mood, instrument, txnRef, isReal);
             } catch (Exception ex) {
                 log.error("[REFUND-ERROR] Failed to refund credit for userId={}: {}", userId, ex.getMessage(), ex);
             }
@@ -250,7 +251,7 @@ public class MusicGenerationService {
         } catch (Exception e) {
             log.error("[GENERATE-FAILURE] Generation failed for userId={}. Refunding credit with txnRef={}", userId, txnRef, e);
             try {
-                refundCreditSynchronously(userId, genre, mood, instrument, txnRef);
+                refundCreditSynchronously(userId, genre, mood, instrument, txnRef, isReal);
             } catch (Exception ex) {
                 log.error("[REFUND-ERROR] Failed to refund credit for userId={}: {}", userId, ex.getMessage(), ex);
             }
@@ -265,8 +266,9 @@ public class MusicGenerationService {
         for (int attempt = 1; attempt <= maxRetries + 1; attempt++) {
             // Random per-generation variation (tempo/key/seed) so repeated requests with the
             // same genre/mood/instrument yield audibly distinct tracks.
-            LyriaSystemPromptConfig.MusicVariation variation = promptConfig.randomVariation();
-            String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation);
+            String model = getModelName();
+            LyriaSystemPromptConfig.MusicVariation variation = promptConfig.randomVariation(model);
+            String prompt = promptConfig.buildPrompt(genre, mood, instrument, variation, model);
             log.info("[LYRIA-GENERATE] Attempt {}/{} - msisdn={} genre={} mood={} instrument={} bpm={} key={} seed={}",
                 attempt, maxRetries + 1, mask(msisdn), genre, mood, instrument, variation.bpm(), variation.key(), variation.seed());
 
@@ -359,13 +361,16 @@ public class MusicGenerationService {
         return available;
     }
 
-    private void deductCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef) {
-        log.info("[WALLET-DEDUCT] Deducting credit synchronously for userId={}, txnRef={}", userId, txnRef);
+    private void deductCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef, boolean isReal) {
+        log.info("[WALLET-DEDUCT] Deducting credit synchronously for userId={}, txnRef={}, isReal={}", userId, txnRef, isReal);
         try {
             var request = new WalletAmountRequest(
                     1,
                     "AI Music: " + genre + "/" + mood + "/" + instrument,
-                    txnRef
+                    txnRef,
+                    !isReal, // isFree = !isReal (true if cache hit/random, false if Lyria call/real)
+                    "AI",
+                    getModelName()
             );
             ApiResponse<WalletResponse> response = creditWalletClient.deduct(userId, request);
             if (response == null || !response.success() || response.data() == null) {
@@ -378,14 +383,17 @@ public class MusicGenerationService {
         }
     }
 
-    private void refundCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef) {
+    private void refundCreditSynchronously(Long userId, String genre, String mood, String instrument, String txnRef, boolean isReal) {
         String refundRef = "REFUND-" + txnRef;
-        log.info("[WALLET-REFUND] Refunding credit synchronously for userId={}, refundRef={}", userId, refundRef);
+        log.info("[WALLET-REFUND] Refunding credit synchronously for userId={}, refundRef={}, isReal={}", userId, refundRef, isReal);
         try {
             var request = new WalletAmountRequest(
                     1,
                     "Refund: AI Music Generation failed (" + genre + "/" + mood + "/" + instrument + ")",
-                    refundRef
+                    refundRef,
+                    !isReal, // isFree = !isReal
+                    "AI",
+                    getModelName()
             );
             ApiResponse<WalletResponse> response = creditWalletClient.add(userId, request);
             if (response == null || !response.success() || response.data() == null) {
