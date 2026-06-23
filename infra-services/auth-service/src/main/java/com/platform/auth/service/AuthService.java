@@ -198,6 +198,16 @@ public class AuthService {
     }
 
 
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, String> getMsisdnsByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return userRepository.findAllById(userIds).stream()
+                .filter(u -> u.getMsisdn() != null)
+                .collect(java.util.stream.Collectors.toMap(User::getId, User::getMsisdn));
+    }
+
     private void ensureActive(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new BaseException(AuthErrorCode.AUTH_ACCOUNT_LOCKED);

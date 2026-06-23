@@ -25,9 +25,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class CreditTransactionService {
 
     private final CreditTransactionRepository repository;
+    private final org.springframework.web.client.RestTemplate restTemplate;
 
-    public CreditTransactionService(CreditTransactionRepository repository) {
+    public CreditTransactionService(CreditTransactionRepository repository, org.springframework.web.client.RestTemplate restTemplate) {
         this.repository = repository;
+        this.restTemplate = restTemplate;
+    }
+
+    private java.util.Map<Long, String> resolveMsisdns(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        try {
+            java.util.Map<?, ?> response = restTemplate.postForObject("http://auth-service/internal/crbt/users/msisdns", userIds, java.util.Map.class);
+            java.util.Map<Long, String> result = new java.util.HashMap<>();
+            if (response != null) {
+                for (java.util.Map.Entry<?, ?> entry : response.entrySet()) {
+                    Long uId = Long.valueOf(entry.getKey().toString());
+                    String msisdn = entry.getValue() != null ? entry.getValue().toString() : "";
+                    result.put(uId, msisdn);
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return java.util.Map.of();
+        }
     }
 
     @Transactional
@@ -61,7 +83,16 @@ public class CreditTransactionService {
             throw new BaseException(CreditTransactionErrorCode.CREDIT_TRANSACTION_INVALID_DATE_RANGE);
         }
 
-        return PageResponse.from(repository.findAll(filter(userId, direction, reason, fromTs, toTs), pageable).map(this::toResponse));
+        org.springframework.data.domain.Page<CreditTransaction> page = repository.findAll(filter(userId, direction, reason, fromTs, toTs), pageable);
+        List<CreditTransaction> list = page.getContent();
+        List<Long> uIds = list.stream().map(CreditTransaction::getUserId).distinct().toList();
+        java.util.Map<Long, String> msisdns = resolveMsisdns(uIds);
+
+        List<CreditTransactionResponse> dtoList = list.stream()
+                .map(tx -> toResponse(tx, msisdns.getOrDefault(tx.getUserId(), "-")))
+                .toList();
+
+        return PageResponse.from(new org.springframework.data.domain.PageImpl<>(dtoList, pageable, page.getTotalElements()));
     }
 
     @Transactional(readOnly = true)
@@ -78,7 +109,15 @@ public class CreditTransactionService {
         }
 
         org.springframework.data.domain.Page<CreditTransaction> page = repository.findAll(filter(userId, direction, reason, fromTs, toTs), pageable);
-        PageResponse<CreditTransactionResponse> pageResp = PageResponse.from(page.map(this::toResponse));
+        List<CreditTransaction> list = page.getContent();
+        List<Long> uIds = list.stream().map(CreditTransaction::getUserId).distinct().toList();
+        java.util.Map<Long, String> msisdns = resolveMsisdns(uIds);
+
+        List<CreditTransactionResponse> dtoList = list.stream()
+                .map(tx -> toResponse(tx, msisdns.getOrDefault(tx.getUserId(), "-")))
+                .toList();
+
+        PageResponse<CreditTransactionResponse> pageResp = PageResponse.from(new org.springframework.data.domain.PageImpl<>(dtoList, pageable, page.getTotalElements()));
 
         List<Object[]> sumResults = repository.sumTransactionsByFilters(userId, direction, reason, fromTs, toTs);
         long totalAdd = 0;
@@ -102,13 +141,16 @@ public class CreditTransactionService {
         }
 
         List<CreditTransaction> transactions = repository.findAll(filter(userId, direction, reason, fromTs, toTs));
+        List<Long> uIds = transactions.stream().map(CreditTransaction::getUserId).distinct().toList();
+        java.util.Map<Long, String> msisdns = resolveMsisdns(uIds);
 
         StringBuilder csv = new StringBuilder();
-        csv.append("ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At\n");
+        csv.append("ID,msisdn,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At\n");
 
         for (CreditTransaction tx : transactions) {
+            String msisdn = msisdns.getOrDefault(tx.getUserId(), "-");
             csv.append(tx.getId()).append(",")
-               .append(tx.getUserId()).append(",")
+               .append(msisdn).append(",")
                .append(tx.getBeforeBalance() != null ? tx.getBeforeBalance() : "").append(",")
                .append(tx.getAfterBalance() != null ? tx.getAfterBalance() : "").append(",")
                .append(tx.getAmount()).append(",")
@@ -153,10 +195,10 @@ public class CreditTransactionService {
         };
     }
 
-    private CreditTransactionResponse toResponse(CreditTransaction transaction) {
+    private CreditTransactionResponse toResponse(CreditTransaction transaction, String msisdn) {
         return new CreditTransactionResponse(
             transaction.getId(),
-            transaction.getUserId(),
+            msisdn,
             transaction.getAmount(),
             transaction.getDirection(),
             transaction.getReason(),

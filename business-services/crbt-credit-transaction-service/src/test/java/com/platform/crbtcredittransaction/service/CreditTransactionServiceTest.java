@@ -22,6 +22,8 @@ class CreditTransactionServiceTest {
 
     @Mock
     private CreditTransactionRepository repository;
+    @Mock
+    private org.springframework.web.client.RestTemplate restTemplate;
 
     @InjectMocks
     private CreditTransactionService service;
@@ -48,12 +50,14 @@ class CreditTransactionServiceTest {
             .thenReturn(java.util.List.of(
                 new CreditTransaction(1L, 100, "IN", "Reason", "REF-1", 1000L)
             ));
+        when(restTemplate.postForObject(any(String.class), any(), any()))
+            .thenReturn(java.util.Map.of("1", "84987000101"));
 
         String csv = service.exportCsv(1L, null, null, null, null);
 
         assertNotNull(csv);
-        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At"));
-        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("1,,,100,IN,OTHER,,false,\"Reason\",REF-1,1000"));
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("ID,msisdn,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At"));
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("null,84987000101,,,100,IN,OTHER,,false,\"Reason\",REF-1,1000"));
     }
 
     @Test

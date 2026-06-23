@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record CreditTransactionResponse(
     Long id,
-    Long userId,
+    String msisdn,
     int amount,
     String direction,
     String reason,
@@ -17,11 +17,11 @@ public record CreditTransactionResponse(
     Integer afterBalance,
     String model
 ) {
-    public CreditTransactionResponse(Long id, Long userId, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt, Boolean isFree, String genType) {
-        this(id, userId, amount, direction, reason, referenceId, timestamp, createdAt, isFree, genType, null, null, null);
+    public CreditTransactionResponse(Long id, String msisdn, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt, Boolean isFree, String genType) {
+        this(id, msisdn, amount, direction, reason, referenceId, timestamp, createdAt, isFree, genType, null, null, null);
     }
 
-    public CreditTransactionResponse(Long id, Long userId, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt) {
-        this(id, userId, amount, direction, reason, referenceId, timestamp, createdAt, false, "OTHER", null, null, null);
+    public CreditTransactionResponse(Long id, String msisdn, int amount, String direction, String reason, String referenceId, long timestamp, Instant createdAt) {
+        this(id, msisdn, amount, direction, reason, referenceId, timestamp, createdAt, false, "OTHER", null, null, null);
     }
 }

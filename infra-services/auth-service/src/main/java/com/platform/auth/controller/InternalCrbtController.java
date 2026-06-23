@@ -78,9 +78,13 @@ public class InternalCrbtController {
         return ResponseEntity.ok(authService.searchUserIds(msisdn, status, startTime, endTime));
     }
 
+    @PostMapping("/users/msisdns")
+    public ResponseEntity<java.util.Map<Long, String>> getMsisdnsByUserIds(@RequestBody List<Long> userIds) {
+        return ResponseEntity.ok(authService.getMsisdnsByUserIds(userIds));
+    }
+
     private String mask(String msisdn) {
         if (msisdn == null || msisdn.length() <= 4) return "***";
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
-
 }
