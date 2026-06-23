@@ -60,7 +60,7 @@ class AdminUserServiceTest {
         PageResponse<UserResponse> authUsersPage = PageResponse.from(new PageImpl<>(
             usersList, PageRequest.of(0, 20), 2
         ));
-        when(authServiceClient.getUsers("84987", null, 0, 20)).thenReturn(authUsersPage);
+        when(authServiceClient.getUsers("84987", null, null, null, 0, 20)).thenReturn(authUsersPage);
 
         // Mock Wallet Balances
         Map<Long, Integer> balances = Map.of(1L, 10, 2L, 5);
@@ -76,7 +76,7 @@ class AdminUserServiceTest {
             .thenReturn(new ApiResponse<>(true, "success", stats, System.currentTimeMillis()));
 
         // Mock Aggregation Stats Client Calls
-        when(authServiceClient.getUserIds("84987", null)).thenReturn(List.of(1L, 2L));
+        when(authServiceClient.getUserIds("84987", null, null, null)).thenReturn(List.of(1L, 2L));
         when(creditWalletClient.sumBalances(List.of(1L, 2L)))
             .thenReturn(new ApiResponse<>(true, "success", 15, System.currentTimeMillis()));
         when(creditTransactionClient.sumStats(List.of(1L, 2L)))
@@ -96,7 +96,7 @@ class AdminUserServiceTest {
 
         // Execute
         UserCreditSummaryPageWithStats result = adminUserService.getUsersCreditSummary(
-            "84987", null, null, 0, 20
+            "84987", null, null, null, null, 0, 20
         );
 
         // Verify
