@@ -11,6 +11,40 @@
       "name": "Authentication",
       "item": [
         {
+          "name": "Register Admin User",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth-service/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth-service",
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new admin user account."
+          },
+          "response": []
+        },
+        {
           "name": "Login",
           "request": {
             "auth": {
@@ -45,7 +79,7 @@
           "response": []
         }
       ],
-      "description": "Endpoints for authentication, login, and token generation."
+      "description": "Endpoints for authentication, register, login, and token generation."
     },
     {
       "name": "Categories Management",
