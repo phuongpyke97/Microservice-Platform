@@ -39,6 +39,9 @@ public class LyriaDailyStat {
     @Column(name = "estimated_cost_usd", nullable = false, precision = 12, scale = 4)
     private BigDecimal estimatedCostUsd = BigDecimal.ZERO;
 
+    @Column(name = "alert_sent", nullable = false)
+    private boolean alertSent = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -116,6 +119,14 @@ public class LyriaDailyStat {
 
     public void setEstimatedCostUsd(BigDecimal estimatedCostUsd) {
         this.estimatedCostUsd = estimatedCostUsd;
+    }
+
+    public boolean isAlertSent() {
+        return alertSent;
+    }
+
+    public void setAlertSent(boolean alertSent) {
+        this.alertSent = alertSent;
     }
 
     public Instant getCreatedAt() {

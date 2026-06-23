@@ -11,6 +11,7 @@ public final class RmqRoutingKeys {
     public static final String AUDIO_GENERATED = "audio.generated";
     public static final String AUDIO_COMPLETED = "audio.completed";
     public static final String AUDIT_LOG = "audit.log";
+    public static final String LYRIA_COST_ALERT = "lyria.cost.alert";
 
     private RmqRoutingKeys() {
     }

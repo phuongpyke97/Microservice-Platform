@@ -11,6 +11,7 @@ public final class RmqQueues {
     public static final String NOTIFICATION_PAYMENT = "notification-payment-queue";
     public static final String CREDIT_TRANSACTION_HISTORY = "credit-transaction-history-queue";
     public static final String LIBRARY_AUDIO_GENERATED = "library-audio-generated-queue";
+    public static final String LYRIA_COST_ALERT = "lyria-cost-alert-queue";
 
     private RmqQueues() {
     }

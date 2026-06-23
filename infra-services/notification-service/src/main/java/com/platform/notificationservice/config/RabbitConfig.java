@@ -32,6 +32,11 @@ public class RabbitConfig {
     }
 
     @Bean
+    public TopicExchange auditEventsExchange() {
+        return new TopicExchange(RmqExchanges.AUDIT_EVENTS);
+    }
+
+    @Bean
     public Queue userRegisteredQueue() {
         return RabbitDlqConfig.dlqEnabledQueue(RmqQueues.USER_REGISTERED);
     }
@@ -52,6 +57,11 @@ public class RabbitConfig {
     }
 
     @Bean
+    public Queue lyriaCostAlertQueue() {
+        return RabbitDlqConfig.dlqEnabledQueue(RmqQueues.LYRIA_COST_ALERT);
+    }
+
+    @Bean
     public Binding userRegisteredBinding() {
         return BindingBuilder.bind(userRegisteredQueue()).to(userEventsExchange()).with(RmqRoutingKeys.USER_REGISTERED);
     }
@@ -69,6 +79,11 @@ public class RabbitConfig {
     @Bean
     public Binding audioGeneratedBinding() {
         return BindingBuilder.bind(audioGeneratedQueue()).to(audioEventsExchange()).with(RmqRoutingKeys.AUDIO_GENERATED);
+    }
+
+    @Bean
+    public Binding lyriaCostAlertBinding() {
+        return BindingBuilder.bind(lyriaCostAlertQueue()).to(auditEventsExchange()).with(RmqRoutingKeys.LYRIA_COST_ALERT);
     }
 
     @Bean

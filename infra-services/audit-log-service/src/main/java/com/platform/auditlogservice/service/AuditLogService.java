@@ -12,7 +12,12 @@ import com.platform.auditlogservice.repository.LyriaDailyStatRepository;
 import com.platform.auditlogservice.repository.LyriaRequestLogRepository;
 import com.platform.common.core.exception.BaseException;
 import com.platform.common.core.response.PageResponse;
+import com.platform.common.rmq.RmqExchanges;
+import com.platform.common.rmq.RmqRoutingKeys;
 import com.platform.common.rmq.event.AuditLogEvent;
+import com.platform.common.rmq.event.LyriaCostAlertEvent;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,15 +38,24 @@ public class AuditLogService {
     private final LyriaRequestLogRepository requestLogRepository;
     private final LyriaDailyStatRepository dailyStatRepository;
     private final ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
+
+    @Value("${lyria.alert.email:admin@platform.com}")
+    private String alertEmail;
+
+    @Value("${lyria.alert.threshold-usd:100.0}")
+    private double alertThresholdUsd;
 
     public AuditLogService(AuditLogRepository repository,
                            LyriaRequestLogRepository requestLogRepository,
                            LyriaDailyStatRepository dailyStatRepository,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           RabbitTemplate rabbitTemplate) {
         this.repository = repository;
         this.requestLogRepository = requestLogRepository;
         this.dailyStatRepository = dailyStatRepository;
         this.objectMapper = objectMapper;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @Transactional
@@ -102,6 +116,24 @@ public class AuditLogService {
                     
                     BigDecimal addedCost = BigDecimal.valueOf(totalTokens).multiply(new BigDecimal("0.000001"));
                     stat.setEstimatedCostUsd(stat.getEstimatedCostUsd().add(addedCost));
+
+                    BigDecimal threshold = BigDecimal.valueOf(alertThresholdUsd);
+                    if (stat.getEstimatedCostUsd().compareTo(threshold) >= 0 && !stat.isAlertSent()) {
+                        stat.setAlertSent(true);
+                        try {
+                            rabbitTemplate.convertAndSend(
+                                RmqExchanges.AUDIT_EVENTS,
+                                RmqRoutingKeys.LYRIA_COST_ALERT,
+                                new LyriaCostAlertEvent(alertEmail, threshold, stat.getEstimatedCostUsd(), statDate)
+                            );
+                            org.slf4j.LoggerFactory.getLogger(AuditLogService.class)
+                                .warn("[LYRIA-COST-ALERT] Daily cost {} crossed threshold {}. Alert event published to {}", 
+                                      stat.getEstimatedCostUsd(), threshold, alertEmail);
+                        } catch (Exception mqEx) {
+                            org.slf4j.LoggerFactory.getLogger(AuditLogService.class)
+                                .error("[LYRIA-COST-ALERT-FAILED] Failed to publish cost alert event", mqEx);
+                        }
+                    }
                     
                     dailyStatRepository.save(stat);
                 } else if ("FAILED".equalsIgnoreCase(event.status())) {

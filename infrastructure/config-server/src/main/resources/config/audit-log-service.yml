@@ -36,3 +36,6 @@ lyria:
   reconciliation:
     scheduler:
       enabled: ${LYRIA_RECONCILE_SCHEDULER_ENABLED:true}
+  alert:
+    email: ${LYRIA_ALERT_EMAIL:admin@platform.com}
+    threshold-usd: ${LYRIA_ALERT_THRESHOLD_USD:100.0}

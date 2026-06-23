@@ -1,6 +1,7 @@
 package com.platform.auditlogservice.service;
 
 import com.platform.auditlogservice.entity.AuditLog;
+import com.platform.auditlogservice.entity.LyriaDailyStat;
 import com.platform.auditlogservice.exception.AuditErrorCode;
 import com.platform.auditlogservice.repository.AuditLogRepository;
 import com.platform.common.core.exception.BaseException;
@@ -15,8 +16,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,11 +40,16 @@ class AuditLogServiceTest {
     @Mock
     private com.platform.auditlogservice.repository.LyriaDailyStatRepository dailyStatRepository;
 
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
     private AuditLogService service;
 
     @BeforeEach
     void setUp() {
-        service = new AuditLogService(repository, requestLogRepository, dailyStatRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+        service = new AuditLogService(repository, requestLogRepository, dailyStatRepository, new com.fasterxml.jackson.databind.ObjectMapper(), rabbitTemplate);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "alertEmail", "admin@platform.com");
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "alertThresholdUsd", 100.0);
     }
 
     @Test
@@ -75,5 +85,63 @@ class AuditLogServiceTest {
 
         assertThat(result.content()).hasSize(1);
         assertThat(result.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void save_lyriaGenerateMusic_sendsAlertWhenThresholdExceeded() {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        LyriaDailyStat existingStat = new LyriaDailyStat(today);
+        existingStat.setEstimatedCostUsd(new BigDecimal("99.99")); 
+        existingStat.setAlertSent(false);
+
+        when(dailyStatRepository.findByStatDate(today)).thenReturn(Optional.of(existingStat));
+        when(repository.save(any(AuditLog.class))).thenAnswer(i -> i.getArgument(0));
+
+        String metadata = "{\"duration_ms\":1200,\"lyria_token_usage\":{\"prompt_tokens\":50000,\"candidate_tokens\":50000,\"total_tokens\":100000,\"model\":\"lyria-3-clip-preview\",\"msisdn\":\"123456\"}}";
+        var event = new AuditLogEvent(100L, "/campaigns/generate", "127.0.0.1", "SUCCESS", metadata, System.currentTimeMillis());
+
+        service.save(event);
+
+        verify(rabbitTemplate, times(1)).convertAndSend(any(String.class), any(String.class), any(com.platform.common.rmq.event.LyriaCostAlertEvent.class));
+        assertThat(existingStat.isAlertSent()).isTrue();
+        assertThat(existingStat.getEstimatedCostUsd()).isEqualByComparingTo("100.09");
+    }
+
+    @Test
+    void save_lyriaGenerateMusic_doesNotSendAlertWhenAlreadySent() {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        LyriaDailyStat existingStat = new LyriaDailyStat(today);
+        existingStat.setEstimatedCostUsd(new BigDecimal("105.00")); 
+        existingStat.setAlertSent(true);
+
+        when(dailyStatRepository.findByStatDate(today)).thenReturn(Optional.of(existingStat));
+        when(repository.save(any(AuditLog.class))).thenAnswer(i -> i.getArgument(0));
+
+        String metadata = "{\"duration_ms\":1200,\"lyria_token_usage\":{\"prompt_tokens\":50000,\"candidate_tokens\":50000,\"total_tokens\":100000,\"model\":\"lyria-3-clip-preview\",\"msisdn\":\"123456\"}}";
+        var event = new AuditLogEvent(100L, "/campaigns/generate", "127.0.0.1", "SUCCESS", metadata, System.currentTimeMillis());
+
+        service.save(event);
+
+        verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(String.class), any(Object.class));
+        assertThat(existingStat.isAlertSent()).isTrue();
+    }
+
+    @Test
+    void save_lyriaGenerateMusic_doesNotSendAlertWhenBelowThreshold() {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        LyriaDailyStat existingStat = new LyriaDailyStat(today);
+        existingStat.setEstimatedCostUsd(new BigDecimal("10.00")); 
+        existingStat.setAlertSent(false);
+
+        when(dailyStatRepository.findByStatDate(today)).thenReturn(Optional.of(existingStat));
+        when(repository.save(any(AuditLog.class))).thenAnswer(i -> i.getArgument(0));
+
+        String metadata = "{\"duration_ms\":1200,\"lyria_token_usage\":{\"prompt_tokens\":50000,\"candidate_tokens\":50000,\"total_tokens\":100000,\"model\":\"lyria-3-clip-preview\",\"msisdn\":\"123456\"}}";
+        var event = new AuditLogEvent(100L, "/campaigns/generate", "127.0.0.1", "SUCCESS", metadata, System.currentTimeMillis());
+
+        service.save(event);
+
+        verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(String.class), any(Object.class));
+        assertThat(existingStat.isAlertSent()).isFalse();
     }
 }

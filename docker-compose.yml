@@ -318,6 +318,8 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       LYRIA_RECONCILE_SCHEDULER_ENABLED: ${LYRIA_RECONCILE_SCHEDULER_ENABLED:-true}
+      LYRIA_ALERT_EMAIL: ${LYRIA_ALERT_EMAIL:-admin@platform.com}
+      LYRIA_ALERT_THRESHOLD_USD: ${LYRIA_ALERT_THRESHOLD_USD:-100.0}
     volumes:
       - ./logs:/logs
     depends_on:
