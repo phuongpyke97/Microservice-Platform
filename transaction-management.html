@@ -1488,6 +1488,9 @@
             if (filterTo) {
                 queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
             }
+            if (targetUserId) {
+                queryParams.append('userId', targetUserId);
+            }
             queryParams.append('page', currentPage);
             queryParams.append('size', pageSize);
 
@@ -1746,6 +1749,9 @@
             }
             if (filterTo) {
                 queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
+            }
+            if (targetUserId) {
+                queryParams.append('userId', targetUserId);
             }
 
             showToast("Đang tải xuống file CSV đối soát...", "success");

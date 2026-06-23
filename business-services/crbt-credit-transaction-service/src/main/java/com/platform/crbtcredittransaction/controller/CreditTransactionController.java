@@ -36,33 +36,55 @@ public class CreditTransactionController {
 
     @GetMapping("/history")
     public ApiResponse<CreditTransactionPageWithStats> getCreditTransactionHistory(
+            @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String direction,
             @RequestParam(required = false) String reason,
             @RequestParam(required = false) Long fromTs,
             @RequestParam(required = false) Long toTs,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Long userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
 
+        Long targetUserId = currentUserId;
+        if (userId != null) {
+            List<String> roles = SecurityUtils.getCurrentUserRoles();
+            if (roles != null && roles.contains("ADMIN")) {
+                targetUserId = userId;
+            } else {
+                throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN, "Access denied. Only admin can query other user's history.");
+            }
+        }
+
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
-        return ApiResponse.success(creditTransactionService.queryWithStats(userId, direction, reason, fromTs, toTs, pageable));
+        return ApiResponse.success(creditTransactionService.queryWithStats(targetUserId, direction, reason, fromTs, toTs, pageable));
     }
 
     @GetMapping("/export")
     public ResponseEntity<String> exportCsv(
+            @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String direction,
             @RequestParam(required = false) String reason,
             @RequestParam(required = false) Long fromTs,
             @RequestParam(required = false) Long toTs) {
-        Long userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
 
-        String csv = creditTransactionService.exportCsv(userId, direction, reason, fromTs, toTs);
+        Long targetUserId = currentUserId;
+        if (userId != null) {
+            List<String> roles = SecurityUtils.getCurrentUserRoles();
+            if (roles != null && roles.contains("ADMIN")) {
+                targetUserId = userId;
+            } else {
+                throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN, "Access denied. Only admin can export other user's history.");
+            }
+        }
+
+        String csv = creditTransactionService.exportCsv(targetUserId, direction, reason, fromTs, toTs);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("text/csv"));
