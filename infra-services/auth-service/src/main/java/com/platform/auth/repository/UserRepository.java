@@ -21,6 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     @Query("SELECT u FROM User u WHERE " +
+           "u.msisdn IS NOT NULL AND u.msisdn != '' AND " +
            "(:msisdn IS NULL OR :msisdn = '' OR u.msisdn LIKE %:msisdn%) AND " +
            "(:status IS NULL OR u.status = :status)")
     Page<User> searchUsers(
