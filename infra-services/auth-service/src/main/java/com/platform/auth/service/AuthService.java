@@ -124,17 +124,24 @@ public class AuthService {
         return new UserCreditInternalResponse(user.getId(), user.getMsisdn());
     }
 
+    private UserStatus parseStatus(String statusStr) {
+        if (statusStr == null || statusStr.isBlank()) {
+            return null;
+        }
+        if ("deactive".equalsIgnoreCase(statusStr) || "inactive".equalsIgnoreCase(statusStr)) {
+            return UserStatus.LOCKED;
+        }
+        try {
+            return UserStatus.valueOf(statusStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     @Transactional(readOnly = true)
     public com.platform.common.core.response.PageResponse<UserResponse> searchUsers(
             String msisdn, String statusStr, org.springframework.data.domain.Pageable pageable) {
-        UserStatus status = null;
-        if (statusStr != null && !statusStr.isBlank()) {
-            try {
-                status = UserStatus.valueOf(statusStr.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                // Ignore
-            }
-        }
+        UserStatus status = parseStatus(statusStr);
         Page<User> page = userRepository.searchUsers(msisdn, status, pageable);
         return com.platform.common.core.response.PageResponse.from(page.map(u -> new UserResponse(
                 u.getId(),
@@ -147,18 +154,7 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public List<Long> searchUserIds(String msisdn, String statusStr) {
-        UserStatus status = null;
-        if (statusStr != null && !statusStr.isBlank()) {
-            if ("deactive".equalsIgnoreCase(statusStr) || "inactive".equalsIgnoreCase(statusStr)) {
-                status = UserStatus.LOCKED;
-            } else {
-                try {
-                    status = UserStatus.valueOf(statusStr.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    // Ignore
-                }
-            }
-        }
+        UserStatus status = parseStatus(statusStr);
         return userRepository.searchUserIds(msisdn, status);
     }
 
