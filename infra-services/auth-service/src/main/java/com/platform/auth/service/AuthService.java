@@ -173,7 +173,13 @@ public class AuthService {
             String msisdn, String statusStr, String startTimeStr, String endTimeStr, org.springframework.data.domain.Pageable pageable) {
         UserStatus status = parseStatus(statusStr);
         java.time.Instant startTime = parseInstant(startTimeStr, false);
+        if (startTime == null) {
+            startTime = java.time.Instant.EPOCH;
+        }
         java.time.Instant endTime = parseInstant(endTimeStr, true);
+        if (endTime == null) {
+            endTime = java.time.Instant.ofEpochMilli(253402300799000L); // 9999-12-31T23:59:59.999Z
+        }
         Page<User> page = userRepository.searchUsers(msisdn, status, startTime, endTime, pageable);
         return com.platform.common.core.response.PageResponse.from(page.map(u -> new UserResponse(
                 u.getId(),
@@ -188,7 +194,13 @@ public class AuthService {
     public List<Long> searchUserIds(String msisdn, String statusStr, String startTimeStr, String endTimeStr) {
         UserStatus status = parseStatus(statusStr);
         java.time.Instant startTime = parseInstant(startTimeStr, false);
+        if (startTime == null) {
+            startTime = java.time.Instant.EPOCH;
+        }
         java.time.Instant endTime = parseInstant(endTimeStr, true);
+        if (endTime == null) {
+            endTime = java.time.Instant.ofEpochMilli(253402300799000L);
+        }
         return userRepository.searchUserIds(msisdn, status, startTime, endTime);
     }
 

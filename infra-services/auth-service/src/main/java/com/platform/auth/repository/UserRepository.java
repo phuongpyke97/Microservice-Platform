@@ -25,8 +25,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "u.msisdn IS NOT NULL AND u.msisdn != '' AND " +
            "(:msisdn IS NULL OR :msisdn = '' OR u.msisdn LIKE %:msisdn%) AND " +
            "(:status IS NULL OR u.status = :status) AND " +
-           "(:startTime IS NULL OR u.createdAt >= :startTime) AND " +
-           "(:endTime IS NULL OR u.createdAt <= :endTime)")
+           "u.createdAt >= :startTime AND " +
+           "u.createdAt <= :endTime")
     Page<User> searchUsers(
             @Param("msisdn") String msisdn,
             @Param("status") UserStatus status,
@@ -38,8 +38,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "u.msisdn IS NOT NULL AND u.msisdn != '' AND " +
            "(:msisdn IS NULL OR :msisdn = '' OR u.msisdn LIKE %:msisdn%) AND " +
            "(:status IS NULL OR u.status = :status) AND " +
-           "(:startTime IS NULL OR u.createdAt >= :startTime) AND " +
-           "(:endTime IS NULL OR u.createdAt <= :endTime)")
+           "u.createdAt >= :startTime AND " +
+           "u.createdAt <= :endTime")
     List<Long> searchUserIds(
             @Param("msisdn") String msisdn,
             @Param("status") UserStatus status,
