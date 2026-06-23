@@ -8,6 +8,46 @@
   },
   "item": [
     {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth-service/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth-service",
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate user credentials to obtain a JWT access token."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for authentication, login, and token generation."
+    },
+    {
       "name": "Categories Management",
       "item": [
         {
@@ -998,6 +1038,14 @@
     {
       "key": "walletServiceUrl",
       "value": "http://localhost:8086"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@test.com"
+    },
+    {
+      "key": "adminPassword",
+      "value": "P@ssword1"
     },
     {
       "key": "msisdn",
