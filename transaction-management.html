@@ -920,10 +920,7 @@
                         <label for="filterMsisdn">Số điện thoại (MSISDN)</label>
                         <input type="text" id="filterMsisdn" class="input-control" placeholder="Ví dụ: 84987654321...">
                     </div>
-                    <div class="form-group">
-                        <label for="filterUserId">User ID</label>
-                        <input type="number" id="filterUserId" class="input-control" placeholder="Nhập User ID...">
-                    </div>
+                    <!-- User ID filter removed -->
                     <div class="form-group">
                         <label for="filterDirection">Hướng dòng tiền</label>
                         <select id="filterDirection" class="input-control">
@@ -1341,7 +1338,6 @@
 
         function resetFilters() {
             document.getElementById('filterMsisdn').value = '';
-            document.getElementById('filterUserId').value = '';
             document.getElementById('filterDirection').value = '';
             document.getElementById('filterReason').value = '';
             const today = new Date();
@@ -1373,7 +1369,6 @@
 
             // Gather filters
             const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
-            const filterUser = document.getElementById('filterUserId').value.trim();
             const filterDir = document.getElementById('filterDirection').value;
             const filterReas = document.getElementById('filterReason').value.toLowerCase();
             const filterFrom = document.getElementById('filterFromDate').value;
@@ -1385,9 +1380,6 @@
 
             if (filterMsisdn) {
                 filtered = filtered.filter(tx => tx.msisdn.includes(filterMsisdn));
-            }
-            if (filterUser) {
-                filtered = filtered.filter(tx => tx.userId.toString() === filterUser);
             }
             if (filterDir) {
                 filtered = filtered.filter(tx => tx.direction === filterDir);
@@ -1425,7 +1417,6 @@
             
             // Gather filters
             const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
-            const filterUser = document.getElementById('filterUserId').value.trim();
             const filterDir = document.getElementById('filterDirection').value;
             const filterReas = document.getElementById('filterReason').value.trim();
             const filterFrom = document.getElementById('filterFromDate').value;
@@ -1436,60 +1427,24 @@
             document.getElementById('tableContainer').style.display = 'none';
             document.getElementById('emptyState').style.display = 'none';
 
-            // Phase 1: Resolve MSISDN to User ID if MSISDN filter is filled
-            if (filterMsisdn) {
-                document.getElementById('loadingOverlay').querySelector('span').innerText = `Đang tra cứu số điện thoại ${filterMsisdn}...`;
-                
-                fetch(`${gatewayUrl}/auth-service/internal/crbt/user-credit/${filterMsisdn}`, {
-                    method: 'GET',
-                    headers: {
-                        'X-User-Id': adminId // Injected for gateway authentication pass
-                    }
-                })
-                .then(res => {
-                    if (res.status === 404) {
-                        throw new Error("USER_NOT_FOUND");
-                    }
-                    if (!res.ok) throw new Error(`HTTP Error ${res.status} resolving MSISDN`);
-                    return res.json();
-                })
-                .then(userCredit => {
-                    const resolvedUserId = userCredit.userId;
-                    // Proceed to fetch history with resolved User ID
-                    queryHistory(gatewayUrl, resolvedUserId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize);
-                })
-                .catch(err => {
-                    console.error(err);
-                    document.getElementById('loadingOverlay').style.display = 'none';
-                    document.getElementById('emptyState').style.display = 'flex';
-                    if (err.message === "USER_NOT_FOUND") {
-                        showToast(`Không tìm thấy User cho số điện thoại: ${filterMsisdn}`, "danger");
-                    } else {
-                        showToast("Lỗi khi kết nối dịch vụ Auth Service. Vui lòng kiểm tra lại cấu hình Gateway.", "danger");
-                    }
-                });
-            } else {
-                // If no MSISDN filter, use target User ID if entered, otherwise default to adminId
-                const targetUserId = filterUser ? filterUser : adminId;
-                queryHistory(gatewayUrl, targetUserId, null, filterDir, filterReas, filterFrom, filterTo, pageSize);
-            }
+            queryHistory(gatewayUrl, adminId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize);
         }
 
-        function queryHistory(gatewayUrl, targetUserId, searchMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize) {
-            document.getElementById('loadingOverlay').querySelector('span').innerText = `Đang tải giao dịch của User ID ${targetUserId}...`;
+        function queryHistory(gatewayUrl, adminId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize) {
+            document.getElementById('loadingOverlay').querySelector('span').innerText = `Đang tải giao dịch...`;
 
             // Construct Query parameters
             let queryParams = new URLSearchParams();
             if (filterDir) queryParams.append('direction', filterDir);
             if (filterReas) queryParams.append('reason', filterReas);
             if (filterFrom) {
-                queryParams.append('fromTs', new Date(filterFrom + "T00:00:00").getTime());
+                queryParams.append('fromTs', filterFrom);
             }
             if (filterTo) {
-                queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
+                queryParams.append('toTs', filterTo);
             }
-            if (targetUserId) {
-                queryParams.append('userId', targetUserId);
+            if (filterMsisdn) {
+                queryParams.append('msisdn', filterMsisdn);
             }
             queryParams.append('page', currentPage);
             queryParams.append('size', pageSize);
@@ -1498,7 +1453,7 @@
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-Id': targetUserId
+                    'X-User-Id': adminId
                 }
             })
             .then(res => {
@@ -1510,17 +1465,20 @@
                 document.getElementById('tableContainer').style.display = 'block';
 
                 if (resData.code === "SUCCESS" && resData.data) {
-                    let content = resData.data.content || [];
-                    totalElements = resData.data.totalElements || 0;
-                    totalPages = resData.data.totalPages || 1;
+                    const pageData = resData.data.page || resData.data;
+                    const statsData = resData.data.stats;
                     
-                    // Attach searchMsisdn to results if we queried by one
+                    let content = pageData.content || [];
+                    totalElements = pageData.totalElements || 0;
+                    totalPages = pageData.totalPages || 1;
+                    
+                    // Attach filterMsisdn to results if we queried by one
                     content = content.map(tx => {
-                        return { ...tx, msisdn: searchMsisdn || "-" };
+                        return { ...tx, msisdn: filterMsisdn || "-" };
                     });
 
                     renderTable(content);
-                    calculateStats(content);
+                    calculateStats(content, statsData);
                 } else {
                     showToast(resData.message || "Không thể lấy dữ liệu", "danger");
                 }
@@ -1660,7 +1618,6 @@
         function exportMockCSV() {
             // Gather filters and filter local mock data list
             const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
-            const filterUser = document.getElementById('filterUserId').value.trim();
             const filterDir = document.getElementById('filterDirection').value;
             const filterReas = document.getElementById('filterReason').value.toLowerCase();
             const filterFrom = document.getElementById('filterFromDate').value;
@@ -1669,7 +1626,6 @@
             let filtered = [...mockTransactions];
 
             if (filterMsisdn) filtered = filtered.filter(tx => tx.msisdn.includes(filterMsisdn));
-            if (filterUser) filtered = filtered.filter(tx => tx.userId.toString() === filterUser);
             if (filterDir) filtered = filtered.filter(tx => tx.direction === filterDir);
             if (filterReas) filtered = filtered.filter(tx => tx.reason.toLowerCase().includes(filterReas));
             if (filterFrom) {
@@ -1703,55 +1659,26 @@
             const adminId = document.getElementById('jwtHeader').value.trim();
             
             const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
-            const filterUser = document.getElementById('filterUserId').value.trim();
             const filterDir = document.getElementById('filterDirection').value;
             const filterReas = document.getElementById('filterReason').value.trim();
             const filterFrom = document.getElementById('filterFromDate').value;
             const filterTo = document.getElementById('filterToDate').value;
 
-            if (filterMsisdn) {
-                showToast(`Đang tra cứu số điện thoại ${filterMsisdn} để xuất báo cáo...`, "info");
-                fetch(`${gatewayUrl}/auth-service/internal/crbt/user-credit/${filterMsisdn}`, {
-                    method: 'GET',
-                    headers: {
-                        'X-User-Id': adminId
-                    }
-                })
-                .then(res => {
-                    if (res.status === 404) throw new Error("USER_NOT_FOUND");
-                    if (!res.ok) throw new Error(`HTTP Error ${res.status} resolving MSISDN`);
-                    return res.json();
-                })
-                .then(userCredit => {
-                    const resolvedUserId = userCredit.userId;
-                    triggerRealCSVDownload(gatewayUrl, resolvedUserId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo);
-                })
-                .catch(err => {
-                    console.error(err);
-                    if (err.message === "USER_NOT_FOUND") {
-                        showToast(`Không tìm thấy User cho số điện thoại: ${filterMsisdn}`, "danger");
-                    } else {
-                        showToast("Lỗi khi kết nối dịch vụ Auth Service.", "danger");
-                    }
-                });
-            } else {
-                const targetUserId = filterUser ? filterUser : adminId;
-                triggerRealCSVDownload(gatewayUrl, targetUserId, null, filterDir, filterReas, filterFrom, filterTo);
-            }
+            triggerRealCSVDownload(gatewayUrl, adminId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo);
         }
 
-        function triggerRealCSVDownload(gatewayUrl, targetUserId, searchMsisdn, filterDir, filterReas, filterFrom, filterTo) {
+        function triggerRealCSVDownload(gatewayUrl, adminId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo) {
             let queryParams = new URLSearchParams();
             if (filterDir) queryParams.append('direction', filterDir);
             if (filterReas) queryParams.append('reason', filterReas);
             if (filterFrom) {
-                queryParams.append('fromTs', new Date(filterFrom + "T00:00:00").getTime());
+                queryParams.append('fromTs', filterFrom);
             }
             if (filterTo) {
-                queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
+                queryParams.append('toTs', filterTo);
             }
-            if (targetUserId) {
-                queryParams.append('userId', targetUserId);
+            if (filterMsisdn) {
+                queryParams.append('msisdn', filterMsisdn);
             }
 
             showToast("Đang tải xuống file CSV đối soát...", "success");
@@ -1759,7 +1686,7 @@
             fetch(`${gatewayUrl}/credit-transactions/export?${queryParams.toString()}`, {
                 method: 'GET',
                 headers: {
-                    'X-User-Id': targetUserId
+                    'X-User-Id': adminId
                 }
             })
             .then(res => {
@@ -1768,22 +1695,22 @@
             })
             .then(blob => {
                 return blob.text().then(text => {
-                    // Since CSV from server only has User ID, we dynamically inject MSISDN column if searchMsisdn is present
+                    // Since CSV from server only has User ID, we dynamically inject MSISDN column if filterMsisdn is present
                     let lines = text.split('\n');
-                    if (lines.length > 0 && searchMsisdn) {
+                    if (lines.length > 0 && filterMsisdn) {
                         lines[0] = lines[0].replace("User ID", "Số điện thoại (MSISDN),User ID");
                         for (let i = 1; i < lines.length; i++) {
                             if (lines[i].trim() === "") continue;
                             const firstComma = lines[i].indexOf(',');
                             const secondComma = lines[i].indexOf(',', firstComma + 1);
-                            lines[i] = lines[i].substring(0, secondComma) + `,${searchMsisdn}` + lines[i].substring(secondComma);
+                            lines[i] = lines[i].substring(0, secondComma) + `,${filterMsisdn}` + lines[i].substring(secondComma);
                         }
                     }
                     const newBlob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(newBlob);
                     const link = document.createElement("a");
                     link.setAttribute("href", url);
-                    link.setAttribute("download", `credit_transactions_${targetUserId}_${Date.now()}.csv`);
+                    link.setAttribute("download", `credit_transactions_${filterMsisdn || 'all'}_${Date.now()}.csv`);
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);

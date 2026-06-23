@@ -131,7 +131,9 @@ PUT /api/campaigns/admin/lyria-prompts/versions/{model}/{version}/activate
 
 # B. CREDIT TRANSACTION MANAGEMENT
 
-Service: `crbt-credit-transaction-service`. Mỗi request lọc theo **chủ ví = `X-User-Id`** (gateway inject). FE muốn xem giao dịch của user nào → set `X-User-Id` = userId đó (xem B0 để đổi MSISDN→userId).
+Service: `crbt-credit-transaction-service`. 
+- **Với USER**: Lịch sử giao dịch chỉ trả về các giao dịch của chính mình (được xác định dựa trên token/JWT).
+- **Với ADMIN**: Có thể tra cứu giao dịch của người dùng khác bằng cách truyền thêm tham số `msisdn`. Nếu không truyền `msisdn`, hệ thống sẽ trả về tất cả giao dịch trên toàn hệ thống (Global search).
 
 ### Object: `CreditTransactionResponse`
 | field | type | mô tả |
@@ -150,7 +152,7 @@ Service: `crbt-credit-transaction-service`. Mỗi request lọc theo **chủ ví
 | genType | string | `AI` \| `DIY` \| `OTHER` |
 | model | string \| null | model AI (vd `lyria-3-pro-preview`), null nếu không phải AI |
 
-### B0. Đổi MSISDN → userId (khi lọc theo số điện thoại)
+### B0. Tra cứu thông tin ví theo MSISDN (nếu cần)
 ```
 GET /auth-service/internal/crbt/user-credit/{msisdn}
 ```
@@ -159,26 +161,25 @@ GET /auth-service/internal/crbt/user-credit/{msisdn}
 { "userId": 105, "msisdn": "84987000105" }
 ```
 - **404** nếu không có user cho MSISDN.
-- Dùng `userId` trả về làm header `X-User-Id` cho B1/B2.
 
 ### B1. Lịch sử giao dịch (phân trang)
 ```
-GET /api/credits/history?direction=&reason=&fromTs=&toTs=&page=0&size=20
-Header: X-User-Id: <userId>
+GET /api/credits/history?msisdn=&direction=&reason=&fromTs=&toTs=&page=0&size=20
 ```
 | query | type | mô tả |
 |---|---|---|
+| msisdn | string optional | Số điện thoại cần tra cứu (chỉ ADMIN được phép truyền, USER truyền sẽ bị 403) |
 | direction | string optional | `ADD` \| `DEDUCT` |
 | reason | string optional | match LIKE (chứa) |
-| fromTs | number optional | epoch millis ≥ |
-| toTs | number optional | epoch millis ≤ |
+| fromTs | string optional | Ngày bắt đầu dạng String (ví dụ: `2026-06-23` hoặc `2026-06-23 00:00:00`) |
+| toTs | string optional | Ngày kết thúc dạng String (ví dụ: `2026-06-23` hoặc `2026-06-23 23:59:59`) |
 | page | number | mặc định 0 |
 | size | number | mặc định 20 |
 
 - Sort: `timestamp` giảm dần.
 - **200** → `ApiResponse<PageResponse<CreditTransactionResponse>>`
-- **400** nếu `fromTs > toTs` (`CREDIT_TRANSACTION_INVALID_DATE_RANGE`).
-- **401** thiếu `X-User-Id`.
+- **400** nếu range thời gian không hợp lệ.
+- **401** thiếu Token đăng nhập.
 
 Ví dụ response:
 ```json
@@ -203,15 +204,15 @@ Ví dụ response:
 
 ### B2. Export CSV đối soát
 ```
-GET /api/credits/export?direction=&reason=&fromTs=&toTs=
-Header: X-User-Id: <userId>
+GET /api/credits/export?msisdn=&direction=&reason=&fromTs=&toTs=
 ```
 - Trả `text/csv` (attachment `credit_transactions.csv`), **không phân trang** (toàn bộ theo filter).
+- Hỗ trợ các filter `msisdn`, `direction`, `reason`, `fromTs`, `toTs` tương tự API lịch sử giao dịch.
 - Header cột (đúng thứ tự — cột 1 `ID`, cột 2 `User ID`):
 ```
 ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At
 ```
-- **401** thiếu `X-User-Id` · **400** date range sai.
+- **401** thiếu Token đăng nhập · **400** định dạng ngày hoặc range sai.
 
 ---
 
@@ -219,9 +220,9 @@ ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,
 
 1. **Bỏ mock** trong 2 file HTML (`prompt_manager_ui_final.html`, `transaction-management.html`) — dùng API thật theo doc này.
 2. Prompt UI dùng tên `instrumentations/grooves/environments` → map sang API: `secondaryInstrumentations/tempoGrooves/acousticEnvironments`.
-3. Tx table: cột `msisdn` API không trả (history theo userId). FE tự gắn MSISDN đã tra ở B0, hoặc bỏ cột.
-4. Auth header: gateway tự inject từ JWT — FE chỉ cần gửi token đăng nhập (Admin cho phần A; CRBT/Admin cho phần B). Riêng `X-User-Id` ở B1/B2 là userId chủ ví cần xem.
-5. Date: `timestamp`/`fromTs`/`toTs` = **epoch milliseconds**; `createdAt`/`activatedAt`/... = **ISO-8601 string**.
+3. Tx table: ADMIN chỉ cần truyền trực tiếp `msisdn` vào query parameter của API `/api/credits/history` hoặc `/api/credits/export` để tra cứu giao dịch của người dùng khác, không cần thông qua bước đổi MSISDN -> userId (B0) trên FE như trước.
+4. Auth header: gateway tự inject từ JWT — FE chỉ cần gửi token đăng nhập (Admin cho phần A; CRBT/Admin cho phần B). ADMIN không cần tự ý chỉnh sửa header `X-User-Id` để xem thông tin người dùng khác nữa, mà sử dụng tham số `msisdn`.
+5. Date: `fromTs`/`toTs` truyền dạng String (ví dụ: `yyyy-MM-dd` hoặc `yyyy-MM-dd HH:mm:ss`). Đối với trường hợp chỉ truyền ngày (vd: `2026-06-23`), hệ thống sẽ tự động hiểu `fromTs` là từ `00:00:00` và `toTs` là đến `23:59:59` của ngày đó. Các trường thời gian trả về trong Response (`timestamp`) vẫn giữ nguyên dạng epoch milliseconds.
 
 ---
 

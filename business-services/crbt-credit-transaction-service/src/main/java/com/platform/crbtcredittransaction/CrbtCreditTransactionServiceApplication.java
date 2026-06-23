@@ -9,4 +9,10 @@ public class CrbtCreditTransactionServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(CrbtCreditTransactionServiceApplication.class, args);
     }
+
+    @org.springframework.cloud.client.loadbalancer.LoadBalanced
+    @org.springframework.context.annotation.Bean
+    public org.springframework.web.client.RestTemplate restTemplate() {
+        return new org.springframework.web.client.RestTemplate();
+    }
 }
