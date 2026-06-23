@@ -13,9 +13,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
+import java.util.Map;
+import com.platform.crbtcredittransaction.dto.response.UserCreditStats;
 
 @RestController
 @RequestMapping("/credit-transactions")
@@ -62,5 +67,10 @@ public class CreditTransactionController {
         headers.setContentDispositionFormData("attachment", "credit_transactions.csv");
 
         return ResponseEntity.ok().headers(headers).body(csv);
+    }
+
+    @PostMapping("/internal/stats")
+    public ApiResponse<Map<Long, UserCreditStats>> getStats(@RequestBody List<Long> userIds) {
+        return ApiResponse.success(creditTransactionService.getStatsByUserIds(userIds));
     }
 }

@@ -97,6 +97,23 @@ public class WalletService {
         return new WalletResponse(userId, wallet.getBalance());
     }
 
+    @Transactional
+    public java.util.Map<Long, Integer> getBalances(java.util.List<Long> userIds) {
+        java.util.Map<Long, Integer> result = new java.util.HashMap<>();
+        if (userIds != null) {
+            for (Long userId : userIds) {
+                try {
+                    result.put(userId, getBalance(userId).balance());
+                } catch (Exception e) {
+                    log.error("[WALLET-BULK] Failed to get balance for userId={}: {}", userId, e.getMessage());
+                    result.put(userId, 0);
+                }
+            }
+        }
+        return result;
+    }
+
+
     /**
      * Deduct credit.
      * Concurrency: Redisson distributed lock per userId — single lock strategy, no DB-level pessimistic lock.

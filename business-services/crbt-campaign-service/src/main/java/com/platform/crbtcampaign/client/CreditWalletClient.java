@@ -21,4 +21,7 @@ public interface CreditWalletClient {
 
     @PostMapping("/api/wallet/{userId}/add")
     ApiResponse<WalletResponse> add(@PathVariable("userId") Long userId, @RequestBody WalletAmountRequest request);
+
+    @PostMapping("/api/wallet/internal/balances")
+    ApiResponse<java.util.Map<Long, Integer>> getBalances(@RequestBody java.util.List<Long> userIds);
 }

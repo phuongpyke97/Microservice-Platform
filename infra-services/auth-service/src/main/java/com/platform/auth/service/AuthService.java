@@ -6,8 +6,10 @@ import com.platform.auth.dto.request.LoginRequest;
 import com.platform.auth.dto.request.RefreshTokenRequest;
 import com.platform.auth.dto.request.RegisterRequest;
 import com.platform.auth.dto.response.AuthTokenResponse;
+import com.platform.auth.dto.response.UserResponse;
 import com.platform.auth.entity.User;
 import com.platform.auth.entity.UserStatus;
+import org.springframework.data.domain.Page;
 import com.platform.auth.exception.AuthErrorCode;
 import com.platform.auth.repository.UserRepository;
 import com.platform.auth.util.JwtTokenProvider;
@@ -121,10 +123,32 @@ public class AuthService {
         return new UserCreditInternalResponse(user.getId(), user.getMsisdn());
     }
 
+    @Transactional(readOnly = true)
+    public com.platform.common.core.response.PageResponse<UserResponse> searchUsers(
+            String msisdn, String statusStr, org.springframework.data.domain.Pageable pageable) {
+        UserStatus status = null;
+        if (statusStr != null && !statusStr.isBlank()) {
+            try {
+                status = UserStatus.valueOf(statusStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Ignore
+            }
+        }
+        Page<User> page = userRepository.searchUsers(msisdn, status, pageable);
+        return com.platform.common.core.response.PageResponse.from(page.map(u -> new UserResponse(
+                u.getId(),
+                u.getMsisdn(),
+                u.getEmail(),
+                u.getStatus().name(),
+                u.getCreatedAt() != null ? u.getCreatedAt().toEpochMilli() : null
+        )));
+    }
+
     private String mask(String msisdn) {
         if (msisdn == null || msisdn.length() <= 4) return "***";
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
+
 
     private void ensureActive(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {

@@ -55,8 +55,20 @@ public class InternalCrbtController {
         return ResponseEntity.ok(resp);
     }
 
+    @GetMapping("/users")
+    public ResponseEntity<com.platform.common.core.response.PageResponse<com.platform.auth.dto.response.UserResponse>> getUsers(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String msisdn,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+        log.info("[CRBT-GET-USERS] msisdn={}, status={}, page={}, size={}", mask(msisdn), status, page, size);
+        org.springframework.data.domain.PageRequest pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ResponseEntity.ok(authService.searchUsers(msisdn, status, pageable));
+    }
+
     private String mask(String msisdn) {
         if (msisdn == null || msisdn.length() <= 4) return "***";
         return msisdn.substring(0, 3) + "***" + msisdn.substring(msisdn.length() - 2);
     }
+
 }

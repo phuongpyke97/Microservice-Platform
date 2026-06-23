@@ -11,6 +11,9 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import com.platform.crbtcredittransaction.dto.response.UserCreditStats;
+import java.util.HashMap;
+import java.util.Map;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -133,5 +136,33 @@ public class CreditTransactionService {
             transaction.getAfterBalance(),
             transaction.getModel()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, UserCreditStats> getStatsByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows = repository.getStatsByUserIds(userIds);
+        Map<Long, UserCreditStats> result = new HashMap<>();
+        for (Long userId : userIds) {
+            result.put(userId, new UserCreditStats(0L, 0L));
+        }
+        for (Object[] row : rows) {
+            Long userId = (Long) row[0];
+            String direction = (String) row[1];
+            Long sum = (Long) row[2];
+            if (sum == null) sum = 0L;
+
+            UserCreditStats stats = result.get(userId);
+            if (stats != null) {
+                if ("ADD".equalsIgnoreCase(direction)) {
+                    stats.setPurchased(sum);
+                } else if ("DEDUCT".equalsIgnoreCase(direction)) {
+                    stats.setUsed(sum);
+                }
+            }
+        }
+        return result;
     }
 }

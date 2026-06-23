@@ -29,6 +29,11 @@ public class CreditWalletClientFallback implements FallbackFactory<CreditWalletC
             public ApiResponse<WalletResponse> add(Long userId, WalletAmountRequest request) {
                 throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
             }
+
+            @Override
+            public ApiResponse<java.util.Map<Long, Integer>> getBalances(java.util.List<Long> userIds) {
+                throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
+            }
         };
     }
 }

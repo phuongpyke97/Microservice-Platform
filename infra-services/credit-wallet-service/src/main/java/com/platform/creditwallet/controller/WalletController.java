@@ -49,4 +49,10 @@ public class WalletController {
                         request.genType() != null ? request.genType() : "OTHER",
                         request.model())));
     }
+
+    @PostMapping("/internal/balances")
+    public ResponseEntity<ApiResponse<java.util.Map<Long, Integer>>> getBalances(@RequestBody java.util.List<Long> userIds) {
+        return ResponseEntity.ok(ApiResponse.success("Bulk balances retrieved", walletService.getBalances(userIds)));
+    }
 }
+

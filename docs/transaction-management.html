@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CMS Admin - Quản lý Giao dịch Credit</title>
+    <meta name="description" content="Hệ thống quản lý lịch sử giao dịch credit người dùng và đối soát dòng tiền.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-base: #0b0f19;
+            --bg-surface: rgba(17, 24, 39, 0.7);
+            --bg-surface-hover: rgba(31, 41, 55, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.3);
+            --accent: #a855f7;
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.2);
+            --warning: #f59e0b;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+            --transition-speed: 0.25s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Sidebar Navigation Mock */
+        .sidebar {
+            width: 260px;
+            background-color: rgba(10, 15, 28, 0.9);
+            border-right: 1px solid var(--border-color);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            flex-shrink: 0;
+            backdrop-filter: blur(12px);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: white;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .menu-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .menu-item:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-item.active {
+            color: white;
+            background: linear-gradient(90deg, var(--primary), rgba(99, 102, 241, 0.4));
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Main Workspace */
+        .workspace {
+            flex-grow: 1;
+            padding: 2.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: calc(100% - 260px);
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+        }
+
+        .header-title h1 {
+            font-family: var(--font-display);
+            font-size: 1.85rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #fff, var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        /* API Integration Control Card */
+        .config-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(8px);
+        }
+
+        .config-inputs {
+            display: flex;
+            gap: 1rem;
+            flex-grow: 1;
+            flex-wrap: wrap;
+        }
+
+        .form-group-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            min-width: 200px;
+            flex-grow: 1;
+        }
+
+        .form-group-inline label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .input-text {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-family: var(--font-main);
+            font-size: 0.85rem;
+            transition: all var(--transition-speed);
+        }
+
+        .input-text:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(8px);
+            transition: transform var(--transition-speed), border-color var(--transition-speed);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+        }
+
+        .stat-card.add::before { background: var(--success); }
+        .stat-card.deduct::before { background: var(--danger); }
+        .stat-card.net::before { background: var(--accent); }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .stat-sub {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Filter Panel */
+        .filter-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.75rem;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .filter-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.1);
+            transition: .4s;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 12px;
+            width: 12px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .input-control {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.65rem 0.85rem;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            width: 100%;
+            transition: all var(--transition-speed);
+        }
+
+        .input-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        select.input-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23f3f4f6'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+            padding-right: 2.25rem;
+        }
+
+        .filter-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.25rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.65rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--primary-glow);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: white;
+            box-shadow: 0 4px 12px var(--success-glow);
+        }
+
+        .btn-success:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--success-glow);
+        }
+
+        /* Data Section */
+        .data-section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        thead {
+            background-color: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color var(--transition-speed);
+        }
+
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        td {
+            padding: 1rem 1.25rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        /* Direction badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-add {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-deduct {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .mono {
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .text-bold {
+            font-weight: 600;
+        }
+
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            gap: 1rem;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Pagination & Footer controls */
+        .footer-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.25rem;
+        }
+
+        .records-info {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .page-btn {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .page-indicator {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            padding: 0 0.5rem;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast.success { border-left-color: var(--success); }
+        .toast.danger { border-left-color: var(--danger); }
+
+        /* Loading Spinner */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            display: inline-block;
+        }
+
+        .loading-overlay {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .workspace {
+                width: 100%;
+                padding: 1.5rem;
+            }
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Tabs Navigation */
+        .tabs-container {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0px;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.75rem 1.25rem;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all var(--transition-speed);
+            position: relative;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .tab-btn.active {
+            color: white;
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            box-shadow: 0 -2px 10px var(--primary-glow);
+        }
+
+        /* Active/Deactive statuses */
+        .badge-status-active {
+            background-color: rgba(16, 185, 129, 0.1) !important;
+            color: var(--success) !important;
+            border: 1px solid rgba(16, 185, 129, 0.2) !important;
+        }
+
+        .badge-status-deactive {
+            background-color: rgba(239, 68, 68, 0.1) !important;
+            color: var(--danger) !important;
+            border: 1px solid rgba(239, 68, 68, 0.2) !important;
+        }
+
+        /* User Package Table styles */
+        .phone-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 600;
+        }
+
+        .phone-icon {
+            color: #8b5cf6;
+            font-size: 0.95rem;
+        }
+
+        .badge-pkg-monthly {
+            background-color: rgba(6, 182, 212, 0.1);
+            color: #06b6d4;
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        .badge-pkg-weekly {
+            background-color: rgba(139, 92, 246, 0.1);
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .badge-pkg-daily {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .time-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            font-size: 0.85rem;
+        }
+
+        .time-ago {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Usage Progress Bar */
+        .usage-container {
+            display: flex;
+            align-items: center;
+            width: 140px;
+        }
+
+        .usage-progress {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .usage-progress-bar {
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.3s ease;
+        }
+
+        .usage-progress-bar.normal {
+            background: linear-gradient(90deg, #f59e0b, #d97706); /* Orange */
+        }
+
+        .usage-progress-bar.empty {
+            background: linear-gradient(90deg, var(--danger), #dc2626); /* Red */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="logo-area">
+            <div class="logo-icon">C</div>
+            <span>CRBT CMS Admin</span>
+        </div>
+        <ul class="menu-list">
+            <li><a href="#" class="menu-item">Dashboard</a></li>
+            <li><a href="#" class="menu-item">Quản lý Gói cước</a></li>
+            <li><a href="#" class="menu-item active">Giao dịch Credit</a></li>
+            <li><a href="#" class="menu-item">Lịch sử Tạo nhạc AI</a></li>
+            <li><a href="#" class="menu-item">Hệ thống Cấu hình</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        <header>
+            <div class="header-title">
+                <h1 id="mainHeaderTitle">Quản lý Giao dịch Credit</h1>
+                <p id="mainHeaderDesc">Xem, tìm kiếm lịch sử nạp/trừ ví credit và xuất dữ liệu đối soát tài chính.</p>
+            </div>
+            <div id="txnHeaderActions">
+                <button class="btn btn-success" id="exportBtn" onclick="exportData()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin='round' stroke-width='2' d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Xuất file CSV
+                </button>
+            </div>
+            <div id="userHeaderActions" style="display: none;">
+                <button class="btn btn-secondary" onclick="refreshUserTab()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"></path></svg>
+                    Làm mới
+                </button>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs-container">
+            <button class="tab-btn active" id="tabUserBtn" onclick="switchTab('user')">Quản lý credit theo user</button>
+            <button class="tab-btn" id="tabTxnBtn" onclick="switchTab('txn')">Chi tiết giao dịch credit</button>
+        </div>
+
+        <!-- Transaction Details Tab Content -->
+        <div id="txnTabContent" style="display: none;">
+            <!-- API Config and Gateway Settings -->
+            <section class="config-card">
+                <div class="config-inputs">
+                    <div class="form-group-inline">
+                        <label for="gatewayUrl">API Gateway URL</label>
+                        <input type="text" id="gatewayUrl" class="input-text" value="http://localhost:8080" placeholder="http://localhost:8080">
+                    </div>
+                    <div class="form-group-inline">
+                        <label for="jwtHeader">X-User-Id / Token Admin</label>
+                        <input type="text" id="jwtHeader" class="input-text" value="1" placeholder="Nhập ID Admin hoặc Token">
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                    Kết nối thông qua: <span style="color: var(--primary); font-weight: 600;">/credit-transactions</span>
+                </div>
+            </section>
+
+            <!-- Stats Overview Cards -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Tổng Số Giao Dịch</span>
+                    <span class="stat-value" id="statTotalCount">0</span>
+                    <span class="stat-sub">Trong khoảng lọc tìm kiếm</span>
+                </div>
+                <div class="stat-card add">
+                    <span class="stat-label">Tổng Cộng (ADD)</span>
+                    <span class="stat-value text-success" id="statTotalAdd">0</span>
+                    <span class="stat-sub">Credit đã nạp hoặc cấp gói</span>
+                </div>
+                <div class="stat-card deduct">
+                    <span class="stat-label">Tổng Trừ (DEDUCT)</span>
+                    <span class="stat-value text-danger" id="statTotalDeduct">0</span>
+                    <span class="stat-sub">Credit tiêu dùng hoặc reset</span>
+                </div>
+                <div class="stat-card net">
+                    <span class="stat-label">Net Credit Flow</span>
+                    <span class="stat-value" id="statNetFlow">0</span>
+                    <span class="stat-sub">Số dư chênh lệch dòng tiền</span>
+                </div>
+            </section>
+
+            <!-- Filters Section -->
+            <section class="filter-panel">
+                <div class="filter-title">
+                    <span>Bộ lọc Tìm kiếm Giao dịch</span>
+                    <div class="mode-toggle" onclick="toggleMockMode()">
+                        <span>Chế độ Mock Data</span>
+                        <label class="switch">
+                            <input type="checkbox" id="mockToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="filter-grid">
+                    <div class="form-group">
+                        <label for="filterMsisdn">Số điện thoại (MSISDN)</label>
+                        <input type="text" id="filterMsisdn" class="input-control" placeholder="Ví dụ: 84987654321...">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterUserId">User ID</label>
+                        <input type="number" id="filterUserId" class="input-control" placeholder="Nhập User ID...">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterDirection">Hướng dòng tiền</label>
+                        <select id="filterDirection" class="input-control">
+                            <option value="">Tất cả</option>
+                            <option value="ADD">ADD (Nạp/Cộng tiền)</option>
+                            <option value="DEDUCT">DEDUCT (Khấu trừ/Reset)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="filterReason">Lý do giao dịch</label>
+                        <input type="text" id="filterReason" class="input-control" placeholder="Lọc theo lý do...">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterFromDate">Từ ngày</label>
+                        <input type="date" id="filterFromDate" class="input-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterToDate">Đến ngày</label>
+                        <input type="date" id="filterToDate" class="input-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterPageSize">Số dòng hiển thị</label>
+                        <select id="filterPageSize" class="input-control">
+                            <option value="10">10 dòng</option>
+                            <option value="20" selected>20 dòng</option>
+                            <option value="50">50 dòng</option>
+                            <option value="100">100 dòng</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button class="btn btn-secondary" onclick="resetFilters()">Đặt lại</button>
+                    <button class="btn btn-primary" onclick="searchData()">Tìm kiếm</button>
+                </div>
+            </section>
+
+            <!-- Data Section -->
+            <section class="data-section">
+                <!-- Loading Indicator -->
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                    <span>Đang tải dữ liệu từ máy chủ...</span>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container" id="tableContainer">
+                    <table id="transactionTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Số điện thoại (MSISDN)</th>
+                                <th>User ID</th>
+                                <th>Loại giao dịch</th>
+                                <th>Credit trước</th>
+                                <th>Credit sau</th>
+                                <th>Biến động</th>
+                                <th>Loại</th>
+                                <th>Model</th>
+                                <th>Chi Phí API</th>
+                                <th>Lý do giao dịch</th>
+                                <th>ID Tham chiếu (Ref ID)</th>
+                                <th>Thời gian giao dịch</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">📭</div>
+                    <h3>Không tìm thấy dữ liệu giao dịch</h3>
+                    <p>Thử điều chỉnh lại bộ lọc tìm kiếm hoặc tắt chế độ Mock Data để lấy dữ liệu trực tiếp.</p>
+                </div>
+
+                <!-- Pagination & Footer -->
+                <div class="footer-controls">
+                    <div class="records-info" id="recordsInfo">
+                        Hiển thị 0 - 0 của 0 giao dịch
+                    </div>
+                    <div class="pagination">
+                        <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>&lt;</button>
+                        <span class="page-indicator" id="pageIndicator">Trang 1 / 1</span>
+                        <button class="page-btn" id="nextBtn" onclick="changePage(1)" disabled>&gt;</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- User Package Management Tab Content -->
+        <div id="userTabContent">
+            <!-- Stats Overview Cards -->
+            <section class="stats-grid">
+                <div class="stat-card" style="position: relative;">
+                    <span class="stat-label">NGƯỜI DÙNG</span>
+                    <span class="stat-value" id="userStatCount">0</span>
+                    <span class="stat-sub" id="userStatActiveCount">0 đang hoạt động</span>
+                </div>
+                <div class="stat-card" style="position: relative;">
+                    <span class="stat-label">TỔNG MUA</span>
+                    <span class="stat-value text-bold" id="userStatPurchased" style="color: var(--text-primary);">0 credit</span>
+                    <span class="stat-sub">trên toàn bộ hệ thống</span>
+                </div>
+                <div class="stat-card deduct" style="position: relative;">
+                    <span class="stat-label">TỔNG TIÊU DÙNG</span>
+                    <span class="stat-value text-danger" id="userStatUsed">0 credit</span>
+                    <span class="stat-sub" id="userStatUsageRate">Tỷ lệ: 0%</span>
+                </div>
+                <div class="stat-card net" style="position: relative;">
+                    <span class="stat-label">CÒN LẠI</span>
+                    <span class="stat-value text-success" id="userStatRemaining">0 credit</span>
+                    <span class="stat-sub">số dư khả dụng</span>
+                </div>
+            </section>
+
+            <!-- User Filter Panel -->
+            <section class="filter-panel" style="padding: 1.25rem;">
+                <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div style="position: relative; flex-grow: 1; min-width: 250px;">
+                        <input type="text" id="userSearchPhone" class="input-control" placeholder="Tìm kiếm số điện thoại..." oninput="filterUsers()" style="padding-left: 2.5rem;">
+                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-secondary);">🔍</span>
+                    </div>
+                    <div style="color: var(--text-secondary); cursor: pointer; padding: 0.5rem;" title="Bộ lọc nâng cao">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                    </div>
+                    <select id="userFilterStatus" class="input-control" onchange="filterUsers()" style="width: auto; min-width: 150px;">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="active">Active</option>
+                        <option value="deactive">Deactive</option>
+                    </select>
+                    <select id="userFilterPackage" class="input-control" onchange="filterUsers()" style="width: auto; min-width: 150px;">
+                        <option value="">Tất cả gói cước</option>
+                        <option value="Daily 1K">Daily 1K</option>
+                        <option value="Weekly 5K">Weekly 5K</option>
+                        <option value="Monthly 20K">Monthly 20K</option>
+                        <option value="VIP 249K">VIP 249K</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- User Data Section -->
+            <section class="data-section">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Số điện thoại</th>
+                                <th>Đã mua (Credit)</th>
+                                <th>Đã dùng (Credit)</th>
+                                <th>Còn lại (Credit)</th>
+                                <th>Trạng thái gói cước</th>
+                                <th>Gói cước đăng ký</th>
+                                <th>Ngày mua gói</th>
+                                <th>Ngày hết hạn</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <!-- User rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="footer-controls">
+                    <div class="records-info" id="userRecordsInfo">
+                        Hiển thị 0 - 0 của 0 người dùng
+                    </div>
+                    <div class="pagination">
+                        <button class="page-btn" id="userPrevBtn" onclick="changeUserPage(-1)" disabled>&lt;</button>
+                        <span class="page-indicator" id="userPageIndicator">Trang 1 / 1</span>
+                        <button class="page-btn" id="userNextBtn" onclick="changeUserPage(1)" disabled>&gt;</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Toast Component -->
+    <div class="toast" id="toast">
+        <span id="toastIcon">ℹ️</span>
+        <span id="toastMessage">Thông báo từ hệ thống</span>
+    </div>
+
+    <!-- Script logic -->
+    <script>
+        // Mock Data for User Package Management (Daily pkg: +3 credit, Weekly pkg: +21 credit)
+        let mockUsers = [
+            { phone: "0987654321", purchased: 42, used: 30, remaining: 12, status: "active", lastPackage: "Gói Tuần", purchaseDate: "20/06/2026", expiryDate: "04/07/2026" },
+            { phone: "0901234567", purchased: 21, used: 15, remaining: 6, status: "active", lastPackage: "Gói Tuần", purchaseDate: "19/06/2026", expiryDate: "26/06/2026" },
+            { phone: "0978123456", purchased: 9, used: 7, remaining: 2, status: "active", lastPackage: "Gói Ngày", purchaseDate: "17/06/2026", expiryDate: "20/06/2026" },
+            { phone: "0912345678", purchased: 3, used: 3, remaining: 0, status: "deactive", lastPackage: "Gói Ngày", purchaseDate: "10/06/2026", expiryDate: "11/06/2026" },
+            { phone: "0934567890", purchased: 6, used: 6, remaining: 0, status: "deactive", lastPackage: "Gói Ngày", purchaseDate: "01/06/2026", expiryDate: "03/06/2026" }
+        ];
+
+        let activeTab = 'txn'; // 'txn' or 'user'
+
+        function switchTab(tab) {
+            activeTab = tab;
+            const tabTxnBtn = document.getElementById('tabTxnBtn');
+            const tabUserBtn = document.getElementById('tabUserBtn');
+            const txnTabContent = document.getElementById('txnTabContent');
+            const userTabContent = document.getElementById('userTabContent');
+            const mainHeaderTitle = document.getElementById('mainHeaderTitle');
+            const mainHeaderDesc = document.getElementById('mainHeaderDesc');
+            const txnHeaderActions = document.getElementById('txnHeaderActions');
+            const userHeaderActions = document.getElementById('userHeaderActions');
+
+            if (tab === 'txn') {
+                tabTxnBtn.classList.add('active');
+                tabUserBtn.classList.remove('active');
+                txnTabContent.style.display = 'block';
+                userTabContent.style.display = 'none';
+                mainHeaderTitle.innerText = "Chi tiết giao dịch credit";
+                mainHeaderDesc.innerText = "Xem, tìm kiếm lịch sử nạp/trừ ví credit và xuất dữ liệu đối soát tài chính.";
+                txnHeaderActions.style.display = 'block';
+                userHeaderActions.style.display = 'none';
+            } else {
+                tabTxnBtn.classList.remove('active');
+                tabUserBtn.classList.add('active');
+                txnTabContent.style.display = 'none';
+                userTabContent.style.display = 'block';
+                mainHeaderTitle.innerText = "Quản lý credit theo user";
+                mainHeaderDesc.innerText = "Theo dõi số dư, lịch sử mua và tình hình sử dụng credit của từng số điện thoại.";
+                txnHeaderActions.style.display = 'none';
+                userHeaderActions.style.display = 'block';
+                renderUserTab();
+            }
+        }
+
+        function renderUserTab() {
+            filterUsers();
+        }
+
+        let userCurrentPage = 0;
+        let userTotalPages = 1;
+        let userPageSize = 20;
+
+        function changeUserPage(delta) {
+            const newPage = userCurrentPage + delta;
+            if (newPage >= 0 && newPage < userTotalPages) {
+                userCurrentPage = newPage;
+                filterUsers();
+            }
+        }
+
+        function filterUsers() {
+            const useMock = document.getElementById('mockToggle').checked;
+            if (useMock) {
+                filterMockUsers();
+            } else {
+                fetchRealUsersData();
+            }
+        }
+
+        function filterMockUsers() {
+            const searchVal = document.getElementById('userSearchPhone').value.trim();
+            const statusVal = document.getElementById('userFilterStatus').value;
+            const packageVal = document.getElementById('userFilterPackage').value;
+
+            let filtered = [...mockUsers];
+
+            if (searchVal) {
+                filtered = filtered.filter(u => u.phone.includes(searchVal));
+            }
+            if (statusVal) {
+                filtered = filtered.filter(u => u.status === statusVal);
+            }
+            if (packageVal) {
+                filtered = filtered.filter(u => u.lastPackage === packageVal);
+            }
+
+            // Calculate stats based on filtered data
+            let totalUsers = filtered.length;
+            let activeUsers = filtered.filter(u => u.status === 'active').length;
+            let totalPurchased = 0;
+            let totalUsed = 0;
+            let totalRemaining = 0;
+
+            filtered.forEach(u => {
+                totalPurchased += u.purchased;
+                totalUsed += u.used;
+                totalRemaining += u.remaining;
+            });
+
+            const usageRate = totalPurchased > 0 ? Math.round((totalUsed / totalPurchased) * 100) : 0;
+
+            // Update stats UI
+            document.getElementById('userStatCount').innerText = totalUsers;
+            document.getElementById('userStatActiveCount').innerText = `${activeUsers} đang hoạt động`;
+            document.getElementById('userStatPurchased').innerText = `${totalPurchased} credit`;
+            document.getElementById('userStatUsed').innerText = `${totalUsed} credit`;
+            document.getElementById('userStatUsageRate').innerText = `Hiệu suất: ${usageRate}%`;
+            document.getElementById('userStatRemaining').innerText = `${totalRemaining} credit`;
+
+            // Render Table
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '';
+
+            filtered.forEach(u => {
+                const tr = document.createElement('tr');
+                
+                // Package Badge class
+                let pkgClass = "badge-pkg-daily";
+                if (u.lastPackage === 'Gói Tuần' || u.lastPackage === 'Weekly 5K') pkgClass = "badge-pkg-weekly";
+
+                // Status Badge class
+                let statusClass = u.status === 'active' ? 'badge-status-active' : 'badge-status-deactive';
+                let statusText = u.status === 'active' ? 'Active' : 'Deactive';
+
+                tr.innerHTML = `
+                    <td>
+                        <div class="phone-cell">
+                            <span class="phone-icon">📞</span>
+                            <span>${u.phone}</span>
+                        </div>
+                    </td>
+                    <td class="text-bold">${u.purchased}</td>
+                    <td class="text-bold text-danger">${u.used}</td>
+                    <td class="text-bold text-success">${u.remaining}</td>
+                    <td>
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${pkgClass}">${u.lastPackage}</span>
+                    </td>
+                    <td class="mono" style="font-size:0.85rem;">${u.purchaseDate}</td>
+                    <td class="mono" style="font-size:0.85rem;">${u.expiryDate}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('userRecordsInfo').innerText = `Hiển thị 1 - ${filtered.length} của ${filtered.length} người dùng`;
+            document.getElementById('userPrevBtn').disabled = true;
+            document.getElementById('userNextBtn').disabled = true;
+            document.getElementById('userPageIndicator').innerText = "Trang 1 / 1";
+        }
+
+        function fetchRealUsersData() {
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            const adminId = document.getElementById('jwtHeader').value.trim();
+
+            const searchVal = document.getElementById('userSearchPhone').value.trim();
+            const statusVal = document.getElementById('userFilterStatus').value;
+            const packageVal = document.getElementById('userFilterPackage').value;
+
+            // Build query params
+            const params = new URLSearchParams();
+            if (searchVal) params.append('msisdn', searchVal);
+            if (statusVal) params.append('status', statusVal);
+            if (packageVal) params.append('packageName', packageVal);
+            params.append('page', userCurrentPage);
+            params.append('size', userPageSize);
+
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-secondary);">Đang tải dữ liệu...</td></tr>`;
+
+            fetch(`${gatewayUrl}/api/campaigns/admin/users-credit-summary?${params.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'X-User-Id': adminId
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+                return res.json();
+            })
+            .then(apiResponse => {
+                if (!apiResponse.success) {
+                    throw new Error(apiResponse.message || "Unknown error");
+                }
+                const pageData = apiResponse.data;
+                const users = pageData.content || [];
+                
+                userTotalPages = pageData.totalPages || 1;
+                const totalElements = pageData.totalElements || 0;
+
+                let totalUsers = totalElements;
+                let activeUsers = users.filter(u => u.status === 'active').length;
+                let pagePurchased = 0;
+                let pageUsed = 0;
+                let pageRemaining = 0;
+
+                users.forEach(u => {
+                    pagePurchased += u.purchased;
+                    pageUsed += u.used;
+                    pageRemaining += u.remaining;
+                });
+
+                const usageRate = pagePurchased > 0 ? Math.round((pageUsed / pagePurchased) * 100) : 0;
+
+                // Update UI Stats Cards
+                document.getElementById('userStatCount').innerText = totalUsers;
+                document.getElementById('userStatActiveCount').innerText = `Hiện có ${users.length} trên trang`;
+                document.getElementById('userStatPurchased').innerText = `${pagePurchased} credit (Trang)`;
+                document.getElementById('userStatUsed').innerText = `${pageUsed} credit (Trang)`;
+                document.getElementById('userStatUsageRate').innerText = `Hiệu suất: ${usageRate}%`;
+                document.getElementById('userStatRemaining').innerText = `${pageRemaining} credit (Trang)`;
+
+                // Render Table
+                tbody.innerHTML = '';
+                if (users.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-secondary);">Không tìm thấy dữ liệu người dùng</td></tr>`;
+                } else {
+                    users.forEach(u => {
+                        const tr = document.createElement('tr');
+                        
+                        // Package Badge class
+                        let pkgClass = "badge-pkg-daily";
+                        if (u.packageName && u.packageName.toLowerCase().includes("weekly")) pkgClass = "badge-pkg-weekly";
+                        else if (u.packageName && u.packageName.toLowerCase().includes("monthly")) pkgClass = "badge-pkg-monthly";
+                        else if (u.packageName && u.packageName.toLowerCase().includes("vip")) pkgClass = "badge-pkg-monthly";
+
+                        // Status Badge class
+                        let statusClass = u.status === 'active' ? 'badge-status-active' : 'badge-status-deactive';
+                        let statusText = u.status === 'active' ? 'Active' : 'Deactive';
+
+                        tr.innerHTML = `
+                            <td>
+                                <div class="phone-cell">
+                                    <span class="phone-icon">📞</span>
+                                    <span>${u.msisdn}</span>
+                                </div>
+                            </td>
+                            <td class="text-bold">${u.purchased}</td>
+                            <td class="text-bold text-danger">${u.used}</td>
+                            <td class="text-bold text-success">${u.remaining}</td>
+                            <td>
+                                <span class="badge ${statusClass}">${statusText}</span>
+                            </td>
+                            <td>
+                                <span class="badge ${pkgClass}">${u.packageName || "-"}</span>
+                            </td>
+                            <td class="mono" style="font-size:0.85rem;">${u.purchaseDate || "-"}</td>
+                            <td class="mono" style="font-size:0.85rem;">${u.expiryDate || "-"}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                // Update pagination controls
+                const startIdx = users.length > 0 ? (userCurrentPage * userPageSize) + 1 : 0;
+                const endIdx = userCurrentPage * userPageSize + users.length;
+                document.getElementById('userRecordsInfo').innerText = `Hiển thị ${startIdx} - ${endIdx} của ${totalElements} người dùng`;
+                
+                document.getElementById('userPrevBtn').disabled = (userCurrentPage === 0);
+                document.getElementById('userNextBtn').disabled = (userCurrentPage >= userTotalPages - 1);
+                document.getElementById('userPageIndicator').innerText = `Trang ${userCurrentPage + 1} / ${userTotalPages}`;
+            })
+            .catch(err => {
+                console.error(err);
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--danger);">Lỗi tải dữ liệu: ${err.message}</td></tr>`;
+                showToast(`Lỗi tải dữ liệu người dùng: ${err.message}`, "danger");
+            });
+        }
+
+        function refreshUserTab() {
+            document.getElementById('userSearchPhone').value = '';
+            document.getElementById('userFilterStatus').value = '';
+            document.getElementById('userFilterPackage').value = '';
+            userCurrentPage = 0;
+            showToast("Đã làm mới dữ liệu người dùng", "success");
+            filterUsers();
+        }
+
+        // Mock Data Generation for Transactions (Daily pkg: +3 credit, Weekly pkg: +21 credit)
+        const MOCK_REASONS = [
+            { reason: "Subscription: VIP_Daily", amount: 3, direction: "ADD", prefix: "SUB-", isFree: true, genType: "OTHER", model: "-" },
+            { reason: "Subscription: VIP_Weekly", amount: 21, direction: "ADD", prefix: "SUB-", isFree: true, genType: "OTHER", model: "-" },
+            { reason: "Reset balance to zero", amount: 0, direction: "DEDUCT", prefix: "RESET-", isFree: true, genType: "OTHER", model: "-" },
+            { reason: "DIY Ringback Tone generation", amount: 1, direction: "DEDUCT", prefix: "DIY-GEN-", isFree: true, genType: "DIY", model: "-" },
+            { reason: "AI Music (Real): Pop/Happy/Guitar", amount: 1, direction: "DEDUCT", prefix: "MUSIC-", isFree: false, genType: "AI", model: "Lyria-3-pro-preview" },
+            { reason: "AI Music (Random): Pop/Happy/Guitar", amount: 1, direction: "DEDUCT", prefix: "MUSIC-", isFree: true, genType: "AI", model: "Lyria-3-clip-preview" },
+            { reason: "Refund: AI Music Generation failed (Pop/Happy/Guitar)", amount: 1, direction: "ADD", prefix: "REFUND-MUSIC-", isFree: false, genType: "AI", model: "Lyria-3-pro-preview" },
+            { reason: "Refund: DIY Ringback Tone generation failed", amount: 1, direction: "ADD", prefix: "DIY-REFUND-", isFree: true, genType: "DIY", model: "-" }
+        ];
+
+        let mockTransactions = [];
+        let currentPage = 0;
+        let totalPages = 1;
+        let totalElements = 0;
+
+        function generateMockData() {
+            mockTransactions = [];
+            const baseTime = Date.now();
+            let userBalances = {};
+
+            let tempTxns = [];
+            // Generate 120 mock records from oldest to newest to compute running balance
+            for (let i = 120; i >= 1; i--) {
+                const item = MOCK_REASONS[Math.floor(Math.random() * MOCK_REASONS.length)];
+                const id = 1000 + (121 - i);
+                const userId = Math.floor(Math.random() * 20) + 100; // User IDs 100 to 120
+                const msisdn = "84987000" + userId;
+                
+                if (userBalances[userId] === undefined) {
+                    userBalances[userId] = 50; // start balance
+                }
+
+                let finalAmount = item.amount;
+                if (item.reason === "Reset balance to zero") {
+                    finalAmount = userBalances[userId];
+                }
+
+                let beforeBalance = userBalances[userId];
+                let afterBalance = beforeBalance;
+                if (item.direction === "ADD") {
+                    afterBalance = beforeBalance + finalAmount;
+                } else if (item.direction === "DEDUCT") {
+                    afterBalance = Math.max(0, beforeBalance - finalAmount);
+                    finalAmount = beforeBalance - afterBalance;
+                }
+                userBalances[userId] = afterBalance;
+
+                // Alternate AI models for variety in mock data
+                let modelName = item.model;
+                if (item.genType === 'AI') {
+                    modelName = Math.random() > 0.5 ? "Lyria-3-clip-preview" : "Lyria-3-pro-preview";
+                }
+
+                const refId = item.prefix + Math.floor(Math.random() * 900000 + 100000);
+                const eventTimestamp = baseTime - (i * 30 * 60 * 1000);
+
+                tempTxns.push({
+                    id: id,
+                    userId: userId,
+                    msisdn: msisdn,
+                    amount: finalAmount,
+                    direction: item.direction,
+                    beforeBalance: beforeBalance,
+                    afterBalance: afterBalance,
+                    reason: item.reason,
+                    referenceId: refId,
+                    timestamp: eventTimestamp,
+                    createdAt: new Date(eventTimestamp + 2000).toISOString(),
+                    isFree: item.isFree,
+                    genType: item.genType,
+                    model: modelName
+                });
+            }
+            tempTxns.sort((a, b) => b.timestamp - a.timestamp);
+            mockTransactions = tempTxns;
+        }
+
+        // Initialize mock data on startup
+        generateMockData();
+
+        window.onload = function() {
+            // Set default date range filters (past 7 days)
+            const today = new Date();
+            const lastWeek = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+            document.getElementById('filterToDate').value = today.toISOString().split('T')[0];
+            document.getElementById('filterFromDate').value = lastWeek.toISOString().split('T')[0];
+            
+            // Initial load
+            fetchData();
+            switchTab('user');
+        };
+
+        function toggleMockMode() {
+            const isMock = document.getElementById('mockToggle').checked;
+            showToast(isMock ? "Đã bật chế độ dữ liệu giả lập (Mock Mode)" : "Đang kết nối dữ liệu máy chủ thực tế", "success");
+            currentPage = 0;
+            fetchData();
+        }
+
+        function resetFilters() {
+            document.getElementById('filterMsisdn').value = '';
+            document.getElementById('filterUserId').value = '';
+            document.getElementById('filterDirection').value = '';
+            document.getElementById('filterReason').value = '';
+            const today = new Date();
+            const lastWeek = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+            document.getElementById('filterToDate').value = today.toISOString().split('T')[0];
+            document.getElementById('filterFromDate').value = lastWeek.toISOString().split('T')[0];
+            currentPage = 0;
+            fetchData();
+        }
+
+        function searchData() {
+            currentPage = 0;
+            fetchData();
+        }
+
+        function fetchData() {
+            const useMock = document.getElementById('mockToggle').checked;
+            
+            if (useMock) {
+                fetchMockData();
+            } else {
+                fetchRealData();
+            }
+        }
+
+        function fetchMockData() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('tableContainer').style.display = 'block';
+
+            // Gather filters
+            const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
+            const filterUser = document.getElementById('filterUserId').value.trim();
+            const filterDir = document.getElementById('filterDirection').value;
+            const filterReas = document.getElementById('filterReason').value.toLowerCase();
+            const filterFrom = document.getElementById('filterFromDate').value;
+            const filterTo = document.getElementById('filterToDate').value;
+            const pageSize = parseInt(document.getElementById('filterPageSize').value);
+
+            // Filter the mock data list
+            let filtered = [...mockTransactions];
+
+            if (filterMsisdn) {
+                filtered = filtered.filter(tx => tx.msisdn.includes(filterMsisdn));
+            }
+            if (filterUser) {
+                filtered = filtered.filter(tx => tx.userId.toString() === filterUser);
+            }
+            if (filterDir) {
+                filtered = filtered.filter(tx => tx.direction === filterDir);
+            }
+            if (filterReas) {
+                filtered = filtered.filter(tx => tx.reason.toLowerCase().includes(filterReas));
+            }
+            if (filterFrom) {
+                const fromMs = new Date(filterFrom + "T00:00:00").getTime();
+                filtered = filtered.filter(tx => tx.timestamp >= fromMs);
+            }
+            if (filterTo) {
+                const toMs = new Date(filterTo + "T23:59:59").getTime();
+                filtered = filtered.filter(tx => tx.timestamp <= toMs);
+            }
+
+            totalElements = filtered.length;
+            totalPages = Math.ceil(totalElements / pageSize) || 1;
+            
+            // Slice page
+            const startIdx = currentPage * pageSize;
+            const endIdx = startIdx + pageSize;
+            const pageData = filtered.slice(startIdx, endIdx);
+
+            // Compute statistics
+            calculateStats(filtered);
+
+            // Render Table
+            renderTable(pageData);
+        }
+
+        function fetchRealData() {
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            const adminId = document.getElementById('jwtHeader').value.trim();
+            
+            // Gather filters
+            const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
+            const filterUser = document.getElementById('filterUserId').value.trim();
+            const filterDir = document.getElementById('filterDirection').value;
+            const filterReas = document.getElementById('filterReason').value.trim();
+            const filterFrom = document.getElementById('filterFromDate').value;
+            const filterTo = document.getElementById('filterToDate').value;
+            const pageSize = parseInt(document.getElementById('filterPageSize').value);
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('tableContainer').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'none';
+
+            // Phase 1: Resolve MSISDN to User ID if MSISDN filter is filled
+            if (filterMsisdn) {
+                document.getElementById('loadingOverlay').querySelector('span').innerText = `Đang tra cứu số điện thoại ${filterMsisdn}...`;
+                
+                fetch(`${gatewayUrl}/auth-service/internal/crbt/user-credit/${filterMsisdn}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-User-Id': adminId // Injected for gateway authentication pass
+                    }
+                })
+                .then(res => {
+                    if (res.status === 404) {
+                        throw new Error("USER_NOT_FOUND");
+                    }
+                    if (!res.ok) throw new Error(`HTTP Error ${res.status} resolving MSISDN`);
+                    return res.json();
+                })
+                .then(userCredit => {
+                    const resolvedUserId = userCredit.userId;
+                    // Proceed to fetch history with resolved User ID
+                    queryHistory(gatewayUrl, resolvedUserId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize);
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    document.getElementById('emptyState').style.display = 'flex';
+                    if (err.message === "USER_NOT_FOUND") {
+                        showToast(`Không tìm thấy User cho số điện thoại: ${filterMsisdn}`, "danger");
+                    } else {
+                        showToast("Lỗi khi kết nối dịch vụ Auth Service. Vui lòng kiểm tra lại cấu hình Gateway.", "danger");
+                    }
+                });
+            } else {
+                // If no MSISDN filter, use target User ID if entered, otherwise default to adminId
+                const targetUserId = filterUser ? filterUser : adminId;
+                queryHistory(gatewayUrl, targetUserId, null, filterDir, filterReas, filterFrom, filterTo, pageSize);
+            }
+        }
+
+        function queryHistory(gatewayUrl, targetUserId, searchMsisdn, filterDir, filterReas, filterFrom, filterTo, pageSize) {
+            document.getElementById('loadingOverlay').querySelector('span').innerText = `Đang tải giao dịch của User ID ${targetUserId}...`;
+
+            // Construct Query parameters
+            let queryParams = new URLSearchParams();
+            if (filterDir) queryParams.append('direction', filterDir);
+            if (filterReas) queryParams.append('reason', filterReas);
+            if (filterFrom) {
+                queryParams.append('fromTs', new Date(filterFrom + "T00:00:00").getTime());
+            }
+            if (filterTo) {
+                queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
+            }
+            queryParams.append('page', currentPage);
+            queryParams.append('size', pageSize);
+
+            fetch(`${gatewayUrl}/credit-transactions/history?${queryParams.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Id': targetUserId
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+                return res.json();
+            })
+            .then(resData => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('tableContainer').style.display = 'block';
+
+                if (resData.code === "SUCCESS" && resData.data) {
+                    let content = resData.data.content || [];
+                    totalElements = resData.data.totalElements || 0;
+                    totalPages = resData.data.totalPages || 1;
+                    
+                    // Attach searchMsisdn to results if we queried by one
+                    content = content.map(tx => {
+                        return { ...tx, msisdn: searchMsisdn || "-" };
+                    });
+
+                    renderTable(content);
+                    calculateStats(content);
+                } else {
+                    showToast(resData.message || "Không thể lấy dữ liệu", "danger");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'flex';
+                showToast("Lỗi khi tải lịch sử giao dịch từ API Gateway.", "danger");
+            });
+        }
+
+        function calculateStats(dataList) {
+            let totalCount = dataList.length;
+            let totalAdd = 0;
+            let totalDeduct = 0;
+
+            dataList.forEach(tx => {
+                if (tx.direction === 'ADD') {
+                    totalAdd += tx.amount;
+                } else if (tx.direction === 'DEDUCT') {
+                    totalDeduct += tx.amount;
+                }
+            });
+
+            document.getElementById('statTotalCount').innerText = totalCount;
+            document.getElementById('statTotalAdd').innerText = `+${totalAdd}`;
+            document.getElementById('statTotalDeduct').innerText = `-${totalDeduct}`;
+            
+            const netFlow = totalAdd - totalDeduct;
+            const netEl = document.getElementById('statNetFlow');
+            netEl.innerText = (netFlow >= 0 ? "+" : "") + netFlow;
+            netEl.className = 'stat-value ' + (netFlow >= 0 ? 'text-success' : 'text-danger');
+        }
+
+        function renderTable(transactions) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+            
+            if (transactions.length === 0) {
+                document.getElementById('tableContainer').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'flex';
+                updatePaginationControls();
+                return;
+            }
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('tableContainer').style.display = 'block';
+
+            transactions.forEach(tx => {
+                const tr = document.createElement('tr');
+                
+                const directionBadge = tx.direction === 'ADD' 
+                    ? `<span class="badge badge-add">Cộng (ADD)</span>`
+                    : `<span class="badge badge-deduct">Trừ (DEDUCT)</span>`;
+
+                const mutationText = tx.direction === 'ADD'
+                    ? `<span class="text-bold text-success">+${tx.amount}</span>`
+                    : `<span class="text-bold text-danger">-${tx.amount}</span>`;
+
+                // Gen Type Badge
+                let genTypeBadge = `<span class="badge" style="background-color: rgba(156, 163, 175, 0.1); color: var(--text-secondary); border: 1px solid rgba(156, 163, 175, 0.2);">Khác</span>`;
+                if (tx.genType === 'AI') {
+                    genTypeBadge = `<span class="badge" style="background-color: rgba(99, 102, 241, 0.1); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.2);">AI</span>`;
+                } else if (tx.genType === 'DIY') {
+                    genTypeBadge = `<span class="badge" style="background-color: rgba(168, 85, 247, 0.1); color: var(--accent); border: 1px solid rgba(168, 85, 247, 0.2);">DIY</span>`;
+                }
+
+                // Cost/Is Free Badge
+                let costBadge;
+                if (tx.genType === 'AI') {
+                    costBadge = tx.isFree 
+                        ? `<span class="badge" style="background-color: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);">Miễn phí</span>`
+                        : `<span class="badge" style="background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);">Mất phí</span>`;
+                } else {
+                    costBadge = `<span class="mono" style="color: var(--text-secondary); font-size: 0.8rem;">-</span>`;
+                }
+
+                // Model Column value
+                let modelVal = tx.model || "-";
+                let modelBadge = modelVal !== "-" 
+                    ? `<span class="badge" style="background-color: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size:0.8rem; font-family: monospace;">${modelVal}</span>`
+                    : `<span style="color: var(--text-secondary); font-family: monospace;">-</span>`;
+
+                const eventTime = new Date(tx.timestamp).toLocaleString('vi-VN');
+
+                tr.innerHTML = `
+                    <td class="mono font-bold">${tx.id}</td>
+                    <td class="mono text-success text-bold">${tx.msisdn || '-'}</td>
+                    <td class="mono">${tx.userId}</td>
+                    <td>${directionBadge}</td>
+                    <td class="mono text-bold">${tx.beforeBalance !== undefined ? tx.beforeBalance : "-"}</td>
+                    <td class="mono text-bold">${tx.afterBalance !== undefined ? tx.afterBalance : "-"}</td>
+                    <td>${mutationText}</td>
+                    <td>${genTypeBadge}</td>
+                    <td>${modelBadge}</td>
+                    <td>${costBadge}</td>
+                    <td style="max-width: 250px; white-space: normal;">${tx.reason}</td>
+                    <td class="mono">${tx.referenceId || '-'}</td>
+                    <td class="mono" style="font-size:0.8rem;">${eventTime}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            updatePaginationControls();
+        }
+
+        function updatePaginationControls() {
+            const pageSize = parseInt(document.getElementById('filterPageSize').value);
+            const startRecord = totalElements === 0 ? 0 : (currentPage * pageSize) + 1;
+            const endRecord = Math.min((currentPage + 1) * pageSize, totalElements);
+            
+            document.getElementById('recordsInfo').innerText = 
+                `Hiển thị ${startRecord} - ${endRecord} của ${totalElements} giao dịch`;
+            
+            document.getElementById('pageIndicator').innerText = 
+                `Trang ${currentPage + 1} / ${totalPages}`;
+
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').disabled = (currentPage + 1) >= totalPages;
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            fetchData();
+        }
+
+        function exportData() {
+            const useMock = document.getElementById('mockToggle').checked;
+            if (useMock) {
+                exportMockCSV();
+            } else {
+                exportRealCSV();
+            }
+        }
+
+        function exportMockCSV() {
+            // Gather filters and filter local mock data list
+            const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
+            const filterUser = document.getElementById('filterUserId').value.trim();
+            const filterDir = document.getElementById('filterDirection').value;
+            const filterReas = document.getElementById('filterReason').value.toLowerCase();
+            const filterFrom = document.getElementById('filterFromDate').value;
+            const filterTo = document.getElementById('filterToDate').value;
+
+            let filtered = [...mockTransactions];
+
+            if (filterMsisdn) filtered = filtered.filter(tx => tx.msisdn.includes(filterMsisdn));
+            if (filterUser) filtered = filtered.filter(tx => tx.userId.toString() === filterUser);
+            if (filterDir) filtered = filtered.filter(tx => tx.direction === filterDir);
+            if (filterReas) filtered = filtered.filter(tx => tx.reason.toLowerCase().includes(filterReas));
+            if (filterFrom) {
+                const fromMs = new Date(filterFrom + "T00:00:00").getTime();
+                filtered = filtered.filter(tx => tx.timestamp >= fromMs);
+            }
+            if (filterTo) {
+                const toMs = new Date(filterTo + "T23:59:59").getTime();
+                filtered = filtered.filter(tx => tx.timestamp <= toMs);
+            }
+
+            let csvContent = "ID,Số điện thoại (MSISDN),User ID,Loại giao dịch,Credit trước,Credit sau,Biến động,Loại,Model,Chi phí API,Reason,Reference ID,Thời gian giao dịch\n";
+            filtered.forEach(tx => {
+                const apiCost = tx.genType === 'AI' ? (tx.isFree ? "Miễn phí" : "Mất phí") : "-";
+                csvContent += `${tx.id},${tx.msisdn},${tx.userId},${tx.direction},${tx.beforeBalance},${tx.afterBalance},${tx.direction === 'ADD' ? '+' : '-'}${tx.amount},${tx.genType},${tx.model || "-"},${apiCost},"${tx.reason}",${tx.referenceId || ""},"${new Date(tx.timestamp).toLocaleString('vi-VN')}"\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `credit_transactions_mock_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Đã xuất file CSV (Mock Data) thành công!", "success");
+        }
+
+        function exportRealCSV() {
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            const adminId = document.getElementById('jwtHeader').value.trim();
+            
+            const filterMsisdn = document.getElementById('filterMsisdn').value.trim();
+            const filterUser = document.getElementById('filterUserId').value.trim();
+            const filterDir = document.getElementById('filterDirection').value;
+            const filterReas = document.getElementById('filterReason').value.trim();
+            const filterFrom = document.getElementById('filterFromDate').value;
+            const filterTo = document.getElementById('filterToDate').value;
+
+            if (filterMsisdn) {
+                showToast(`Đang tra cứu số điện thoại ${filterMsisdn} để xuất báo cáo...`, "info");
+                fetch(`${gatewayUrl}/auth-service/internal/crbt/user-credit/${filterMsisdn}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-User-Id': adminId
+                    }
+                })
+                .then(res => {
+                    if (res.status === 404) throw new Error("USER_NOT_FOUND");
+                    if (!res.ok) throw new Error(`HTTP Error ${res.status} resolving MSISDN`);
+                    return res.json();
+                })
+                .then(userCredit => {
+                    const resolvedUserId = userCredit.userId;
+                    triggerRealCSVDownload(gatewayUrl, resolvedUserId, filterMsisdn, filterDir, filterReas, filterFrom, filterTo);
+                })
+                .catch(err => {
+                    console.error(err);
+                    if (err.message === "USER_NOT_FOUND") {
+                        showToast(`Không tìm thấy User cho số điện thoại: ${filterMsisdn}`, "danger");
+                    } else {
+                        showToast("Lỗi khi kết nối dịch vụ Auth Service.", "danger");
+                    }
+                });
+            } else {
+                const targetUserId = filterUser ? filterUser : adminId;
+                triggerRealCSVDownload(gatewayUrl, targetUserId, null, filterDir, filterReas, filterFrom, filterTo);
+            }
+        }
+
+        function triggerRealCSVDownload(gatewayUrl, targetUserId, searchMsisdn, filterDir, filterReas, filterFrom, filterTo) {
+            let queryParams = new URLSearchParams();
+            if (filterDir) queryParams.append('direction', filterDir);
+            if (filterReas) queryParams.append('reason', filterReas);
+            if (filterFrom) {
+                queryParams.append('fromTs', new Date(filterFrom + "T00:00:00").getTime());
+            }
+            if (filterTo) {
+                queryParams.append('toTs', new Date(filterTo + "T23:59:59").getTime());
+            }
+
+            showToast("Đang tải xuống file CSV đối soát...", "success");
+
+            fetch(`${gatewayUrl}/credit-transactions/export?${queryParams.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'X-User-Id': targetUserId
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+                return res.blob();
+            })
+            .then(blob => {
+                return blob.text().then(text => {
+                    // Since CSV from server only has User ID, we dynamically inject MSISDN column if searchMsisdn is present
+                    let lines = text.split('\n');
+                    if (lines.length > 0 && searchMsisdn) {
+                        lines[0] = lines[0].replace("User ID", "Số điện thoại (MSISDN),User ID");
+                        for (let i = 1; i < lines.length; i++) {
+                            if (lines[i].trim() === "") continue;
+                            const firstComma = lines[i].indexOf(',');
+                            const secondComma = lines[i].indexOf(',', firstComma + 1);
+                            lines[i] = lines[i].substring(0, secondComma) + `,${searchMsisdn}` + lines[i].substring(secondComma);
+                        }
+                    }
+                    const newBlob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(newBlob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `credit_transactions_${targetUserId}_${Date.now()}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast("Tải về file CSV đối soát thành công!", "success");
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                showToast("Lỗi khi xuất file từ API Gateway.", "danger");
+            });
+        }
+
+        // Custom Toast Helper
+        function showToast(message, type = "info") {
+            const toast = document.getElementById('toast');
+            const messageEl = document.getElementById('toastMessage');
+            const iconEl = document.getElementById('toastIcon');
+
+            messageEl.innerText = message;
+            toast.className = 'toast show ' + type;
+
+            if (type === "success") {
+                iconEl.innerText = "✅";
+            } else if (type === "danger") {
+                iconEl.innerText = "❌";
+            } else {
+                iconEl.innerText = "ℹ️";
+            }
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>

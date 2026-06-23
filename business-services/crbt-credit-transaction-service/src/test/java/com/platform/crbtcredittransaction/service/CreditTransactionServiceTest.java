@@ -55,4 +55,25 @@ class CreditTransactionServiceTest {
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("ID,User ID,Before Balance,After Balance,Amount,Direction,Gen Type,Model,Is Free,Reason,Reference ID,Timestamp,Created At"));
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("1,,,100,IN,OTHER,,false,\"Reason\",REF-1,1000"));
     }
+
+    @Test
+    void getStatsByUserIds_shouldReturnCorrectStats() {
+        java.util.List<Object[]> mockRows = java.util.List.of(
+            new Object[]{1L, "ADD", 10L},
+            new Object[]{1L, "DEDUCT", 3L},
+            new Object[]{2L, "ADD", 5L}
+        );
+        when(repository.getStatsByUserIds(java.util.List.of(1L, 2L, 3L))).thenReturn(mockRows);
+
+        java.util.Map<Long, com.platform.crbtcredittransaction.dto.response.UserCreditStats> stats = service.getStatsByUserIds(java.util.List.of(1L, 2L, 3L));
+
+        assertNotNull(stats);
+        assertEquals(3, stats.size());
+        assertEquals(10L, stats.get(1L).getPurchased());
+        assertEquals(3L, stats.get(1L).getUsed());
+        assertEquals(5L, stats.get(2L).getPurchased());
+        assertEquals(0L, stats.get(2L).getUsed());
+        assertEquals(0L, stats.get(3L).getPurchased());
+        assertEquals(0L, stats.get(3L).getUsed());
+    }
 }

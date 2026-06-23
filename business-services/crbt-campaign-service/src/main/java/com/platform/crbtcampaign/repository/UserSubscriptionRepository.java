@@ -11,5 +11,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
         UserSubscription.Status status, boolean autoRenew, Instant expiresAt);
     List<UserSubscription> findByStatusInAndExpiresAtBefore(
         List<UserSubscription.Status> statuses, Instant expiresAt);
+
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM UserSubscription s JOIN FETCH s.campaignPackage WHERE s.userId IN :userIds")
+    List<UserSubscription> findByUserIds(@org.springframework.data.repository.query.Param("userIds") List<Long> userIds);
 }
 
