@@ -26,6 +26,7 @@ import com.platform.crbtcampaign.dto.response.GenerateMusicResponse;
 import com.platform.crbtcampaign.entity.UserSubscription;
 import com.platform.crbtcampaign.exception.CampaignErrorCode;
 import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
+import java.math.BigDecimal;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -234,8 +235,32 @@ public class MusicGenerationService {
             try {
                 UserLyriaHistory history = new UserLyriaHistory(userId, msisdn, title, genre, mood, instrument, url);
                 history.setDurationSeconds(durationSeconds);
+
+                BigDecimal cost = BigDecimal.ZERO;
+                if (isReal) {
+                    try {
+                        org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                            (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+                        if (attributes != null) {
+                            jakarta.servlet.http.HttpServletRequest req = attributes.getRequest();
+                            Object tokenUsageObj = req.getAttribute("lyria_token_usage");
+                            if (tokenUsageObj instanceof Map) {
+                                Map<String, Object> tokenUsage = (Map<String, Object>) tokenUsageObj;
+                                Object totalTokensObj = tokenUsage.get("total_tokens");
+                                if (totalTokensObj instanceof Number) {
+                                    long totalTokens = ((Number) totalTokensObj).longValue();
+                                    cost = BigDecimal.valueOf(totalTokens).multiply(new BigDecimal("0.000001"));
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Failed to extract cost for new history item: {}", ex.getMessage());
+                    }
+                }
+                history.setEstimatedCostUsd(cost);
+
                 historyRepository.save(history);
-                log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}, durationSeconds={}", userId, title, url, durationSeconds);
+                log.info("[GENERATE-HISTORY-SAVE] Saved to user_lyria_history. userId={}, title={}, url={}, durationSeconds={}, estimatedCostUsd={}", userId, title, url, durationSeconds, cost);
             } catch (Exception dbEx) {
                 log.error("[GENERATE-HISTORY-ERROR] Failed to save history to DB: {}", dbEx.getMessage(), dbEx);
                 // Do not fail the request if history database insertion fails
@@ -470,7 +495,9 @@ public class MusicGenerationService {
                     "AI",
                     tags,
                     item.getAudioUrl(),
-                    item.getCreatedAt()
+                    item.getCreatedAt(),
+                    null,
+                    item.getEstimatedCostUsd()
                 ));
             }
         }
@@ -514,7 +541,9 @@ public class MusicGenerationService {
                                 "DIY",
                                 List.of("diy", "mixed"),
                                 url,
-                                item.createdAt()
+                                item.createdAt(),
+                                null,
+                                BigDecimal.ZERO
                             ));
                         }
                     }
@@ -614,7 +643,9 @@ public class MusicGenerationService {
                 "AI",
                 tags,
                 history.getAudioUrl(),
-                history.getCreatedAt()
+                history.getCreatedAt(),
+                null,
+                history.getEstimatedCostUsd()
             );
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
@@ -645,7 +676,9 @@ public class MusicGenerationService {
                     "DIY",
                     List.of("diy", "mixed"),
                     item.resultUrl(),
-                    item.createdAt()
+                    item.createdAt(),
+                    null,
+                    BigDecimal.ZERO
                 );
             } catch (BaseException be) {
                 throw be;
@@ -765,7 +798,8 @@ public class MusicGenerationService {
                     tags,
                     item.getAudioUrl(),
                     item.getCreatedAt(),
-                    item.getMsisdn()
+                    item.getMsisdn(),
+                    item.getEstimatedCostUsd()
                 ));
             }
         }
@@ -795,7 +829,8 @@ public class MusicGenerationService {
                                 List.of("diy", "mixed"),
                                 item.resultUrl(),
                                 item.createdAt(),
-                                item.msisdn()
+                                item.msisdn(),
+                                BigDecimal.ZERO
                             ));
                         }
                     }
@@ -842,7 +877,7 @@ public class MusicGenerationService {
             if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
             tags.add(item.getDurationSeconds() + "s");
 
-            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn());
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn(), item.getEstimatedCostUsd());
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
             String authHeader = getAuthHeader();
@@ -868,7 +903,8 @@ public class MusicGenerationService {
                 List.of("diy", "mixed"),
                 item.resultUrl(),
                 item.createdAt(),
-                item.msisdn()
+                item.msisdn(),
+                BigDecimal.ZERO
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");
@@ -936,7 +972,8 @@ public class MusicGenerationService {
                 responseTags,
                 item.getAudioUrl(),
                 item.getCreatedAt(),
-                item.getMsisdn()
+                item.getMsisdn(),
+                item.getEstimatedCostUsd()
             );
         } else if ("DIY".equals(source)) {
             String authHeader = getAuthHeader();
@@ -964,7 +1001,8 @@ public class MusicGenerationService {
                 List.of("diy", "mixed"),
                 item.resultUrl(),
                 item.createdAt(),
-                item.msisdn()
+                item.msisdn(),
+                BigDecimal.ZERO
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown source type");
@@ -993,7 +1031,7 @@ public class MusicGenerationService {
             if (item.getInstrument() != null && !item.getInstrument().isBlank()) tags.add(item.getInstrument().toLowerCase());
             tags.add(item.getDurationSeconds() + "s");
 
-            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn());
+            return new MyLibraryItemResponse("AI_" + item.getId(), item.getTitle(), "AI", tags, item.getAudioUrl(), item.getCreatedAt(), item.getMsisdn(), item.getEstimatedCostUsd());
         } else if (unifiedId.startsWith("DIY_")) {
             Long jobId = Long.parseLong(unifiedId.substring(4));
             String authHeader = getAuthHeader();
@@ -1022,7 +1060,8 @@ public class MusicGenerationService {
                 List.of("diy", "mixed"),
                 item.resultUrl(),
                 item.createdAt(),
-                item.msisdn()
+                item.msisdn(),
+                BigDecimal.ZERO
             );
         } else {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Unknown prefix");

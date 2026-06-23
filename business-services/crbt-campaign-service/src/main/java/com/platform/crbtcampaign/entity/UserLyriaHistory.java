@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -48,6 +49,9 @@ public class UserLyriaHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "estimated_cost_usd", nullable = false, precision = 12, scale = 4)
+    private BigDecimal estimatedCostUsd = BigDecimal.ZERO;
+
     protected UserLyriaHistory() {}
 
     public UserLyriaHistory(Long userId, String msisdn, String title, String genre, String mood, String instrument, String audioUrl) {
@@ -60,6 +64,7 @@ public class UserLyriaHistory {
         this.audioUrl = audioUrl;
         this.durationSeconds = 30;
         this.deleted = false;
+        this.estimatedCostUsd = BigDecimal.ZERO;
     }
 
     public Long getId() { return id; }
@@ -76,4 +81,6 @@ public class UserLyriaHistory {
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public Instant getCreatedAt() { return createdAt; }
+    public BigDecimal getEstimatedCostUsd() { return estimatedCostUsd; }
+    public void setEstimatedCostUsd(BigDecimal estimatedCostUsd) { this.estimatedCostUsd = estimatedCostUsd; }
 }
