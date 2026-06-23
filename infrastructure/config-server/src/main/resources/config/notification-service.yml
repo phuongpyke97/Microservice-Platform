@@ -9,14 +9,6 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
-
-mail:
-  host: ${SMTP_HOST:smtp.gmail.com}
-  port: ${SMTP_PORT:587}
-  username: ${SMTP_USER:}
-  password: ${SMTP_PASSWORD:}
-
-spring:
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
@@ -28,6 +20,12 @@ spring:
           auth: true
           starttls:
             enable: true
+
+mail:
+  host: ${SMTP_HOST:smtp.gmail.com}
+  port: ${SMTP_PORT:587}
+  username: ${SMTP_USER:}
+  password: ${SMTP_PASSWORD:}
 
 sms:
   endpoint: ${SMS_ENDPOINT:}
