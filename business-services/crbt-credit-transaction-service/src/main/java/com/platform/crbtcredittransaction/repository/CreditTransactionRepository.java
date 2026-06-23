@@ -21,7 +21,7 @@ public interface CreditTransactionRepository extends JpaRepository<CreditTransac
 
     @Query("SELECT t.direction, COALESCE(SUM(t.amount), 0) " +
            "FROM CreditTransaction t " +
-           "WHERE t.userId = :userId " +
+           "WHERE (:userId IS NULL OR t.userId = :userId) " +
            "AND (:direction IS NULL OR t.direction = :direction) " +
            "AND (:reason IS NULL OR t.reason = :reason) " +
            "AND (:fromTs IS NULL OR t.timestamp >= :fromTs) " +

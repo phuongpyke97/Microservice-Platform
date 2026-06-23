@@ -48,14 +48,18 @@ public class CreditTransactionController {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
 
-        Long targetUserId = currentUserId;
+        List<String> roles = SecurityUtils.getCurrentUserRoles();
+        boolean isAdmin = roles != null && roles.contains("ADMIN");
+
+        Long targetUserId;
         if (userId != null) {
-            List<String> roles = SecurityUtils.getCurrentUserRoles();
-            if (roles != null && roles.contains("ADMIN")) {
+            if (isAdmin) {
                 targetUserId = userId;
             } else {
                 throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN, "Access denied. Only admin can query other user's history.");
             }
+        } else {
+            targetUserId = isAdmin ? null : currentUserId;
         }
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
@@ -74,14 +78,18 @@ public class CreditTransactionController {
             throw new BaseException(CommonErrorCode.COMMON_UNAUTHORIZED);
         }
 
-        Long targetUserId = currentUserId;
+        List<String> roles = SecurityUtils.getCurrentUserRoles();
+        boolean isAdmin = roles != null && roles.contains("ADMIN");
+
+        Long targetUserId;
         if (userId != null) {
-            List<String> roles = SecurityUtils.getCurrentUserRoles();
-            if (roles != null && roles.contains("ADMIN")) {
+            if (isAdmin) {
                 targetUserId = userId;
             } else {
                 throw new BaseException(CommonErrorCode.COMMON_FORBIDDEN, "Access denied. Only admin can export other user's history.");
             }
+        } else {
+            targetUserId = isAdmin ? null : currentUserId;
         }
 
         String csv = creditTransactionService.exportCsv(targetUserId, direction, reason, fromTs, toTs);
