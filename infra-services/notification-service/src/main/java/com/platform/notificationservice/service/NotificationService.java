@@ -6,6 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import jakarta.mail.internet.MimeMessage;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -17,12 +20,14 @@ public class NotificationService {
 
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
+    private final JavaMailSender mailSender;
     private String emailSubjectTemplate;
     private String emailBodyTemplate;
 
-    public NotificationService(ObjectMapper objectMapper, ResourceLoader resourceLoader) {
+    public NotificationService(ObjectMapper objectMapper, ResourceLoader resourceLoader, JavaMailSender mailSender) {
         this.objectMapper = objectMapper;
         this.resourceLoader = resourceLoader;
+        this.mailSender = mailSender;
     }
 
     @jakarta.annotation.PostConstruct
@@ -80,5 +85,21 @@ public class NotificationService {
         log.warn("Subject: {}", subject);
         log.warn("Body:\n{}", body);
         log.warn("=============================================");
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(email);
+            helper.setSubject(subject);
+            helper.setText(body, false); // plain text
+            
+            // Extract from address from mail username or default
+            helper.setFrom("ai-crbt-system@platform.com");
+            
+            mailSender.send(message);
+            log.info("[EMAIL-SUCCESS] Real cost alert email sent successfully to: {}", email);
+        } catch (Exception e) {
+            log.error("[EMAIL-FAILED] Failed to send real cost alert email to: {}", email, e);
+        }
     }
 }

@@ -16,6 +16,19 @@ mail:
   username: ${SMTP_USER:}
   password: ${SMTP_PASSWORD:}
 
+spring:
+  mail:
+    host: ${mail.host}
+    port: ${mail.port}
+    username: ${mail.username}
+    password: ${mail.password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 sms:
   endpoint: ${SMS_ENDPOINT:}
   api-key: ${SMS_API_KEY:}
