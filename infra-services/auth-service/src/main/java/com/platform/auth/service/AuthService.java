@@ -138,11 +138,43 @@ public class AuthService {
         }
     }
 
+    private java.time.Instant parseInstant(String tsStr, boolean isEndOfDay) {
+        if (tsStr == null || tsStr.isBlank()) {
+            return null;
+        }
+        try {
+            tsStr = tsStr.trim();
+            if (tsStr.matches("^\\d+$")) {
+                return java.time.Instant.ofEpochMilli(Long.parseLong(tsStr));
+            }
+            if (tsStr.endsWith("Z") || tsStr.contains("+") || (tsStr.contains("-") && tsStr.lastIndexOf("-") > 7 && tsStr.contains("T") && (tsStr.contains(":") && (tsStr.contains("+") || tsStr.substring(tsStr.lastIndexOf(":")).contains("-"))))) {
+                return java.time.Instant.parse(tsStr);
+            }
+            if (tsStr.contains(" ") && !tsStr.contains("T")) {
+                tsStr = tsStr.replace(" ", "T");
+            }
+            if (tsStr.contains("T")) {
+                return java.time.LocalDateTime.parse(tsStr).atZone(java.time.ZoneId.systemDefault()).toInstant();
+            } else {
+                java.time.LocalDate date = java.time.LocalDate.parse(tsStr);
+                if (isEndOfDay) {
+                    return date.atTime(23, 59, 59, 999999999).atZone(java.time.ZoneId.systemDefault()).toInstant();
+                } else {
+                    return date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+                }
+            }
+        } catch (Exception e) {
+            throw new BaseException(com.platform.common.core.exception.CommonErrorCode.COMMON_BAD_REQUEST, "Invalid timestamp format: " + tsStr);
+        }
+    }
+
     @Transactional(readOnly = true)
     public com.platform.common.core.response.PageResponse<UserResponse> searchUsers(
-            String msisdn, String statusStr, org.springframework.data.domain.Pageable pageable) {
+            String msisdn, String statusStr, String startTimeStr, String endTimeStr, org.springframework.data.domain.Pageable pageable) {
         UserStatus status = parseStatus(statusStr);
-        Page<User> page = userRepository.searchUsers(msisdn, status, pageable);
+        java.time.Instant startTime = parseInstant(startTimeStr, false);
+        java.time.Instant endTime = parseInstant(endTimeStr, true);
+        Page<User> page = userRepository.searchUsers(msisdn, status, startTime, endTime, pageable);
         return com.platform.common.core.response.PageResponse.from(page.map(u -> new UserResponse(
                 u.getId(),
                 u.getMsisdn(),
@@ -153,9 +185,11 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public List<Long> searchUserIds(String msisdn, String statusStr) {
+    public List<Long> searchUserIds(String msisdn, String statusStr, String startTimeStr, String endTimeStr) {
         UserStatus status = parseStatus(statusStr);
-        return userRepository.searchUserIds(msisdn, status);
+        java.time.Instant startTime = parseInstant(startTimeStr, false);
+        java.time.Instant endTime = parseInstant(endTimeStr, true);
+        return userRepository.searchUserIds(msisdn, status, startTime, endTime);
     }
 
     private String mask(String msisdn) {

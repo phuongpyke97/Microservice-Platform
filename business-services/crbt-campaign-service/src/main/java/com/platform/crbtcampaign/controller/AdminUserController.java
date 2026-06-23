@@ -29,11 +29,13 @@ public class AdminUserController {
             @RequestParam(required = false) String msisdn,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String packageName,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         requireAdminRole();
         UserCreditSummaryPageWithStats result = adminUserService.getUsersCreditSummary(
-            msisdn, status, packageName, page, size
+            msisdn, status, packageName, startTime, endTime, page, size
         );
         return ApiResponse.success(result);
     }

@@ -19,6 +19,8 @@ public interface AuthServiceClient {
     PageResponse<UserResponse> getUsers(
             @RequestParam(value = "msisdn", required = false) String msisdn,
             @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "endTime", required = false) String endTime,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size
     );
@@ -26,6 +28,8 @@ public interface AuthServiceClient {
     @GetMapping("/internal/crbt/users/ids")
     java.util.List<Long> getUserIds(
             @RequestParam(value = "msisdn", required = false) String msisdn,
-            @RequestParam(value = "status", required = false) String status
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "endTime", required = false) String endTime
     );
 }

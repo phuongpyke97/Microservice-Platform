@@ -41,10 +41,10 @@ public class AdminUserService {
     }
 
     public UserCreditSummaryPageWithStats getUsersCreditSummary(
-            String msisdn, String status, String packageName, int page, int size) {
+            String msisdn, String status, String packageName, String startTime, String endTime, int page, int size) {
         
         // 1. Fetch paginated users from Auth Service
-        PageResponse<UserResponse> authUsersPage = authServiceClient.getUsers(msisdn, status, page, size);
+        PageResponse<UserResponse> authUsersPage = authServiceClient.getUsers(msisdn, status, startTime, endTime, page, size);
         if (authUsersPage == null || authUsersPage.content() == null || authUsersPage.content().isEmpty()) {
             return new UserCreditSummaryPageWithStats(
                 PageResponse.from(new org.springframework.data.domain.PageImpl<>(
@@ -148,7 +148,7 @@ public class AdminUserService {
         // Calculate statistics for all matching users (across all pages)
         List<Long> allMatchingUserIds = new ArrayList<>();
         try {
-            allMatchingUserIds = authServiceClient.getUserIds(msisdn, status);
+            allMatchingUserIds = authServiceClient.getUserIds(msisdn, status, startTime, endTime);
         } catch (Exception e) {
             // Fallback
         }
@@ -175,7 +175,7 @@ public class AdminUserService {
         long activeUsersCount = 0;
         if (status == null || status.isEmpty()) {
             try {
-                PageResponse<UserResponse> activeUsersPage = authServiceClient.getUsers(msisdn, "ACTIVE", 0, 1);
+                PageResponse<UserResponse> activeUsersPage = authServiceClient.getUsers(msisdn, "ACTIVE", startTime, endTime, 0, 1);
                 if (activeUsersPage != null) {
                     activeUsersCount = activeUsersPage.totalElements();
                 }

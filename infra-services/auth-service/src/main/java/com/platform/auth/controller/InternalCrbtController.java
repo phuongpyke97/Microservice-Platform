@@ -60,18 +60,22 @@ public class InternalCrbtController {
     public ResponseEntity<com.platform.common.core.response.PageResponse<com.platform.auth.dto.response.UserResponse>> getUsers(
             @org.springframework.web.bind.annotation.RequestParam(required = false) String msisdn,
             @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String startTime,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String endTime,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
         org.springframework.data.domain.PageRequest pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        return ResponseEntity.ok(authService.searchUsers(msisdn, status, pageable));
+        return ResponseEntity.ok(authService.searchUsers(msisdn, status, startTime, endTime, pageable));
     }
 
     @GetMapping("/users/ids")
     public ResponseEntity<List<Long>> getUserIds(
             @org.springframework.web.bind.annotation.RequestParam(required = false) String msisdn,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String status) {
-        log.info("[CRBT-GET-USER-IDS] msisdn={}, status={}", mask(msisdn), status);
-        return ResponseEntity.ok(authService.searchUserIds(msisdn, status));
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String startTime,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String endTime) {
+        log.info("[CRBT-GET-USER-IDS] msisdn={}, status={}, startTime={}, endTime={}", mask(msisdn), status, startTime, endTime);
+        return ResponseEntity.ok(authService.searchUserIds(msisdn, status, startTime, endTime));
     }
 
     private String mask(String msisdn) {

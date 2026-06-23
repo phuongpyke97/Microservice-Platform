@@ -20,12 +20,12 @@ public class AuthServiceClientFallback implements FallbackFactory<AuthServiceCli
             }
 
             @Override
-            public PageResponse<UserResponse> getUsers(String msisdn, String status, int page, int size) {
+            public PageResponse<UserResponse> getUsers(String msisdn, String status, String startTime, String endTime, int page, int size) {
                 throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
             }
 
             @Override
-            public java.util.List<Long> getUserIds(String msisdn, String status) {
+            public java.util.List<Long> getUserIds(String msisdn, String status, String startTime, String endTime) {
                 throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
             }
         };
