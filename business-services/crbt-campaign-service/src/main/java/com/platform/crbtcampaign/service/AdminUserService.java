@@ -7,6 +7,8 @@ import com.platform.crbtcampaign.client.CreditTransactionClient;
 import com.platform.crbtcampaign.client.dto.UserResponse;
 import com.platform.crbtcampaign.client.dto.UserCreditStats;
 import com.platform.crbtcampaign.dto.response.UserCreditSummaryResponse;
+import com.platform.crbtcampaign.dto.response.UserCreditSummaryStats;
+import com.platform.crbtcampaign.dto.response.UserCreditSummaryPageWithStats;
 import com.platform.crbtcampaign.entity.UserSubscription;
 import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
 import java.time.Instant;
@@ -38,17 +40,20 @@ public class AdminUserService {
         this.userSubscriptionRepository = userSubscriptionRepository;
     }
 
-    public PageResponse<UserCreditSummaryResponse> getUsersCreditSummary(
+    public UserCreditSummaryPageWithStats getUsersCreditSummary(
             String msisdn, String status, String packageName, int page, int size) {
         
         // 1. Fetch paginated users from Auth Service
         PageResponse<UserResponse> authUsersPage = authServiceClient.getUsers(msisdn, status, page, size);
         if (authUsersPage == null || authUsersPage.content() == null || authUsersPage.content().isEmpty()) {
-            return PageResponse.from(new org.springframework.data.domain.PageImpl<>(
-                Collections.emptyList(), 
-                org.springframework.data.domain.PageRequest.of(page, size), 
-                0
-            ));
+            return new UserCreditSummaryPageWithStats(
+                PageResponse.from(new org.springframework.data.domain.PageImpl<>(
+                    Collections.emptyList(), 
+                    org.springframework.data.domain.PageRequest.of(page, size), 
+                    0
+                )),
+                new UserCreditSummaryStats(0, 0, 0, 0, 0)
+            );
         }
 
         List<UserResponse> authUsers = authUsersPage.content();
@@ -134,10 +139,80 @@ public class AdminUserService {
             total = content.size();
         }
 
-        return PageResponse.from(new org.springframework.data.domain.PageImpl<>(
+        PageResponse<UserCreditSummaryResponse> pageResult = PageResponse.from(new org.springframework.data.domain.PageImpl<>(
             content,
             pageRequest,
             total
         ));
+
+        // Calculate statistics for all matching users (across all pages)
+        List<Long> allMatchingUserIds = new ArrayList<>();
+        try {
+            allMatchingUserIds = authServiceClient.getUserIds(msisdn, status);
+        } catch (Exception e) {
+            // Fallback
+        }
+
+        List<Long> filteredUserIds = new ArrayList<>(allMatchingUserIds);
+        if (packageName != null && !packageName.trim().isEmpty() && !allMatchingUserIds.isEmpty()) {
+            List<UserSubscription> allSubs = userSubscriptionRepository.findByUserIds(allMatchingUserIds);
+            Map<Long, List<UserSubscription>> allUserSubsMap = allSubs.stream()
+                .collect(Collectors.groupingBy(UserSubscription::getUserId));
+            
+            filteredUserIds = allMatchingUserIds.stream().filter(uId -> {
+                List<UserSubscription> subs = allUserSubsMap.getOrDefault(uId, Collections.emptyList());
+                UserSubscription activeSub = subs.stream()
+                    .filter(s -> s.getStatus() == UserSubscription.Status.ACTIVE)
+                    .findFirst()
+                    .orElseGet(() -> subs.stream()
+                        .max(Comparator.comparing(UserSubscription::getCreatedAt))
+                        .orElse(null));
+                return activeSub != null && packageName.equalsIgnoreCase(activeSub.getCampaignPackage().getName());
+            }).collect(Collectors.toList());
+        }
+
+        // Count active users among matching users
+        long activeUsersCount = 0;
+        if (status == null || status.isEmpty()) {
+            try {
+                PageResponse<UserResponse> activeUsersPage = authServiceClient.getUsers(msisdn, "ACTIVE", 0, 1);
+                if (activeUsersPage != null) {
+                    activeUsersCount = activeUsersPage.totalElements();
+                }
+            } catch (Exception e) {}
+        } else if ("ACTIVE".equalsIgnoreCase(status)) {
+            activeUsersCount = allMatchingUserIds.size();
+        }
+
+        long totalPurchased = 0;
+        long totalUsed = 0;
+        long totalRemaining = 0;
+
+        if (!filteredUserIds.isEmpty()) {
+            try {
+                var walletSumResp = creditWalletClient.sumBalances(filteredUserIds);
+                if (walletSumResp != null && walletSumResp.data() != null) {
+                    totalRemaining = walletSumResp.data().longValue();
+                }
+            } catch (Exception e) {}
+
+            try {
+                var transSumResp = creditTransactionClient.sumStats(filteredUserIds);
+                if (transSumResp != null && transSumResp.data() != null) {
+                    totalPurchased = transSumResp.data().getPurchased();
+                    totalUsed = transSumResp.data().getUsed();
+                }
+            } catch (Exception e) {}
+        }
+
+        UserCreditSummaryStats stats = new UserCreditSummaryStats(
+            packageName != null && !packageName.trim().isEmpty() ? filteredUserIds.size() : authUsersPage.totalElements(),
+            activeUsersCount,
+            totalPurchased,
+            totalUsed,
+            totalRemaining
+        );
+
+        return new UserCreditSummaryPageWithStats(pageResult, stats);
     }
 }

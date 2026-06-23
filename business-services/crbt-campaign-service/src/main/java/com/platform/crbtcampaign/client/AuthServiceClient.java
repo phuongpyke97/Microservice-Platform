@@ -22,4 +22,10 @@ public interface AuthServiceClient {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size
     );
+
+    @GetMapping("/internal/crbt/users/ids")
+    java.util.List<Long> getUserIds(
+            @RequestParam(value = "msisdn", required = false) String msisdn,
+            @RequestParam(value = "status", required = false) String status
+    );
 }

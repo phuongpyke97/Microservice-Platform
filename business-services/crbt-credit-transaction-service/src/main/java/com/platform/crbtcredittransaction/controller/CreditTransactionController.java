@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import com.platform.crbtcredittransaction.dto.response.UserCreditStats;
+import com.platform.crbtcredittransaction.dto.response.CreditTransactionPageWithStats;
+import com.platform.crbtcredittransaction.dto.response.CreditTransactionStats;
 
 @RestController
 @RequestMapping("/credit-transactions")
@@ -33,7 +35,7 @@ public class CreditTransactionController {
     }
 
     @GetMapping("/history")
-    public ApiResponse<PageResponse<CreditTransactionResponse>> getCreditTransactionHistory(
+    public ApiResponse<CreditTransactionPageWithStats> getCreditTransactionHistory(
             @RequestParam(required = false) String direction,
             @RequestParam(required = false) String reason,
             @RequestParam(required = false) Long fromTs,
@@ -46,7 +48,7 @@ public class CreditTransactionController {
         }
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
-        return ApiResponse.success(creditTransactionService.query(userId, direction, reason, fromTs, toTs, pageable));
+        return ApiResponse.success(creditTransactionService.queryWithStats(userId, direction, reason, fromTs, toTs, pageable));
     }
 
     @GetMapping("/export")
@@ -72,5 +74,10 @@ public class CreditTransactionController {
     @PostMapping("/internal/stats")
     public ApiResponse<Map<Long, UserCreditStats>> getStats(@RequestBody List<Long> userIds) {
         return ApiResponse.success(creditTransactionService.getStatsByUserIds(userIds));
+    }
+
+    @PostMapping("/internal/stats/sum")
+    public ApiResponse<UserCreditStats> sumStats(@RequestBody List<Long> userIds) {
+        return ApiResponse.success(creditTransactionService.sumStatsByUserIds(userIds));
     }
 }

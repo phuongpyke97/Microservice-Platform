@@ -54,5 +54,10 @@ public class WalletController {
     public ResponseEntity<ApiResponse<java.util.Map<Long, Integer>>> getBalances(@RequestBody java.util.List<Long> userIds) {
         return ResponseEntity.ok(ApiResponse.success("Bulk balances retrieved", walletService.getBalances(userIds)));
     }
+
+    @PostMapping("/internal/balances/sum")
+    public ResponseEntity<ApiResponse<Integer>> sumBalances(@RequestBody java.util.List<Long> userIds) {
+        return ResponseEntity.ok(ApiResponse.success("Bulk balances sum retrieved", walletService.sumBalances(userIds)));
+    }
 }
 

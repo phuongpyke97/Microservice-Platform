@@ -11,6 +11,8 @@ import com.platform.crbtcampaign.client.CreditTransactionClient;
 import com.platform.crbtcampaign.client.dto.UserResponse;
 import com.platform.crbtcampaign.client.dto.UserCreditStats;
 import com.platform.crbtcampaign.dto.response.UserCreditSummaryResponse;
+import com.platform.crbtcampaign.dto.response.UserCreditSummaryPageWithStats;
+import com.platform.crbtcampaign.dto.response.UserCreditSummaryStats;
 import com.platform.crbtcampaign.entity.CampaignPackage;
 import com.platform.crbtcampaign.entity.UserSubscription;
 import com.platform.crbtcampaign.repository.UserSubscriptionRepository;
@@ -73,6 +75,13 @@ class AdminUserServiceTest {
         when(creditTransactionClient.getStats(List.of(1L, 2L)))
             .thenReturn(new ApiResponse<>(true, "success", stats, System.currentTimeMillis()));
 
+        // Mock Aggregation Stats Client Calls
+        when(authServiceClient.getUserIds("84987", null)).thenReturn(List.of(1L, 2L));
+        when(creditWalletClient.sumBalances(List.of(1L, 2L)))
+            .thenReturn(new ApiResponse<>(true, "success", 15, System.currentTimeMillis()));
+        when(creditTransactionClient.sumStats(List.of(1L, 2L)))
+            .thenReturn(new ApiResponse<>(true, "success", new UserCreditStats(20L, 5L), System.currentTimeMillis()));
+
         // Mock Subscriptions
         CampaignPackage pkg = mock(CampaignPackage.class);
         when(pkg.getName()).thenReturn("Weekly 5K");
@@ -86,15 +95,22 @@ class AdminUserServiceTest {
         when(userSubscriptionRepository.findByUserIds(List.of(1L, 2L))).thenReturn(List.of(sub));
 
         // Execute
-        PageResponse<UserCreditSummaryResponse> result = adminUserService.getUsersCreditSummary(
+        UserCreditSummaryPageWithStats result = adminUserService.getUsersCreditSummary(
             "84987", null, null, 0, 20
         );
 
         // Verify
         assertNotNull(result);
-        assertEquals(2, result.content().size());
+        assertNotNull(result.page());
+        assertEquals(2, result.page().content().size());
 
-        UserCreditSummaryResponse res1 = result.content().stream()
+        assertNotNull(result.stats());
+        assertEquals(2, result.stats().totalUsers());
+        assertEquals(20, result.stats().totalPurchased());
+        assertEquals(5, result.stats().totalUsed());
+        assertEquals(15, result.stats().totalRemaining());
+
+        UserCreditSummaryResponse res1 = result.page().content().stream()
             .filter(r -> r.userId().equals(1L))
             .findFirst().orElse(null);
         assertNotNull(res1);
@@ -105,7 +121,7 @@ class AdminUserServiceTest {
         assertEquals("active", res1.status());
         assertEquals("Weekly 5K", res1.packageName());
 
-        UserCreditSummaryResponse res2 = result.content().stream()
+        UserCreditSummaryResponse res2 = result.page().content().stream()
             .filter(r -> r.userId().equals(2L))
             .findFirst().orElse(null);
         assertNotNull(res2);

@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 public class AuthService {
@@ -142,6 +143,23 @@ public class AuthService {
                 u.getStatus().name(),
                 u.getCreatedAt() != null ? u.getCreatedAt().toEpochMilli() : null
         )));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> searchUserIds(String msisdn, String statusStr) {
+        UserStatus status = null;
+        if (statusStr != null && !statusStr.isBlank()) {
+            if ("deactive".equalsIgnoreCase(statusStr) || "inactive".equalsIgnoreCase(statusStr)) {
+                status = UserStatus.LOCKED;
+            } else {
+                try {
+                    status = UserStatus.valueOf(statusStr.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    // Ignore
+                }
+            }
+        }
+        return userRepository.searchUserIds(msisdn, status);
     }
 
     private String mask(String msisdn) {

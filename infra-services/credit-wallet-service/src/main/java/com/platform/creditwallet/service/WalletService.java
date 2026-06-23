@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 @Service
 public class WalletService {
@@ -214,5 +215,11 @@ public class WalletService {
             Thread.currentThread().interrupt();
             throw new BaseException(WalletErrorCode.WALLET_LOCK_TIMEOUT);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public int sumBalances(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) return 0;
+        return walletRepository.sumBalancesByUserIds(userIds);
     }
 }

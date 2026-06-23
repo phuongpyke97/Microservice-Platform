@@ -14,4 +14,7 @@ public interface CreditTransactionClient {
 
     @PostMapping("/credit-transactions/internal/stats")
     ApiResponse<Map<Long, UserCreditStats>> getStats(@RequestBody List<Long> userIds);
+
+    @PostMapping("/credit-transactions/internal/stats/sum")
+    ApiResponse<UserCreditStats> sumStats(@RequestBody List<Long> userIds);
 }

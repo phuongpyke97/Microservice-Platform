@@ -1058,10 +1058,8 @@
                     </select>
                     <select id="userFilterPackage" class="input-control" onchange="filterUsers()" style="width: auto; min-width: 150px;">
                         <option value="">Tất cả gói cước</option>
-                        <option value="Daily 1K">Daily 1K</option>
-                        <option value="Weekly 5K">Weekly 5K</option>
-                        <option value="Monthly 20K">Monthly 20K</option>
-                        <option value="VIP 249K">VIP 249K</option>
+                        <option value="Gói Tuần">Gói Tuần</option>
+                        <option value="Gói Ngày">Gói Ngày</option>
                     </select>
                 </div>
             </section>
@@ -1090,11 +1088,6 @@
                 <div class="footer-controls">
                     <div class="records-info" id="userRecordsInfo">
                         Hiển thị 0 - 0 của 0 người dùng
-                    </div>
-                    <div class="pagination">
-                        <button class="page-btn" id="userPrevBtn" onclick="changeUserPage(-1)" disabled>&lt;</button>
-                        <span class="page-indicator" id="userPageIndicator">Trang 1 / 1</span>
-                        <button class="page-btn" id="userNextBtn" onclick="changeUserPage(1)" disabled>&gt;</button>
                     </div>
                 </div>
             </section>
@@ -1157,28 +1150,7 @@
             filterUsers();
         }
 
-        let userCurrentPage = 0;
-        let userTotalPages = 1;
-        let userPageSize = 20;
-
-        function changeUserPage(delta) {
-            const newPage = userCurrentPage + delta;
-            if (newPage >= 0 && newPage < userTotalPages) {
-                userCurrentPage = newPage;
-                filterUsers();
-            }
-        }
-
         function filterUsers() {
-            const useMock = document.getElementById('mockToggle').checked;
-            if (useMock) {
-                filterMockUsers();
-            } else {
-                fetchRealUsersData();
-            }
-        }
-
-        function filterMockUsers() {
             const searchVal = document.getElementById('userSearchPhone').value.trim();
             const statusVal = document.getElementById('userFilterStatus').value;
             const packageVal = document.getElementById('userFilterPackage').value;
@@ -1227,7 +1199,7 @@
                 
                 // Package Badge class
                 let pkgClass = "badge-pkg-daily";
-                if (u.lastPackage === 'Gói Tuần' || u.lastPackage === 'Weekly 5K') pkgClass = "badge-pkg-weekly";
+                if (u.lastPackage === 'Gói Tuần') pkgClass = "badge-pkg-weekly";
 
                 // Status Badge class
                 let statusClass = u.status === 'active' ? 'badge-status-active' : 'badge-status-deactive';
@@ -1256,141 +1228,12 @@
             });
 
             document.getElementById('userRecordsInfo').innerText = `Hiển thị 1 - ${filtered.length} của ${filtered.length} người dùng`;
-            document.getElementById('userPrevBtn').disabled = true;
-            document.getElementById('userNextBtn').disabled = true;
-            document.getElementById('userPageIndicator').innerText = "Trang 1 / 1";
-        }
-
-        function fetchRealUsersData() {
-            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
-            const adminId = document.getElementById('jwtHeader').value.trim();
-
-            const searchVal = document.getElementById('userSearchPhone').value.trim();
-            const statusVal = document.getElementById('userFilterStatus').value;
-            const packageVal = document.getElementById('userFilterPackage').value;
-
-            // Build query params
-            const params = new URLSearchParams();
-            if (searchVal) params.append('msisdn', searchVal);
-            if (statusVal) params.append('status', statusVal);
-            if (packageVal) params.append('packageName', packageVal);
-            params.append('page', userCurrentPage);
-            params.append('size', userPageSize);
-
-            const tbody = document.getElementById('userTableBody');
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-secondary);">Đang tải dữ liệu...</td></tr>`;
-
-            fetch(`${gatewayUrl}/api/campaigns/admin/users-credit-summary?${params.toString()}`, {
-                method: 'GET',
-                headers: {
-                    'X-User-Id': adminId
-                }
-            })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-                return res.json();
-            })
-            .then(apiResponse => {
-                if (!apiResponse.success) {
-                    throw new Error(apiResponse.message || "Unknown error");
-                }
-                const pageData = apiResponse.data.page || apiResponse.data;
-                const statsData = apiResponse.data.stats;
-                const users = pageData.content || [];
-                
-                userTotalPages = pageData.totalPages || 1;
-                const totalElements = pageData.totalElements || 0;
-
-                // Update UI Stats Cards using aggregated stats from backend
-                if (statsData) {
-                    const usageRate = statsData.totalPurchased > 0 ? Math.round((statsData.totalUsed / statsData.totalPurchased) * 100) : 0;
-                    document.getElementById('userStatCount').innerText = statsData.totalUsers;
-                    document.getElementById('userStatActiveCount').innerText = `${statsData.activeUsers} đang hoạt động`;
-                    document.getElementById('userStatPurchased').innerText = `${statsData.totalPurchased} credit`;
-                    document.getElementById('userStatUsed').innerText = `${statsData.totalUsed} credit`;
-                    document.getElementById('userStatUsageRate').innerText = `Hiệu suất: ${usageRate}%`;
-                    document.getElementById('userStatRemaining').innerText = `${statsData.totalRemaining} credit`;
-                } else {
-                    // Fallback to page stats if not present
-                    let activeUsers = users.filter(u => u.status && u.status.toLowerCase() === 'active').length;
-                    let pagePurchased = 0, pageUsed = 0, pageRemaining = 0;
-                    users.forEach(u => {
-                        pagePurchased += u.purchased;
-                        pageUsed += u.used;
-                        pageRemaining += u.remaining;
-                    });
-                    const usageRate = pagePurchased > 0 ? Math.round((pageUsed / pagePurchased) * 100) : 0;
-                    document.getElementById('userStatCount').innerText = totalElements;
-                    document.getElementById('userStatActiveCount').innerText = `Hiện có ${users.length} trên trang`;
-                    document.getElementById('userStatPurchased').innerText = `${pagePurchased} credit (Trang)`;
-                    document.getElementById('userStatUsed').innerText = `${pageUsed} credit (Trang)`;
-                    document.getElementById('userStatUsageRate').innerText = `Hiệu suất: ${usageRate}%`;
-                    document.getElementById('userStatRemaining').innerText = `${pageRemaining} credit (Trang)`;
-                }
-
-                // Render Table
-                tbody.innerHTML = '';
-                if (users.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-secondary);">Không tìm thấy dữ liệu người dùng</td></tr>`;
-                } else {
-                    users.forEach(u => {
-                        const tr = document.createElement('tr');
-                        
-                        // Package Badge class
-                        let pkgClass = "badge-pkg-daily";
-                        if (u.packageName && u.packageName.toLowerCase().includes("weekly")) pkgClass = "badge-pkg-weekly";
-                        else if (u.packageName && u.packageName.toLowerCase().includes("monthly")) pkgClass = "badge-pkg-monthly";
-                        else if (u.packageName && u.packageName.toLowerCase().includes("vip")) pkgClass = "badge-pkg-monthly";
-
-                        // Status Badge class
-                        let isUserActive = u.status && u.status.toLowerCase() === 'active';
-                        let statusClass = isUserActive ? 'badge-status-active' : 'badge-status-deactive';
-                        let statusText = isUserActive ? 'Active' : 'Deactive';
-
-                        tr.innerHTML = `
-                            <td>
-                                <div class="phone-cell">
-                                    <span class="phone-icon">📞</span>
-                                    <span>${u.msisdn}</span>
-                                </div>
-                            </td>
-                            <td class="text-bold">${u.purchased}</td>
-                            <td class="text-bold text-danger">${u.used}</td>
-                            <td class="text-bold text-success">${u.remaining}</td>
-                            <td>
-                                <span class="badge ${statusClass}">${statusText}</span>
-                            </td>
-                            <td>
-                                <span class="badge ${pkgClass}">${u.packageName || "-"}</span>
-                            </td>
-                            <td class="mono" style="font-size:0.85rem;">${u.purchaseDate || "-"}</td>
-                            <td class="mono" style="font-size:0.85rem;">${u.expiryDate || "-"}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                }
-
-                // Update pagination controls
-                const startIdx = users.length > 0 ? (userCurrentPage * userPageSize) + 1 : 0;
-                const endIdx = userCurrentPage * userPageSize + users.length;
-                document.getElementById('userRecordsInfo').innerText = `Hiển thị ${startIdx} - ${endIdx} của ${totalElements} người dùng`;
-                
-                document.getElementById('userPrevBtn').disabled = (userCurrentPage === 0);
-                document.getElementById('userNextBtn').disabled = (userCurrentPage >= userTotalPages - 1);
-                document.getElementById('userPageIndicator').innerText = `Trang ${userCurrentPage + 1} / ${userTotalPages}`;
-            })
-            .catch(err => {
-                console.error(err);
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--danger);">Lỗi tải dữ liệu: ${err.message}</td></tr>`;
-                showToast(`Lỗi tải dữ liệu người dùng: ${err.message}`, "danger");
-            });
         }
 
         function refreshUserTab() {
             document.getElementById('userSearchPhone').value = '';
             document.getElementById('userFilterStatus').value = '';
             document.getElementById('userFilterPackage').value = '';
-            userCurrentPage = 0;
             showToast("Đã làm mới dữ liệu người dùng", "success");
             filterUsers();
         }
@@ -1664,12 +1507,9 @@
                 document.getElementById('tableContainer').style.display = 'block';
 
                 if (resData.code === "SUCCESS" && resData.data) {
-                    const pageData = resData.data.page || resData.data;
-                    const statsData = resData.data.stats;
-                    
-                    let content = pageData.content || [];
-                    totalElements = pageData.totalElements || 0;
-                    totalPages = pageData.totalPages || 1;
+                    let content = resData.data.content || [];
+                    totalElements = resData.data.totalElements || 0;
+                    totalPages = resData.data.totalPages || 1;
                     
                     // Attach searchMsisdn to results if we queried by one
                     content = content.map(tx => {
@@ -1677,7 +1517,7 @@
                     });
 
                     renderTable(content);
-                    calculateStats(content, statsData);
+                    calculateStats(content);
                 } else {
                     showToast(resData.message || "Không thể lấy dữ liệu", "danger");
                 }
@@ -1690,20 +1530,7 @@
             });
         }
 
-        function calculateStats(dataList, statsData) {
-            if (statsData) {
-                document.getElementById('statTotalCount').innerText = statsData.totalCount;
-                document.getElementById('statTotalAdd').innerText = `+${statsData.totalAdd}`;
-                document.getElementById('statTotalDeduct').innerText = `-${statsData.totalDeduct}`;
-                
-                const netFlow = statsData.netFlow;
-                const netEl = document.getElementById('statNetFlow');
-                netEl.innerText = (netFlow >= 0 ? "+" : "") + netFlow;
-                netEl.className = 'stat-value ' + (netFlow >= 0 ? 'text-success' : 'text-danger');
-                return;
-            }
-
-            // Fallback for mock/old code
+        function calculateStats(dataList) {
             let totalCount = dataList.length;
             let totalAdd = 0;
             let totalDeduct = 0;

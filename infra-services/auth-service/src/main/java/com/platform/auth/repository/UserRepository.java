@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
@@ -28,5 +29,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("msisdn") String msisdn,
             @Param("status") UserStatus status,
             Pageable pageable);
+
+    @Query("SELECT u.id FROM User u WHERE " +
+           "u.msisdn IS NOT NULL AND u.msisdn != '' AND " +
+           "(:msisdn IS NULL OR :msisdn = '' OR u.msisdn LIKE %:msisdn%) AND " +
+           "(:status IS NULL OR u.status = :status)")
+    List<Long> searchUserIds(
+            @Param("msisdn") String msisdn,
+            @Param("status") UserStatus status);
 }
 

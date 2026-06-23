@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Internal endpoint called by API Gateway only.
@@ -61,9 +62,16 @@ public class InternalCrbtController {
             @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
-        log.info("[CRBT-GET-USERS] msisdn={}, status={}, page={}, size={}", mask(msisdn), status, page, size);
         org.springframework.data.domain.PageRequest pageable = org.springframework.data.domain.PageRequest.of(page, size);
         return ResponseEntity.ok(authService.searchUsers(msisdn, status, pageable));
+    }
+
+    @GetMapping("/users/ids")
+    public ResponseEntity<List<Long>> getUserIds(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String msisdn,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String status) {
+        log.info("[CRBT-GET-USER-IDS] msisdn={}, status={}", mask(msisdn), status);
+        return ResponseEntity.ok(authService.searchUserIds(msisdn, status));
     }
 
     private String mask(String msisdn) {

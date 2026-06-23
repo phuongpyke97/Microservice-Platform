@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import com.platform.crbtcredittransaction.dto.response.UserCreditStats;
+import com.platform.crbtcredittransaction.dto.response.CreditTransactionStats;
+import com.platform.crbtcredittransaction.dto.response.CreditTransactionPageWithStats;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.data.domain.Pageable;
@@ -60,6 +62,37 @@ public class CreditTransactionService {
         }
 
         return PageResponse.from(repository.findAll(filter(userId, direction, reason, fromTs, toTs), pageable).map(this::toResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public CreditTransactionPageWithStats queryWithStats(
+        Long userId,
+        String direction,
+        String reason,
+        Long fromTs,
+        Long toTs,
+        Pageable pageable
+    ) {
+        if (fromTs != null && toTs != null && fromTs > toTs) {
+            throw new BaseException(CreditTransactionErrorCode.CREDIT_TRANSACTION_INVALID_DATE_RANGE);
+        }
+
+        org.springframework.data.domain.Page<CreditTransaction> page = repository.findAll(filter(userId, direction, reason, fromTs, toTs), pageable);
+        PageResponse<CreditTransactionResponse> pageResp = PageResponse.from(page.map(this::toResponse));
+
+        List<Object[]> sumResults = repository.sumTransactionsByFilters(userId, direction, reason, fromTs, toTs);
+        long totalAdd = 0;
+        long totalDeduct = 0;
+        for (Object[] row : sumResults) {
+            String dir = (String) row[0];
+            long sum = ((Number) row[1]).longValue();
+            if ("ADD".equals(dir)) totalAdd = sum;
+            else if ("DEDUCT".equals(dir)) totalDeduct = sum;
+        }
+        long netFlow = totalAdd - totalDeduct;
+
+        CreditTransactionStats stats = new CreditTransactionStats(pageResp.totalElements(), totalAdd, totalDeduct, netFlow);
+        return new CreditTransactionPageWithStats(pageResp, stats);
     }
 
     @Transactional(readOnly = true)
@@ -164,5 +197,20 @@ public class CreditTransactionService {
             }
         }
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public UserCreditStats sumStatsByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return new UserCreditStats(0L, 0L);
+        }
+        List<Object[]> rows = repository.sumStatsByUserIds(userIds);
+        if (rows == null || rows.isEmpty()) {
+            return new UserCreditStats(0L, 0L);
+        }
+        Object[] row = rows.get(0);
+        long purchased = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+        long used = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+        return new UserCreditStats(purchased, used);
     }
 }

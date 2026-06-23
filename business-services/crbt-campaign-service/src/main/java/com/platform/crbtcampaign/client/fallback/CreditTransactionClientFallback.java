@@ -20,6 +20,11 @@ public class CreditTransactionClientFallback implements FallbackFactory<CreditTr
             public ApiResponse<Map<Long, UserCreditStats>> getStats(List<Long> userIds) {
                 throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
             }
+
+            @Override
+            public ApiResponse<UserCreditStats> sumStats(List<Long> userIds) {
+                throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
+            }
         };
     }
 }

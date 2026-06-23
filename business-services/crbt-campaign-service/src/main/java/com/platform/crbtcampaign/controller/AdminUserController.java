@@ -6,6 +6,7 @@ import com.platform.common.core.response.ApiResponse;
 import com.platform.common.core.response.PageResponse;
 import com.platform.common.security.SecurityUtils;
 import com.platform.crbtcampaign.dto.response.UserCreditSummaryResponse;
+import com.platform.crbtcampaign.dto.response.UserCreditSummaryPageWithStats;
 import com.platform.crbtcampaign.service.AdminUserService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,14 +25,14 @@ public class AdminUserController {
     }
 
     @GetMapping
-    public ApiResponse<PageResponse<UserCreditSummaryResponse>> getUsersCreditSummary(
+    public ApiResponse<UserCreditSummaryPageWithStats> getUsersCreditSummary(
             @RequestParam(required = false) String msisdn,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String packageName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         requireAdminRole();
-        PageResponse<UserCreditSummaryResponse> result = adminUserService.getUsersCreditSummary(
+        UserCreditSummaryPageWithStats result = adminUserService.getUsersCreditSummary(
             msisdn, status, packageName, page, size
         );
         return ApiResponse.success(result);

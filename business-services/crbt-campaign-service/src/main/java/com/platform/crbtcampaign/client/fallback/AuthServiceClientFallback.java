@@ -23,6 +23,11 @@ public class AuthServiceClientFallback implements FallbackFactory<AuthServiceCli
             public PageResponse<UserResponse> getUsers(String msisdn, String status, int page, int size) {
                 throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
             }
+
+            @Override
+            public java.util.List<Long> getUserIds(String msisdn, String status) {
+                throw new BaseException(CommonErrorCode.COMMON_DOWNSTREAM_ERROR);
+            }
         };
     }
 }

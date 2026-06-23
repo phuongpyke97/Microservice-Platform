@@ -24,4 +24,7 @@ public interface CreditWalletClient {
 
     @PostMapping("/api/wallet/internal/balances")
     ApiResponse<java.util.Map<Long, Integer>> getBalances(@RequestBody java.util.List<Long> userIds);
+
+    @PostMapping("/api/wallet/internal/balances/sum")
+    ApiResponse<Integer> sumBalances(@RequestBody java.util.List<Long> userIds);
 }

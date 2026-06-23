@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyria-3 Prompt & Version Manager - CMS Admin Mockup</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #080c14;
+            --panel-bg: rgba(13, 20, 35, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --primary-accent: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-accent: #3b82f6;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --card-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.18) 0px, transparent 45%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.18) 0px, transparent 45%);
+            overflow-x: hidden;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 22px;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+        }
+
+        .logo-title h1 {
+            font-size: 20px;
+            font-weight: 600;
+            background: linear-gradient(to right, #ffffff, #93c5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-title p {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            padding: 8px 14px;
+            border-radius: 99px;
+            font-size: 13px;
+            color: #34d399;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.5; }
+        }
+
+        /* Navigation Menu & Submenus */
+        .nav-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 8px;
+        }
+
+        .nav-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-tab:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .nav-tab.active {
+            color: #ffffff;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Model Switch Dropdown */
+        .model-select-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 10px;
+        }
+
+        .model-select-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #a5b4fc;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .model-select {
+            background: #0f172a;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .model-select:focus {
+            border-color: var(--primary-accent);
+        }
+
+        /* Main Workspace sections */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: grid;
+        }
+
+        /* Grid configurations */
+        .grid-editor-pools {
+            grid-template-columns: 1.2fr 1fr;
+            gap: 24px;
+        }
+
+        .grid-full-width {
+            grid-template-columns: 1fr;
+        }
+
+        @media (max-width: 1200px) {
+            .grid-editor-pools {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 12px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ffffff;
+            border-left: 3px solid var(--primary-accent);
+            padding-left: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .label-desc {
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        /* Monaco-like editor style */
+        .editor-container {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .editor-header {
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        textarea.code-editor {
+            width: 100%;
+            height: 220px;
+            background-color: rgba(5, 8, 16, 0.95);
+            color: #e5e7eb;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            padding: 16px;
+            border: none;
+            resize: vertical;
+            outline: none;
+        }
+
+        textarea.code-editor:focus {
+            background-color: rgba(0, 0, 0, 0.98);
+        }
+
+        .placeholder-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.015);
+            border-radius: 8px;
+            border: 1px dashed var(--border-color);
+        }
+
+        .placeholder-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            background: rgba(99, 102, 241, 0.08);
+            color: #a5b4fc;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .placeholder-tag:hover {
+            background: rgba(99, 102, 241, 0.18);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        /* Chips & Tags input */
+        .variation-card {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .variation-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+
+        .chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 40px;
+            align-items: center;
+        }
+
+        .chip {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .chip:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .chip-delete {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-weight: bold;
+            font-size: 14px;
+            display: inline-block;
+            transition: color 0.2s;
+        }
+
+        .chip-delete:hover {
+            color: var(--danger-color);
+        }
+
+        .chip-input-wrapper {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .chip-input {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #ffffff;
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chip-input:focus {
+            border-color: var(--primary-accent);
+        }
+
+        .btn-add {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-add:hover {
+            background: var(--primary-accent);
+            border-color: var(--primary-accent);
+        }
+
+        /* Version History Table */
+        .history-filters {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            padding: 12px 20px;
+            border-radius: 12px;
+        }
+
+        .history-container {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            text-align: left;
+        }
+
+        .history-table th {
+            background-color: rgba(255, 255, 255, 0.03);
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .history-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+        }
+
+        .history-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .history-table tr.active-row {
+            background-color: rgba(16, 185, 129, 0.04);
+        }
+
+        .version-badge {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #a5b4fc;
+            font-weight: 500;
+        }
+
+        .model-cell-badge {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #e5e7eb;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pill.active {
+            background-color: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .status-pill.inactive {
+            background-color: rgba(255, 255, 255, 0.04);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .date-cell {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        .btn-action-small {
+            background: rgba(99, 102, 241, 0.1);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        .btn-action-small:hover {
+            background: var(--primary-accent);
+            color: white;
+            border-color: var(--primary-accent);
+        }
+
+        .btn-action-small:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border-color);
+        }
+
+        /* Simulation Box */
+        .simulation-box {
+            background: rgba(99, 102, 241, 0.02);
+            border: 1px solid rgba(99, 102, 241, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sim-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .sim-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sim-input-group label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .sim-select, .sim-text-input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+            color: white;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .sim-select option {
+            background-color: var(--bg-color);
+        }
+
+        .btn-simulate {
+            background: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
+            border: none;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.2s, transform 0.1s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+            width: 100%;
+        }
+
+        .btn-simulate:hover {
+            opacity: 0.9;
+        }
+
+        .btn-simulate:active {
+            transform: scale(0.98);
+        }
+
+        .sim-result {
+            background: #04070e;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #34d399;
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        /* Action Buttons */
+        .actions-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(16, 185, 129, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">L</div>
+            <div class="logo-title">
+                <h1>Lyria-3 Prompt & Version Manager</h1>
+                <p>Mytel CRBT Microservice Platform - Admin Console</p>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                <span>Connected to crbt-campaign-service (campaign_db)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Submenu tabs -->
+    <div class="nav-container">
+        <button class="nav-tab active" id="tab-btn-editor" onclick="switchTab('editor')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            Cấu hình Prompt
+        </button>
+        <button class="nav-tab" id="tab-btn-history" onclick="switchTab('history')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Lịch sử Phiên bản
+        </button>
+    </div>
+
+    <!-- TAB 1: Editor & Dynamic Pools (Prompt Configuration) -->
+    <div class="tab-content active grid-editor-pools" id="tab-content-editor">
+        <!-- LEFT COLUMN: Prompt Template Editor & Simulator -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Prompt Template & Simulator</div>
+                <!-- Model Switch Dropdown inside Editor -->
+                <div class="model-select-wrapper">
+                    <span class="model-select-label">Active Model:</span>
+                    <select id="model-selector" class="model-select" onchange="onModelChange(this.value)">
+                        <option value="lyria-3-clip-preview">lyria-3-clip-preview</option>
+                        <option value="lyria-3-pro-preview">lyria-3-pro-preview</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <div class="form-label">
+                    <span>Mẫu prompt hệ thống (Template)</span>
+                    <span class="label-desc">Sử dụng định dạng String.format của Java (%s và %d)</span>
+                </div>
+                
+                <div class="editor-container">
+                    <div class="editor-header">
+                        <span>prompttemplate.json</span>
+                        <span id="active-version-lbl" style="color:#34d399; font-weight:600;">VERSION 2 (ACTIVE)</span>
+                    </div>
+                    <textarea id="prompt-template" class="code-editor"></textarea>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Danh sách placeholder hỗ trợ (Theo thứ tự biến truyền vào code)</label>
+                <div class="placeholder-list">
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">1. %s (genre)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">2. %s (mood)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">3. %s (instrument)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%d')">4. %d (bpm)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">5. %s (key)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">6. %s (secondary instrumentation)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">7. %s (tempo groove)</span>
+                    <span class="placeholder-tag" onclick="insertAtCursor('%s')">8. %s (acoustic environment)</span>
+                </div>
+            </div>
+
+            <!-- SIMULATION BOX -->
+            <div class="simulation-box">
+                <div class="variation-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Trình mô phỏng sinh Prompt (Simulation)</span>
+                    <span style="font-size:11px; color:var(--text-secondary);">Mô phỏng prompt trước khi lưu</span>
+                </div>
+                <div class="sim-inputs">
+                    <div class="sim-input-group">
+                        <label>Thể loại (Genre)</label>
+                        <select id="sim-genre" class="sim-select">
+                            <option value="Pop">Pop</option>
+                            <option value="Lo-Fi">Lo-Fi</option>
+                            <option value="Acoustic">Acoustic</option>
+                            <option value="EDM">EDM</option>
+                            <option value="R&B">R&B</option>
+                        </select>
+                    </div>
+                    <div class="sim-input-group">
+                        <label>Tâm trạng (Mood)</label>
+                        <select id="sim-mood" class="sim-select">
+                            <option value="Happy">Happy</option>
+                            <option value="Relaxed">Relaxed</option>
+                            <option value="Romantic">Romantic</option>
+                            <option value="Energetic">Energetic</option>
+                        </select>
+                    </div>
+                    <div class="sim-input-group">
+                        <label>Nhạc cụ (Instrument)</label>
+                        <input id="sim-instrument" type="text" class="sim-text-input" value="Piano">
+                    </div>
+                </div>
+                
+                <button class="btn-simulate" onclick="runSimulation()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    Chạy thử tạo Prompt ngẫu nhiên
+                </button>
+
+                <div class="sim-result" id="simulation-output">Kết quả prompt sau khi được format sẽ hiển thị ở đây... Nhấn nút "Chạy thử" để xem.</div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Dynamic Variation Pools -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Dynamic Variation Pools</div>
+                <span style="font-size:11px; color:var(--text-secondary);">Chọn biến ngẫu nhiên khi gọi AI</span>
+            </div>
+
+            <!-- Pool 1: Tonal Keys -->
+            <div class="variation-card">
+                <div class="variation-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="variation-title">1. Tonal Keys (Giọng nhạc)</span>
+                </div>
+                <div class="chip-container" id="pool-keys">
+                    <!-- Loaded dynamically -->
+                </div>
+                <div class="chip-input-wrapper">
+                    <input type="text" class="chip-input" id="input-keys" placeholder="Nhập giọng nhạc mới (ví dụ: F# minor)...">
+                    <button class="btn-add" onclick="addChip('keys')">Thêm</button>
+                </div>
+            </div>
+
+            <!-- Pool 2: Secondary Instrumentations -->
+            <div class="variation-card">
+                <div class="variation-header">
+                    <span class="variation-title">2. Secondary Instrumentations (Nhạc cụ đệm phụ)</span>
+                </div>
+                <div class="chip-container" id="pool-instrumentations">
+                    <!-- Loaded dynamically -->
+                </div>
+                <div class="chip-input-wrapper">
+                    <input type="text" class="chip-input" id="input-instrumentations" placeholder="Nhập nhạc cụ đệm (ví dụ: acoustic violin)...">
+                    <button class="btn-add" onclick="addChip('instrumentations')">Thêm</button>
+                </div>
+            </div>
+
+            <!-- Pool 3: Tempo Grooves -->
+            <div class="variation-card">
+                <div class="variation-header">
+                    <span class="variation-title">3. Tempo & Grooves (Tiết tấu nhịp điệu)</span>
+                </div>
+                <div class="chip-container" id="pool-grooves">
+                    <!-- Loaded dynamically -->
+                </div>
+                <div class="chip-input-wrapper">
+                    <input type="text" class="chip-input" id="input-grooves" placeholder="Nhập nhịp điệu (ví dụ: upbeat lively groove)...">
+                    <button class="btn-add" onclick="addChip('grooves')">Thêm</button>
+                </div>
+            </div>
+
+            <!-- Pool 4: Acoustic Environments -->
+            <div class="variation-card">
+                <div class="variation-header">
+                    <span class="variation-title">4. Acoustic Environments (Không gian âm thanh)</span>
+                </div>
+                <div class="chip-container" id="pool-environments">
+                    <!-- Loaded dynamically -->
+                </div>
+                <div class="chip-input-wrapper">
+                    <input type="text" class="chip-input" id="input-environments" placeholder="Nhập không gian (ví dụ: concert hall with long reverb)...">
+                    <button class="btn-add" onclick="addChip('environments')">Thêm</button>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="actions-row">
+                <button class="btn-secondary" onclick="resetToDefaults()">Khôi phục mặc định</button>
+                <button class="btn-primary" onclick="saveConfiguration()">Lưu Version mới & Kích hoạt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: Version History (Sub-menu) -->
+    <div class="tab-content grid-full-width" id="tab-content-history">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Lịch sử phiên bản Prompt (Audit Log)</div>
+                <!-- Filter control inside history -->
+                <div class="history-filters">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:500;">Lọc theo Model:</span>
+                        <select id="filter-history-model" class="sim-select" style="padding: 6px 12px;" onchange="renderHistoryTable()">
+                            <option value="ALL">Tất cả Model</option>
+                            <option value="lyria-3-clip-preview">lyria-3-clip-preview</option>
+                            <option value="lyria-3-pro-preview">lyria-3-pro-preview</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-container">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Model áp dụng</th>
+                            <th>Phiên bản</th>
+                            <th>Trạng thái</th>
+                            <th>Người cập nhật</th>
+                            <th>Ngày tạo</th>
+                            <th>Ngày Active</th>
+                            <th>Ngày Deactive</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span id="toast-message">Đã lưu phiên bản mới và cập nhật cache thành công!</span>
+    </div>
+
+    <script>
+        // Global in-memory version history database
+        const appState = {
+            selectedModel: "lyria-3-clip-preview",
+            models: {
+                "lyria-3-clip-preview": {
+                    versions: [
+                        {
+                            version: 1,
+                            template: "You are Lyria 3 (Clip), generating short ringtones for Mytel CRBT. Constraints: - Output exactly one 30-second instrumental track. - No vocals, no speech, no copyrighted melodies. - Match genre=%s, mood=%s, primary instrument=%s. - Vary the arrangement: tempo around %d BPM, key of %s. - Instrumentation details: %s. - Tempo and groove feel: %s. - Acoustic environment/vibe: %s.",
+                            keys: ["C major", "G major", "D major", "A major", "E major", "F major", "B-flat major", "A minor", "E minor", "D minor"],
+                            instrumentations: ["solo acoustic guitar and soft flute", "electric piano and a gentle string quartet"],
+                            grooves: ["relaxed groove with a slow tempo", "upbeat bouncy rhythm with a mid-tempo feel"],
+                            environments: ["intimate lo-fi living room session vibe", "cinematic grand spacious festival vibe"],
+                            status: "INACTIVE",
+                            createdBy: "SYSTEM",
+                            createdAt: "2026-06-20 17:00:00",
+                            activatedAt: "2026-06-20 17:00:00",
+                            deactivatedAt: "2026-06-20 18:30:00"
+                        },
+                        {
+                            version: 2,
+                            template: "You are Lyria 3 (Clip Preview), generating short ringtones for Mytel CRBT. Constraints: - Output exactly one 30-second instrumental track. - No vocals, no speech, no copyrighted melodies. - Match genre=%s, mood=%s, primary instrument=%s. - Vary the arrangement: tempo around %d BPM, key of %s. - Instrumentation details: %s. - Tempo and groove feel: %s. - Acoustic environment/vibe: %s. - Structure the arrangement with a fresh melodic motif and a distinct chord progression. - Provide a clean fade-friendly ending so the track loops smoothly. - Quality enforcement: Strictly instrumental, no vocals, High fidelity, 48kHz, radio-ready mixing, clean mastering, catchy ringtone melody, balanced EQ, avoiding harsh treble.",
+                            keys: ["C major", "G major", "D major", "A major", "E major", "F major", "B-flat major", "A minor", "E minor", "D minor"],
+                            instrumentations: ["solo acoustic guitar and soft flute", "electric piano and a gentle string quartet", "ambient synthesizer pads and a soft marimba", "acoustic ukulele and bright upright piano", "subtle acoustic guitar and delicate glockenspiel", "warm electric guitar and vintage electric piano"],
+                            grooves: ["relaxed groove with a slow tempo", "upbeat bouncy rhythm with a mid-tempo feel", "energetic driving beat with a fast tempo", "soft laid-back percussion with a gentle pulse", "smooth steady rhythm with a moderate tempo"],
+                            environments: ["intimate lo-fi living room session vibe", "cinematic grand spacious festival vibe", "warm cozy studio recording feel", "dreamy spacious reverb and airy atmosphere", "clean bright modern production style"],
+                            status: "ACTIVE",
+                            createdBy: "ADMIN",
+                            createdAt: "2026-06-20 18:30:00",
+                            activatedAt: "2026-06-20 18:30:00",
+                            deactivatedAt: "-"
+                        }
+                    ]
+                },
+                "lyria-3-pro-preview": {
+                    versions: [
+                        {
+                            version: 1,
+                            template: "You are Lyria 3 Pro, generating high-fidelity professional full-length musical arrangements for Mytel. Constraints: - Match genre=%s, mood=%s, primary instrument=%s. - Vary the arrangement: tempo around %d BPM, key of %s. - Instrumentation details: %s. - Tempo and groove feel: %s. - Acoustic environment/vibe: %s. - Incorporate premium cinematic mixing, complex counterpoint melodies, and radio-ready production.",
+                            keys: ["C major", "G major", "D major", "F major", "A minor", "D minor"],
+                            instrumentations: ["orchestral violin section with grand piano", "analog synthesizers and electric synth bass", "acoustic guitar with cello harmony"],
+                            grooves: ["dynamic cinematic crescendo tempo", "steady mid-tempo rock groove", "relaxed chillout acoustic beat"],
+                            environments: ["large symphonic concert hall", "high-end analog recording studio", "open-air amphitheater acoustics"],
+                            status: "ACTIVE",
+                            createdBy: "ADMIN",
+                            createdAt: "2026-06-21 10:00:00",
+                            activatedAt: "2026-06-21 10:00:00",
+                            deactivatedAt: "-"
+                        }
+                    ]
+                }
+            }
+        };
+
+        // Active editing buffer
+        let editState = {
+            template: "",
+            keys: [],
+            instrumentations: [],
+            grooves: [],
+            environments: []
+        };
+
+        // Tab switcher
+        function switchTab(tabId) {
+            // Manage tabs activation state
+            document.querySelectorAll(".nav-tab").forEach(tab => tab.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+
+            if (tabId === 'editor') {
+                document.getElementById("tab-btn-editor").classList.add("active");
+                document.getElementById("tab-content-editor").classList.add("active");
+            } else if (tabId === 'history') {
+                document.getElementById("tab-btn-history").classList.add("active");
+                document.getElementById("tab-content-history").classList.add("active");
+                renderHistoryTable(); // Refresh table when opening history tab
+            }
+        }
+
+        // Switch Model handler
+        function onModelChange(modelName) {
+            appState.selectedModel = modelName;
+            
+            // Set dropdown on the header to match if there is any synchronization needed
+            document.getElementById("model-selector").value = modelName;
+            
+            // Find active version of selected model
+            const modelData = appState.models[modelName];
+            const activeVersion = modelData.versions.find(v => v.status === "ACTIVE") || modelData.versions[modelData.versions.length - 1];
+            
+            loadVersionToEditor(activeVersion);
+            showToast(`Đã tải cấu hình của model: ${modelName}`);
+        }
+
+        // Load specific version to editor buffer
+        function loadVersionToEditor(versionObj) {
+            editState.template = versionObj.template;
+            editState.keys = [...versionObj.keys];
+            editState.instrumentations = [...versionObj.instrumentations];
+            editState.grooves = [...versionObj.grooves];
+            editState.environments = [...versionObj.environments];
+
+            // Render to textarea
+            document.getElementById("prompt-template").value = editState.template;
+            document.getElementById("active-version-lbl").innerText = `VERSION ${versionObj.version} (${versionObj.status})`;
+            document.getElementById("active-version-lbl").style.color = versionObj.status === "ACTIVE" ? "#34d399" : "#9ca3af";
+
+            // Render chips
+            renderChips("keys", "pool-keys");
+            renderChips("instrumentations", "pool-instrumentations");
+            renderChips("grooves", "pool-grooves");
+            renderChips("environments", "pool-environments");
+        }
+
+        // Render chips helper
+        function renderChips(poolName, elementId) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = "";
+            editState[poolName].forEach((value, index) => {
+                const chip = document.createElement("div");
+                chip.className = "chip";
+                chip.innerHTML = `
+                    <span>${value}</span>
+                    <span class="chip-delete" onclick="deleteChip('${poolName}', ${index}, '${elementId}')">&times;</span>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        // Delete Chip
+        function deleteChip(poolName, index, elementId) {
+            editState[poolName].splice(index, 1);
+            renderChips(poolName, elementId);
+        }
+
+        // Add Chip
+        function addChip(poolName) {
+            const inputId = `input-${poolName}`;
+            const elementId = `pool-${poolName}`;
+            const input = document.getElementById(inputId);
+            const value = input.value.trim();
+            if (value === "") return;
+            
+            editState[poolName].push(value);
+            input.value = "";
+            renderChips(poolName, elementId);
+        }
+
+        // Helper to format Date into YYYY-MM-DD HH:mm:ss
+        function formatCurrentDate() {
+            const now = new Date();
+            return now.getFullYear() + '-' + 
+                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(now.getDate()).padStart(2, '0') + ' ' + 
+                   String(now.getHours()).padStart(2, '0') + ':' + 
+                   String(now.getMinutes()).padStart(2, '0') + ':' + 
+                   String(now.getSeconds()).padStart(2, '0');
+        }
+
+        // Render Version History table (Tab 2)
+        function renderHistoryTable() {
+            const modelFilter = document.getElementById("filter-history-model").value;
+            const tbody = document.getElementById("history-table-body");
+            tbody.innerHTML = "";
+
+            // Collect all versions across models
+            let list = [];
+            Object.keys(appState.models).forEach(modelName => {
+                if (modelFilter === "ALL" || modelFilter === modelName) {
+                    appState.models[modelName].versions.forEach(v => {
+                        list.push({
+                            model: modelName,
+                            ...v
+                        });
+                    });
+                }
+            });
+
+            // Sort versions: Active on top, then sorted by createdAt descending
+            list.sort((a, b) => {
+                if (a.status === "ACTIVE" && b.status !== "ACTIVE") return -1;
+                if (a.status !== "ACTIVE" && b.status === "ACTIVE") return 1;
+                return b.createdAt.localeCompare(a.createdAt);
+            });
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding: 24px;">Không có phiên bản nào khớp bộ lọc.</td></tr>`;
+                return;
+            }
+
+            list.forEach(item => {
+                const tr = document.createElement("tr");
+                if (item.status === "ACTIVE") {
+                    tr.className = "active-row";
+                }
+                
+                tr.innerHTML = `
+                    <td><span class="model-cell-badge">${item.model}</span></td>
+                    <td><span class="version-badge">v${item.version}</span></td>
+                    <td><span class="status-pill ${item.status.toLowerCase()}">${item.status}</span></td>
+                    <td><span style="font-weight:500;">${item.createdBy}</span></td>
+                    <td class="date-cell">${item.createdAt}</td>
+                    <td class="date-cell" style="color: #34d399;">${item.activatedAt}</td>
+                    <td class="date-cell" style="color: ${item.deactivatedAt === '-' ? 'var(--text-secondary)' : '#f87171'};">${item.deactivatedAt}</td>
+                    <td>
+                        <button class="btn-action-small" onclick="viewHistoryVersion('${item.model}', ${item.version})">Xem</button>
+                        <button class="btn-action-small" ${item.status === 'ACTIVE' ? 'disabled' : ''} onclick="activateHistoryVersion('${item.model}', ${item.version})">Kích hoạt</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // View historical version (switches to Editor tab, loads configuration to editor buffer)
+        function viewHistoryVersion(modelName, versionNum) {
+            // 1. Switch active model state
+            appState.selectedModel = modelName;
+            document.getElementById("model-selector").value = modelName;
+
+            // 2. Load version info
+            const versionObj = appState.models[modelName].versions.find(v => v.version === versionNum);
+            if (versionObj) {
+                loadVersionToEditor(versionObj);
+                
+                // 3. Switch back to Editor tab
+                switchTab('editor');
+                showToast(`Đang xem phiên bản v${versionNum} của model ${modelName} (Chưa kích hoạt)`);
+            }
+        }
+
+        // Activate past version
+        function activateHistoryVersion(modelName, versionNum) {
+            const versions = appState.models[modelName].versions;
+            const nowStr = formatCurrentDate();
+            
+            versions.forEach(v => {
+                if (v.version === versionNum) {
+                    v.status = "ACTIVE";
+                    v.activatedAt = nowStr;
+                    v.deactivatedAt = "-";
+                    // If we are currently editing this model, reload editor values
+                    if (appState.selectedModel === modelName) {
+                        loadVersionToEditor(v);
+                    }
+                } else {
+                    if (v.status === "ACTIVE") {
+                        v.status = "INACTIVE";
+                        v.deactivatedAt = nowStr;
+                    }
+                }
+            });
+
+            renderHistoryTable();
+            showToast(`Đã kích hoạt thành công phiên bản v${versionNum} của model ${modelName}!`);
+        }
+
+        // Save active editor configuration as a new version
+        function saveConfiguration() {
+            const template = document.getElementById("prompt-template").value;
+            
+            // Validate template has exactly 7 %s and 1 %d (8 parameters in total)
+            const matchesS = (template.match(/%s/g) || []).length;
+            const matchesD = (template.match(/%d/g) || []).length;
+
+            if (matchesS !== 7 || matchesD !== 1) {
+                alert(`Cảnh báo lỗi cú pháp template:
+Mẫu prompt bắt buộc phải chứa đúng:
+- 7 placeholders định dạng chuỗi (%s)
+- 1 placeholder định dạng số nguyên (%d)
+Hiện tại bạn đang có: ${matchesS} %s và ${matchesD} %d. Vui lòng sửa lại để tránh lỗi hệ thống!`);
+                return;
+            }
+
+            // Confirm save
+            if (!confirm(`Bạn có chắc muốn lưu cấu hình này thành phiên bản mới cho model "${appState.selectedModel}"?`)) {
+                return;
+            }
+
+            const modelName = appState.selectedModel;
+            const versions = appState.models[modelName].versions;
+            const nowStr = formatCurrentDate();
+            
+            // Deactivate all previous active versions and set their deactivation date
+            versions.forEach(v => {
+                if (v.status === "ACTIVE") {
+                    v.status = "INACTIVE";
+                    v.deactivatedAt = nowStr;
+                }
+            });
+
+            // Calculate next version number
+            const nextVersionNum = versions.length > 0 ? versions[versions.length - 1].version + 1 : 1;
+
+            // Add new version
+            const newVersion = {
+                version: nextVersionNum,
+                template: template,
+                keys: [...editState.keys],
+                instrumentations: [...editState.instrumentations],
+                grooves: [...editState.grooves],
+                environments: [...editState.environments],
+                status: "ACTIVE",
+                createdBy: "ADMIN",
+                createdAt: nowStr,
+                activatedAt: nowStr,
+                deactivatedAt: "-"
+            };
+
+            versions.push(newVersion);
+            
+            // Reload UI
+            loadVersionToEditor(newVersion);
+            
+            showToast(`Đã lưu và kích hoạt phiên bản v${nextVersionNum}!`);
+        }
+
+        // Insert placeholder helper
+        function insertAtCursor(text) {
+            const textarea = document.getElementById("prompt-template");
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const currentText = textarea.value;
+            textarea.value = currentText.substring(0, start) + text + currentText.substring(end);
+            textarea.focus();
+            textarea.selectionStart = textarea.selectionEnd = start + text.length;
+            editState.template = textarea.value;
+        }
+
+        // Reset buffer to system defaults (version 1)
+        function resetToDefaults() {
+            if (confirm("Khôi phục cấu hình soạn thảo hiện tại về phiên bản v1 ban đầu?")) {
+                const modelName = appState.selectedModel;
+                const v1 = appState.models[modelName].versions.find(v => v.version === 1);
+                if (v1) {
+                    loadVersionToEditor(v1);
+                    showToast("Đã nạp lại cấu hình phiên bản v1!");
+                }
+            }
+        }
+
+        // Simulate Prompt Generation
+        function runSimulation() {
+            const template = document.getElementById("prompt-template").value;
+            
+            // Get inputs
+            const genre = document.getElementById("sim-genre").value;
+            const mood = document.getElementById("sim-mood").value;
+            const instrument = document.getElementById("sim-instrument").value || "unspecified";
+
+            // Random variations
+            const bpm = Math.floor(Math.random() * (140 - 90 + 1)) + 90;
+            const key = editState.keys.length > 0 ? editState.keys[Math.floor(Math.random() * editState.keys.length)] : "C major";
+            const secondary = editState.instrumentations.length > 0 ? editState.instrumentations[Math.floor(Math.random() * editState.instrumentations.length)] : "standard instrumentation";
+            const groove = editState.grooves.length > 0 ? editState.grooves[Math.floor(Math.random() * editState.grooves.length)] : "steady rhythm";
+            const env = editState.environments.length > 0 ? editState.environments[Math.floor(Math.random() * editState.environments.length)] : "studio vibe";
+
+            // Java String format mock function
+            let count = 0;
+            const formatted = template.replace(/%s|%d/g, (match) => {
+                count++;
+                switch(count) {
+                    case 1: return genre;
+                    case 2: return mood;
+                    case 3: return instrument;
+                    case 4: return bpm;
+                    case 5: return key;
+                    case 6: return secondary;
+                    case 7: return groove;
+                    case 8: return env;
+                    default: return match;
+                }
+            });
+
+            const outputBox = document.getElementById("simulation-output");
+            outputBox.innerText = `[Gemini API Call simulation]
+- Model: ${appState.selectedModel}
+- Seed: ${Math.floor(Math.random() * 9999999)}
+- bpm: ${bpm}
+- key: ${key}
+- secondary_instrumentation: ${secondary}
+- tempo_groove: ${groove}
+- acoustic_environment: ${env}
+
+---------------------------------------------------
+[PROMPT GỬI SANG LYRIA-3 API]:
+${formatted}`;
+        }
+
+        // Toast Helper
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            document.getElementById("toast-message").innerText = message;
+            toast.classList.add("show");
+            setTimeout(() => {
+                toast.classList.remove("show");
+            }, 3000);
+        }
+
+        // Initialize lists on page load
+        window.onload = function() {
+            // Initial load of default model
+            onModelChange("lyria-3-clip-preview");
+
+            // Bind enter keys for tags input
+            ['keys', 'instrumentations', 'grooves', 'environments'].forEach(poolName => {
+                document.getElementById(`input-${poolName}`).addEventListener("keypress", function(event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        addChip(poolName);
+                    }
+                });
+            });
+
+            // Bind textarea change to state
+            document.getElementById("prompt-template").addEventListener("input", function(e) {
+                editState.template = e.target.value;
+            });
+        };
+    </script>
+</body>
+</html>
