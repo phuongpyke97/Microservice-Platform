@@ -1,0 +1,1019 @@
+{
+  "info": {
+    "_postman_id": "a73b5406-9118-4ce5-813e-62ae4c74d9bc",
+    "name": "CRBT_CMS_ADMIN_COMPLETE",
+    "description": "Collection of APIs for CRBT CMS Admin Page including file uploads, categories management, ringtone management, statistics, and reports.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "6075213"
+  },
+  "item": [
+    {
+      "name": "Categories Management",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acoustic\",\n  \"description\": \"Soft and calming acoustic guitar tracks\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "categories"
+              ]
+            },
+            "description": "Create a new ringtone category."
+          },
+          "response": []
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "categories"
+              ]
+            },
+            "description": "List all active ringtone categories."
+          },
+          "response": []
+        }
+      ],
+      "description": "Category CRUD endpoints for grouping ringtones."
+    },
+    {
+      "name": "File Upload Flow (MinIO)",
+      "item": [
+        {
+          "name": "Get Presigned Upload URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/file-service/api/files/presigned/upload?originalName=guitar_calm.mp3&contentType=audio/mpeg",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "file-service",
+                "api",
+                "files",
+                "presigned",
+                "upload"
+              ],
+              "query": [
+                {
+                  "key": "originalName",
+                  "value": "guitar_calm.mp3",
+                  "description": "Original file name of the audio"
+                },
+                {
+                  "key": "contentType",
+                  "value": "audio/mpeg",
+                  "description": "MIME type (audio/mpeg for MP3, audio/wav for WAV)"
+                }
+              ]
+            },
+            "description": "Request a presigned URL to upload a file directly to the MinIO temporary bucket. Returns the file ID and the upload URL."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload File to MinIO (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "audio/mpeg",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{presignedUrl}}",
+              "host": [
+                "{{presignedUrl}}"
+              ]
+            },
+            "description": "Upload file directly to MinIO bucket via PUT using the presigned URL returned from the 'Get Presigned Upload URL' endpoint. Note: Do NOT use gatewy or Bearer token header for this request, it goes directly to MinIO."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Upload Success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetBucket\": \"audio\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/file-service/api/files/{{fileId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "file-service",
+                "api",
+                "files",
+                "{{fileId}}",
+                "confirm"
+              ]
+            },
+            "description": "Confirm that upload was successful. Moves the file from the temporary bucket to the main 'audio' bucket and returns the public external URL."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints to get presigned upload URLs, upload files directly to MinIO, and confirm the upload completion."
+    },
+    {
+      "name": "Ringtones Management",
+      "item": [
+        {
+          "name": "Create Ringtone Metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Warm Morning Acoustic\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": true,\n  \"mood\": \"Calm\",\n  \"status\": true,\n  \"categoryId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones"
+              ]
+            },
+            "description": "Create ringtone metadata. The backend automatically performs validation on the audio file size (<50MB), duration (<5 mins), and checks for vocal presence (rejects vocal music)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ringtone Metadata",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Warm Morning Acoustic (Updated)\",\n  \"artistName\": \"Sunny Vibes\",\n  \"audioUrl\": \"http://localhost:9000/media-audio/e05b3f7f-f7d9-482a-a5f1-32ad51cf216b.mp3\",\n  \"coverImageUrl\": \"http://localhost:9000/media-images/cover-new.jpg\",\n  \"durationSeconds\": null,\n  \"featured\": false,\n  \"mood\": \"Romantic\",\n  \"status\": true,\n  \"categoryId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "{{ringtoneId}}"
+              ]
+            },
+            "description": "Update existing ringtone metadata. Trigger validation if audio URL changes."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ringtone Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "{{ringtoneId}}",
+                "status"
+              ]
+            },
+            "description": "Quickly toggle a ringtone's active status (active/inactive)."
+          },
+          "response": []
+        },
+        {
+          "name": "Search & Filter Ringtones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/search?q=Morning&categoryId=1&status=true&page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Morning",
+                  "description": "Search keyword for title/artist name (real-time search)"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "1",
+                  "description": "Filter by category ID"
+                },
+                {
+                  "key": "status",
+                  "value": "true",
+                  "description": "Filter by active status (true/false)"
+                },
+                {
+                  "key": "createdFrom",
+                  "value": "2026-05-01",
+                  "description": "Filter upload start date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "createdTo",
+                  "value": "2026-05-30",
+                  "description": "Filter upload end date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "selectionCountFrom",
+                  "value": "0",
+                  "description": "Filter min download/selection count",
+                  "disabled": true
+                },
+                {
+                  "key": "selectionCountTo",
+                  "value": "1000",
+                  "description": "Filter max download/selection count",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page index (0-based)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "Search ringtones with multiple criteria (keyword, category, status, date range, selection count range) and pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Statistics Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "statistics"
+              ]
+            },
+            "description": "Fetch overall statistics including total active tracks, total categories, and total selection count (including active and archived deleted tracks statistics)."
+          },
+          "response": []
+        },
+        {
+          "name": "Export CSV Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/export?q=Morning&categoryId=1&status=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Morning"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "1"
+                },
+                {
+                  "key": "status",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Export the filtered ringtones list into a CSV format (supports UTF-8 with BOM for correct Excel rendering)."
+          },
+          "response": []
+        },
+        {
+          "name": "Safe Delete Ringtone",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/{{ringtoneId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "{{ringtoneId}}"
+              ]
+            },
+            "description": "Safe deletes a ringtone. Before deleting the metadata row and physical MinIO audio files, it archives the downloads/selections count into 'ringtone_deleted_history' to preserve reporting statistics."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Random Ringtone",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-community-library/library/ringtones/random?genre=Acoustic",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-community-library",
+                "library",
+                "ringtones",
+                "random"
+              ],
+              "query": [
+                {
+                  "key": "genre",
+                  "value": "Acoustic",
+                  "description": "Optional category name filter"
+                }
+              ]
+            },
+            "description": "Get a random active ringtone (primarily used for user CRBT settings preview)."
+          },
+          "response": []
+        }
+      ],
+      "description": "Ringtone metadata management APIs including CRUD, search, statistics, CSV export, and safe-deletion."
+    },
+    {
+      "name": "Auth Service Internal",
+      "item": [
+        {
+          "name": "Provision User",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"msisdn\": \"{{msisdn}}\"\n}"
+            },
+            "url": {
+              "raw": "{{authServiceUrl}}/internal/crbt/provision",
+              "host": [
+                "{{authServiceUrl}}"
+              ],
+              "path": [
+                "internal",
+                "crbt",
+                "provision"
+              ]
+            },
+            "description": "Provision a new subscriber with a given MSISDN."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User ID & Credit by MSISDN",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authServiceUrl}}/internal/crbt/user-credit/{{msisdn}}",
+              "host": [
+                "{{authServiceUrl}}"
+              ],
+              "path": [
+                "internal",
+                "crbt",
+                "user-credit",
+                "{{msisdn}}"
+              ]
+            },
+            "description": "Get User ID and credit information by MSISDN. Returns raw user details (userId and msisdn)."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Credits to Wallet",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50,\n  \"reason\": \"Postman manual top-up\",\n  \"referenceId\": \"TOPUP-POSTMAN\"\n}"
+            },
+            "url": {
+              "raw": "{{walletServiceUrl}}/api/wallet/{{userId}}/add",
+              "host": [
+                "{{walletServiceUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallet",
+                "{{userId}}",
+                "add"
+              ]
+            },
+            "description": "Manually add credits to a user's wallet. Used to seed credits for testing music generation."
+          },
+          "response": []
+        }
+      ],
+      "description": "Internal and support APIs for provisioning users and managing wallets directly."
+    },
+    {
+      "name": "Lyria Prompt Manager",
+      "item": [
+        {
+          "name": "Get Active Prompt",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "42",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/admin/lyria-prompts/active?model={{model}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "admin",
+                "lyria-prompts",
+                "active"
+              ],
+              "query": [
+                {
+                  "key": "model",
+                  "value": "{{model}}",
+                  "description": "Model identifier (e.g. lyria-3-clip-preview)"
+                }
+              ]
+            },
+            "description": "Get the active prompt configuration for a model."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Prompt Version History",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "42",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/admin/lyria-prompts/history?model=ALL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "admin",
+                "lyria-prompts",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "model",
+                  "value": "ALL",
+                  "description": "Model name, or ALL to view history for all models"
+                }
+              ]
+            },
+            "description": "Retrieve audit history of prompt changes."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Specific Prompt Version",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "42",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/admin/lyria-prompts/versions/{{model}}/{{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "admin",
+                "lyria-prompts",
+                "versions",
+                "{{model}}",
+                "{{version}}"
+              ]
+            },
+            "description": "View details of a specific version of a model prompt."
+          },
+          "response": []
+        },
+        {
+          "name": "Save New Prompt Version",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "42",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"promptTemplate\": \"You are Lyria 3 ... genre=%s, mood=%s, instrument=%s ... %d BPM, key of %s ... %s ... %s ... %s.\",\n  \"keys\": [\n    \"C major\",\n    \"G major\"\n  ],\n  \"secondaryInstrumentations\": [\n    \"solo acoustic guitar and soft flute\"\n  ],\n  \"tempoGrooves\": [\n    \"relaxed groove with a slow tempo\"\n  ],\n  \"acousticEnvironments\": [\n    \"intimate lo-fi living room session vibe\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/admin/lyria-prompts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "admin",
+                "lyria-prompts"
+              ]
+            },
+            "description": "Create a new version of the prompt. This version will automatically become ACTIVE, deactivating the previous active version of this model."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate Past Version",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "42",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/admin/lyria-prompts/versions/{{model}}/{{version}}/activate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "admin",
+                "lyria-prompts",
+                "versions",
+                "{{model}}",
+                "{{version}}",
+                "activate"
+              ]
+            },
+            "description": "Activate an older version of the prompt for a given model, deactivating the currently active version."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints to manage AI prompt configurations, versions, templates, and active pools for Gemini Lyria."
+    },
+    {
+      "name": "AI Music Generation",
+      "item": [
+        {
+          "name": "Generate AI Music",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MSISDN",
+                "value": "{{msisdn}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "USER",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-campaign-service/campaigns/generate?genre=Chill&mood=Vui&instrument=Guitar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-campaign-service",
+                "campaigns",
+                "generate"
+              ],
+              "query": [
+                {
+                  "key": "genre",
+                  "value": "Chill"
+                },
+                {
+                  "key": "mood",
+                  "value": "Vui"
+                },
+                {
+                  "key": "instrument",
+                  "value": "Guitar"
+                }
+              ]
+            },
+            "description": "Trigger generation of AI Music. Deducts credit from user wallet. If AI worker is unavailable, falls back to library ringtone."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for end-users to generate AI-assisted ringback tones."
+    },
+    {
+      "name": "Credit Transaction Management",
+      "item": [
+        {
+          "name": "Get Transaction History",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "USER",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-credit-transaction-service/credit-transactions/history?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-credit-transaction-service",
+                "credit-transactions",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "direction",
+                  "value": "",
+                  "description": "Filter by ADD or DEDUCT",
+                  "disabled": true
+                },
+                {
+                  "key": "reason",
+                  "value": "",
+                  "description": "Filter by reason (partial match)",
+                  "disabled": true
+                },
+                {
+                  "key": "fromTs",
+                  "value": "",
+                  "description": "Start epoch millis",
+                  "disabled": true
+                },
+                {
+                  "key": "toTs",
+                  "value": "",
+                  "description": "End epoch millis",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "View credit transaction ledger history for the user specified in X-User-Id."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Transactions to CSV",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "USER",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crbt-credit-transaction-service/credit-transactions/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "crbt-credit-transaction-service",
+                "credit-transactions",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "direction",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "reason",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "fromTs",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "toTs",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Export the full filtered set of credit transactions as a CSV file."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints to view and audit user credit transactions ledger."
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:18080"
+    },
+    {
+      "key": "accessToken",
+      "value": "your_jwt_token_here"
+    },
+    {
+      "key": "presignedUrl",
+      "value": "http://localhost:9000/media-temp/..."
+    },
+    {
+      "key": "fileId",
+      "value": "1"
+    },
+    {
+      "key": "ringtoneId",
+      "value": "1"
+    },
+    {
+      "key": "authServiceUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "walletServiceUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "msisdn",
+      "value": "84987000105"
+    },
+    {
+      "key": "userId",
+      "value": "8"
+    },
+    {
+      "key": "model",
+      "value": "lyria-3-clip-preview"
+    },
+    {
+      "key": "version",
+      "value": "1"
+    }
+  ]
+}
