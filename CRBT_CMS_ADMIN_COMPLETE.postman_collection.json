@@ -1075,11 +1075,11 @@
     },
     {
       "key": "adminEmail",
-      "value": "admin@test.com"
+      "value": "admin@platform.local"
     },
     {
       "key": "adminPassword",
-      "value": "P@ssword1"
+      "value": "Elcom@123"
     },
     {
       "key": "msisdn",
