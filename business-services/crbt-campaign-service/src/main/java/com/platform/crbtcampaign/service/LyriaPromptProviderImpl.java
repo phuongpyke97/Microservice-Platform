@@ -5,13 +5,19 @@ import com.platform.crbtcampaign.entity.LyriaPromptConfig;
 import com.platform.crbtcampaign.repository.LyriaPromptConfigRepository;
 import java.util.Collections;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LyriaPromptProviderImpl implements LyriaPromptProvider {
 
     private final LyriaPromptConfigRepository repository;
+
+    @Autowired
+    @Lazy
+    private LyriaPromptProviderImpl self;
 
     public LyriaPromptProviderImpl(LyriaPromptConfigRepository repository) {
         this.repository = repository;
@@ -26,7 +32,7 @@ public class LyriaPromptProviderImpl implements LyriaPromptProvider {
 
     /** Default-model active config (generation entry point — kept deterministic). */
     public LyriaPromptConfig getActiveConfig() {
-        return getActiveConfig(LyriaPromptConfig.DEFAULT_MODEL);
+        return self.getActiveConfig(LyriaPromptConfig.DEFAULT_MODEL);
     }
 
     @Override
@@ -58,31 +64,31 @@ public class LyriaPromptProviderImpl implements LyriaPromptProvider {
     // exact model being invoked, so CMS edits to non-default models take effect.
     @Override
     public String getTemplate(String model) {
-        LyriaPromptConfig config = getActiveConfig(resolveModel(model));
+        LyriaPromptConfig config = self.getActiveConfig(resolveModel(model));
         return config != null ? config.getPromptTemplate() : null;
     }
 
     @Override
     public List<String> getKeys(String model) {
-        LyriaPromptConfig config = getActiveConfig(resolveModel(model));
+        LyriaPromptConfig config = self.getActiveConfig(resolveModel(model));
         return config != null ? config.getKeys() : Collections.emptyList();
     }
 
     @Override
     public List<String> getSecondaryInstrumentations(String model) {
-        LyriaPromptConfig config = getActiveConfig(resolveModel(model));
+        LyriaPromptConfig config = self.getActiveConfig(resolveModel(model));
         return config != null ? config.getSecondaryInstrumentations() : Collections.emptyList();
     }
 
     @Override
     public List<String> getTempoGrooves(String model) {
-        LyriaPromptConfig config = getActiveConfig(resolveModel(model));
+        LyriaPromptConfig config = self.getActiveConfig(resolveModel(model));
         return config != null ? config.getTempoGrooves() : Collections.emptyList();
     }
 
     @Override
     public List<String> getAcousticEnvironments(String model) {
-        LyriaPromptConfig config = getActiveConfig(resolveModel(model));
+        LyriaPromptConfig config = self.getActiveConfig(resolveModel(model));
         return config != null ? config.getAcousticEnvironments() : Collections.emptyList();
     }
 

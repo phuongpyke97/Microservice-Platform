@@ -81,6 +81,9 @@ class MusicGenerationServiceTest {
         when(promptConfig.randomVariation()).thenReturn(new LyriaSystemPromptConfig.MusicVariation(
             120, "C major", 12345L, "solo acoustic guitar", "relaxed groove", "studio"
         ));
+        when(promptConfig.randomVariation(any())).thenReturn(new LyriaSystemPromptConfig.MusicVariation(
+            120, "C major", 12345L, "solo acoustic guitar", "relaxed groove", "studio"
+        ));
     }
 
     @Test
@@ -361,7 +364,7 @@ class MusicGenerationServiceTest {
         when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
         when(setOps.members(any())).thenReturn(null);
 
-        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        when(promptConfig.buildPrompt(any(), any(), any(), any(), any())).thenReturn("Mock Prompt");
         
         // Mock LyriaClient behavior: 1st call throws filtered exception, 2nd call succeeds
         when(lyriaClient.generateMusic(any(), anyLong()))
@@ -405,7 +408,7 @@ class MusicGenerationServiceTest {
         when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
         when(setOps.members(any())).thenReturn(null);
 
-        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        when(promptConfig.buildPrompt(any(), any(), any(), any(), any())).thenReturn("Mock Prompt");
 
         // Mock LyriaClient behavior: all 3 attempts throw filtered exception
         when(lyriaClient.generateMusic(any(), anyLong()))
@@ -450,7 +453,7 @@ class MusicGenerationServiceTest {
         when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
         when(setOps.members(any())).thenReturn(null);
 
-        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        when(promptConfig.buildPrompt(any(), any(), any(), any(), any())).thenReturn("Mock Prompt");
         
         // Mock LyriaClient behavior: 1st call throws RestClientException, 2nd call succeeds
         when(lyriaClient.generateMusic(any(), anyLong()))
@@ -494,7 +497,7 @@ class MusicGenerationServiceTest {
         when(listOps.range(any(), eq(0L), eq(-1L))).thenReturn(List.of());
         when(setOps.members(any())).thenReturn(null);
 
-        when(promptConfig.buildPrompt(any(), any(), any(), any())).thenReturn("Mock Prompt");
+        when(promptConfig.buildPrompt(any(), any(), any(), any(), any())).thenReturn("Mock Prompt");
 
         // Mock LyriaClient behavior: all 3 attempts throw RestClientException
         when(lyriaClient.generateMusic(any(), anyLong()))

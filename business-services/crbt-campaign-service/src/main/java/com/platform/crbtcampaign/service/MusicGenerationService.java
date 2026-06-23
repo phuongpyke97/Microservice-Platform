@@ -156,15 +156,20 @@ public class MusicGenerationService {
         String poolKey = POOL_KEY_PREFIX + hashKey;
         String seenKey = SEEN_KEY_PREFIX + msisdn + ":" + hashKey;
 
-        log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
-        List<String> poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
-        Set<String> seenUrls = redisTemplate.opsForSet().members(seenKey);
-        if (seenUrls == null) seenUrls = Set.of();
-        log.info("[GENERATE-CACHE-STATS] Redis poolEntries size={}, seenUrls size={}", 
-            poolEntries != null ? poolEntries.size() : 0, seenUrls.size());
+        List<String> available = java.util.Collections.emptyList();
+        try {
+            log.info("[GENERATE-CACHE-LOOKUP] Looking up Redis cache for hashKey={}", hashKey);
+            List<String> poolEntries = redisTemplate.opsForList().range(poolKey, 0, -1);
+            Set<String> seenUrls = redisTemplate.opsForSet().members(seenKey);
+            if (seenUrls == null) seenUrls = Set.of();
+            log.info("[GENERATE-CACHE-STATS] Redis poolEntries size={}, seenUrls size={}", 
+                poolEntries != null ? poolEntries.size() : 0, seenUrls.size());
 
-        List<String> available = buildAvailable(poolEntries, seenUrls, msisdn);
-        log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
+            available = buildAvailable(poolEntries, seenUrls, msisdn);
+            log.info("[GENERATE-CACHE-AVAILABLE] Available candidate tracks count: {}", available.size());
+        } catch (Exception e) {
+            log.warn("[GENERATE-CACHE-ERROR] Redis cache lookup failed, falling back to real generation: {}", e.getMessage());
+        }
 
         boolean isReal = available.isEmpty();
         String txnRef = "MUSIC-" + UUID.randomUUID();

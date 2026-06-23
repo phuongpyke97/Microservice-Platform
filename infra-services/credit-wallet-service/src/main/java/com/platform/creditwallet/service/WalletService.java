@@ -60,6 +60,21 @@ public class WalletService {
         }
     }
 
+    private void sendEventAfterCommit(String routingKey, CreditChangedEvent event) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    rabbitTemplate.convertAndSend(RmqExchanges.CREDIT_EVENTS, routingKey, event);
+                    log.info("[WALLET-EVENT-SENT] RabbitMQ event sent after DB commit: routingKey={}, event={}", routingKey, event);
+                }
+            });
+        } else {
+            rabbitTemplate.convertAndSend(RmqExchanges.CREDIT_EVENTS, routingKey, event);
+            log.info("[WALLET-EVENT-SENT] RabbitMQ event sent (no active tx): routingKey={}, event={}", routingKey, event);
+        }
+    }
+
     /**
      * Read balance: cache-first, fallback to DB.
      * readOnly = true → no unnecessary transaction overhead on cache hits.
@@ -120,8 +135,7 @@ public class WalletService {
 
                 updateCacheAfterCommit(userId, wallet.getBalance());
 
-                rabbitTemplate.convertAndSend(
-                        RmqExchanges.CREDIT_EVENTS,
+                sendEventAfterCommit(
                         RmqRoutingKeys.CREDIT_DEDUCTED,
                         new CreditChangedEvent(userId, amount, "DEDUCT", reason, referenceId,
                                 Instant.now().toEpochMilli(), isFree, genType, beforeBalance, afterBalance, model)
@@ -170,8 +184,7 @@ public class WalletService {
 
                 updateCacheAfterCommit(userId, wallet.getBalance());
 
-                rabbitTemplate.convertAndSend(
-                        RmqExchanges.CREDIT_EVENTS,
+                sendEventAfterCommit(
                         RmqRoutingKeys.CREDIT_CHANGED,
                         new CreditChangedEvent(userId, amount, "ADD", reason, referenceId,
                                 Instant.now().toEpochMilli(), isFree, genType, beforeBalance, afterBalance, model)
