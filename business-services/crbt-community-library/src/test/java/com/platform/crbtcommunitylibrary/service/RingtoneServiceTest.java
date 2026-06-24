@@ -13,6 +13,7 @@ import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.ApproveDiyToneRequest;
 import com.platform.common.core.response.ApiResponse;
 import java.util.List;
+import java.util.Map;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
 import com.platform.crbtcommunitylibrary.dto.request.MoodRequest;
 import com.platform.crbtcommunitylibrary.dto.request.RingtoneRequest;
@@ -65,6 +66,9 @@ class RingtoneServiceTest {
 
     @Mock
     private FileServiceClient fileServiceClient;
+
+    @Mock
+    private com.platform.crbtcommunitylibrary.client.AuthServiceClient authServiceClient;
 
     // ─── Category tests ────────────────────────────────────────────────────────
 
@@ -375,6 +379,7 @@ class RingtoneServiceTest {
             123L, 3L, "user-bg.mp3", "123-user-bg.mp3", "media-audio-lib", "audio/mpeg", 2000000L, "CONFIRMED"
         );
         when(fileServiceClient.getFileMetadata(123L)).thenReturn(ApiResponse.success(metadata));
+        when(authServiceClient.getMsisdnsByUserIds(List.of(3L))).thenReturn(Map.of(3L, "84987654321"));
         when(fileServiceClient.copyToPublic(123L, "media-audio")).thenReturn(ApiResponse.success("http://external/media-audio/123-user-bg.mp3"));
 
         Category category = new Category("EDM", "EDM music");

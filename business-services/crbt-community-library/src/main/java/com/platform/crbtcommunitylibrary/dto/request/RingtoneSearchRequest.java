@@ -8,6 +8,8 @@ public record RingtoneSearchRequest(
     String createdFrom,
     String createdTo,
     Long selectionCountFrom,
-    Long selectionCountTo
+    Long selectionCountTo,
+    String postedBy,
+    String postBy
 ) {
 }

@@ -13,6 +13,20 @@ public record RingtoneRequest(
     boolean featured,
     @NotNull Long moodId,
     Boolean status,
-    @NotNull Long categoryId
+    @NotNull Long categoryId,
+    String postedBy
 ) {
+    public RingtoneRequest(
+        String title,
+        String artistName,
+        String audioUrl,
+        String coverImageUrl,
+        Integer durationSeconds,
+        boolean featured,
+        Long moodId,
+        Boolean status,
+        Long categoryId
+    ) {
+        this(title, artistName, audioUrl, coverImageUrl, durationSeconds, featured, moodId, status, categoryId, null);
+    }
 }

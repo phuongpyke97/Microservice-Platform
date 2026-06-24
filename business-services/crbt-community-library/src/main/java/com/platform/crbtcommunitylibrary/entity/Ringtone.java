@@ -55,6 +55,9 @@ public class Ringtone {
     @Column(name = "is_ai_generated", nullable = false)
     private boolean isAiGenerated = false;
 
+    @Column(name = "posted_by", length = 50)
+    private String postedBy;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
@@ -194,5 +197,13 @@ public class Ringtone {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getPostedBy() {
+        return postedBy;
+    }
+
+    public void setPostedBy(String postedBy) {
+        this.postedBy = postedBy;
     }
 }

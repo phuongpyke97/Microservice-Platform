@@ -6,6 +6,9 @@ import com.platform.common.core.response.ApiResponse;
 import com.platform.common.core.response.PageResponse;
 import com.platform.crbtcommunitylibrary.client.CampaignClient;
 import com.platform.crbtcommunitylibrary.client.FileServiceClient;
+import com.platform.crbtcommunitylibrary.client.AuthServiceClient;
+import com.platform.common.security.SecurityUtils;
+import java.util.Map;
 import com.platform.crbtcommunitylibrary.dto.request.ApproveAiToneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.ApproveDiyToneRequest;
 import com.platform.crbtcommunitylibrary.dto.request.CategoryRequest;
@@ -58,6 +61,7 @@ public class RingtoneService {
     private final MinioClient minioClient;
     private final CampaignClient campaignClient;
     private final FileServiceClient fileServiceClient;
+    private final AuthServiceClient authServiceClient;
 
     public RingtoneService(
         RingtoneRepository ringtoneRepository,
@@ -67,7 +71,8 @@ public class RingtoneService {
         AudioDurationParser audioDurationParser,
         MinioClient minioClient,
         CampaignClient campaignClient,
-        FileServiceClient fileServiceClient
+        FileServiceClient fileServiceClient,
+        AuthServiceClient authServiceClient
     ) {
         this.ringtoneRepository = ringtoneRepository;
         this.categoryRepository = categoryRepository;
@@ -77,6 +82,7 @@ public class RingtoneService {
         this.minioClient = minioClient;
         this.campaignClient = campaignClient;
         this.fileServiceClient = fileServiceClient;
+        this.authServiceClient = authServiceClient;
     }
 
     // ─── Category CRUD ────────────────────────────────────────────────────────
@@ -187,7 +193,19 @@ public class RingtoneService {
             throw new BaseException(CommonErrorCode.COMMON_BAD_REQUEST, "Nhạc có lời không được phép sử dụng. Vui lòng tải lên nhạc không lời.");
         }
 
+        String msisdn = SecurityUtils.getCurrentMsisdn();
+        String postedBy = "admin";
         boolean status = request.status() == null || request.status();
+
+        if (msisdn != null && !msisdn.isBlank()) {
+            postedBy = msisdn;
+            status = false; // Mặc định nếu sđt tải lên thì để status là inactive
+        } else if (request.postedBy() != null && !request.postedBy().isBlank()) {
+            postedBy = request.postedBy().trim();
+            if (!"admin".equalsIgnoreCase(postedBy)) {
+                status = false; // Nếu truyền sđt cụ thể từ ngoài vào thì cũng coi như user đăng -> inactive
+            }
+        }
 
         Ringtone ringtone = new Ringtone(
             request.title(),
@@ -200,6 +218,7 @@ public class RingtoneService {
             status,
             category
         );
+        ringtone.setPostedBy(postedBy);
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
 
@@ -270,7 +289,15 @@ public class RingtoneService {
         String artistName = request.artistName() != null && !request.artistName().isBlank() ? request.artistName().trim() : "AI Composer";
         String coverImageUrl = request.coverImageUrl() != null && !request.coverImageUrl().isBlank() ? request.coverImageUrl().trim() : request.coverImageUrl();
 
-        boolean status = request.status() == null || request.status();
+        String postedBy = "admin";
+        if (history.msisdn() != null && !history.msisdn().isBlank()) {
+            postedBy = history.msisdn().trim();
+        } else if (history.userId() != null) {
+            postedBy = history.userId().toString();
+        }
+
+        boolean isUser = postedBy != null && !"admin".equalsIgnoreCase(postedBy);
+        boolean status = request.status() == null ? !isUser : request.status();
         boolean featured = request.featured() != null && request.featured();
 
         Ringtone ringtone = new Ringtone(
@@ -285,6 +312,7 @@ public class RingtoneService {
             category
         );
         ringtone.setAiGenerated(true);
+        ringtone.setPostedBy(postedBy);
 
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
@@ -345,7 +373,23 @@ public class RingtoneService {
         String artistName = request.artistName() != null && !request.artistName().isBlank() ? request.artistName().trim() : "DIY Composer";
         String coverImageUrl = request.coverImageUrl() != null && !request.coverImageUrl().isBlank() ? request.coverImageUrl().trim() : request.coverImageUrl();
 
-        boolean status = request.status() == null || request.status();
+        String postedBy = "admin";
+        if (fileMeta.userId() != null) {
+            try {
+                Map<Long, String> msisdns = authServiceClient.getMsisdnsByUserIds(List.of(fileMeta.userId()));
+                if (msisdns != null && msisdns.containsKey(fileMeta.userId())) {
+                    postedBy = msisdns.get(fileMeta.userId());
+                } else {
+                    postedBy = fileMeta.userId().toString();
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch msisdn for userId: {}", fileMeta.userId(), e);
+                postedBy = fileMeta.userId().toString();
+            }
+        }
+
+        boolean isUser = postedBy != null && !"admin".equalsIgnoreCase(postedBy);
+        boolean status = request.status() == null ? !isUser : request.status();
         boolean featured = request.featured() != null && request.featured();
 
         Ringtone ringtone = new Ringtone(
@@ -360,6 +404,7 @@ public class RingtoneService {
             category
         );
         ringtone.setAiGenerated(false); // DIY, not generated by Lyria directly
+        ringtone.setPostedBy(postedBy);
 
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
@@ -600,6 +645,22 @@ public class RingtoneService {
                 predicates.add(cb.lessThanOrEqualTo(root.get("selectionCount"), searchRequest.selectionCountTo()));
             }
 
+            String postedBy = searchRequest.postedBy() != null ? searchRequest.postedBy() : searchRequest.postBy();
+            if (postedBy != null && !postedBy.isBlank()) {
+                String val = postedBy.trim();
+                if ("ADMIN".equalsIgnoreCase(val)) {
+                    predicates.add(cb.equal(root.get("postedBy"), "admin"));
+                } else if ("USER".equalsIgnoreCase(val)) {
+                    predicates.add(cb.and(
+                        cb.isNotNull(root.get("postedBy")),
+                        cb.notEqual(root.get("postedBy"), ""),
+                        cb.notEqual(cb.lower(root.get("postedBy")), "admin")
+                    ));
+                } else {
+                    predicates.add(cb.like(cb.lower(root.get("postedBy")), "%" + val.toLowerCase() + "%"));
+                }
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -662,7 +723,8 @@ public class RingtoneService {
             toMoodResponse(ringtone.getMood()),
             ringtone.getCreatedAt(),
             ringtone.getUpdatedAt(),
-            ringtone.isAiGenerated()
+            ringtone.isAiGenerated(),
+            ringtone.getPostedBy()
         );
     }
 
