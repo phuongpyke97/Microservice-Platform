@@ -216,25 +216,40 @@ public class FileService {
         FileMetadata saved = repository.save(metadata);
 
         if (targetBucket.equals(properties.bucketAudioLib())) {
-            try {
-                log.info("Automatically registering confirmed user audio file {} into community library from file-service", fileId);
-                LibraryServiceClient.ApproveDiyToneRequest approveReq = new LibraryServiceClient.ApproveDiyToneRequest(
-                    fileId,
-                    null,
-                    null,
-                    null,
-                    false,
-                    false,
-                    null,
-                    null
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            registerWithLibraryService(fileId);
+                        }
+                    }
                 );
-                libraryServiceClient.approveDiyTone(approveReq);
-            } catch (Exception e) {
-                log.error("Failed to automatically register audio file {} in community library from file-service: {}", fileId, e.getMessage(), e);
+            } else {
+                registerWithLibraryService(fileId);
             }
         }
 
         return toResponse(saved);
+    }
+
+    private void registerWithLibraryService(Long fileId) {
+        try {
+            log.info("Automatically registering confirmed user audio file {} into community library from file-service", fileId);
+            LibraryServiceClient.ApproveDiyToneRequest approveReq = new LibraryServiceClient.ApproveDiyToneRequest(
+                fileId,
+                null,
+                null,
+                null,
+                false,
+                false,
+                null,
+                null
+            );
+            libraryServiceClient.approveDiyTone(approveReq);
+        } catch (Exception e) {
+            log.error("Failed to automatically register audio file {} in community library from file-service: {}", fileId, e.getMessage(), e);
+        }
     }
 
     @Transactional(readOnly = true)
