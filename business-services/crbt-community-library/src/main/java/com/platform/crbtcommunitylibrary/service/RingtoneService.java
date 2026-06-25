@@ -645,9 +645,9 @@ public class RingtoneService {
                 predicates.add(cb.lessThanOrEqualTo(root.get("selectionCount"), searchRequest.selectionCountTo()));
             }
 
-            String postedBy = searchRequest.postedBy() != null ? searchRequest.postedBy() : searchRequest.postBy();
-            if (postedBy != null && !postedBy.isBlank()) {
-                String val = postedBy.trim();
+            String postBy = searchRequest.postBy();
+            if (postBy != null && !postBy.isBlank()) {
+                String val = postBy.trim();
                 if ("ADMIN".equalsIgnoreCase(val)) {
                     predicates.add(cb.equal(root.get("postedBy"), "admin"));
                 } else if ("USER".equalsIgnoreCase(val)) {
