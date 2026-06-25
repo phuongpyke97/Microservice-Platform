@@ -33,6 +33,7 @@ class AudioGenerationServiceTest {
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOperations;
     @Mock com.platform.audiogeneration.client.CreditWalletClient creditWalletClient;
+    @Mock com.platform.audiogeneration.client.LibraryServiceClient libraryServiceClient;
     @InjectMocks AudioGenerationService service;
 
     @Test
@@ -244,6 +245,9 @@ class AudioGenerationServiceTest {
         confirmData.put("storedKey", "media-audio-lib/confirmed.mp3");
         when(fileServiceClient.confirmFile(eq(fileId), any())).thenReturn(
             new com.platform.common.core.response.ApiResponse<>(true, "SUCCESS", confirmData, System.currentTimeMillis())
+        );
+        when(libraryServiceClient.approveDiyTone(any())).thenReturn(
+            new com.platform.common.core.response.ApiResponse<>(true, "SUCCESS", new java.util.HashMap<>(), System.currentTimeMillis())
         );
 
         java.util.Map<String, Object> result = service.confirmAndValidateDiyAudio(fileId, targetBucket);

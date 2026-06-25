@@ -35,6 +35,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.platform.audiogeneration.client.LibraryServiceClient;
+
 @Service
 public class AudioGenerationService {
     private static final Logger log = LoggerFactory.getLogger(AudioGenerationService.class);
@@ -48,19 +50,22 @@ public class AudioGenerationService {
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate redisTemplate;
     private final CreditWalletClient creditWalletClient;
+    private final LibraryServiceClient libraryServiceClient;
 
     public AudioGenerationService(AudioJobRepository jobRepository,
                                   AiMediaWorkerClient aiClient,
                                   FileServiceClient fileServiceClient,
                                   RabbitTemplate rabbitTemplate,
                                   StringRedisTemplate redisTemplate,
-                                  CreditWalletClient creditWalletClient) {
+                                  CreditWalletClient creditWalletClient,
+                                  LibraryServiceClient libraryServiceClient) {
         this.jobRepository = jobRepository;
         this.aiClient = aiClient;
         this.fileServiceClient = fileServiceClient;
         this.rabbitTemplate = rabbitTemplate;
         this.redisTemplate = redisTemplate;
         this.creditWalletClient = creditWalletClient;
+        this.libraryServiceClient = libraryServiceClient;
     }
 
     public Map<String, Object> analyzeAudio(org.springframework.web.multipart.MultipartFile file) {
@@ -245,6 +250,26 @@ public class AudioGenerationService {
             result.put("audioFileKey", confirmData.get("id").toString());
         } else {
             result.put("audioFileKey", fileId.toString());
+        }
+
+        // If the target bucket is media-audio-lib, automatically register in community library as pending (inactive)
+        if ("media-audio-lib".equals(targetBucket)) {
+            try {
+                log.info("Automatically registering confirmed user audio file {} into community library", fileId);
+                LibraryServiceClient.ApproveDiyToneRequest approveReq = new LibraryServiceClient.ApproveDiyToneRequest(
+                    fileId,
+                    null, // title - service will fallback to original file name
+                    null, // artistName - service will fallback to DIY Composer
+                    null, // coverImageUrl
+                    false, // featured
+                    false, // status = inactive (mặc định chờ duyệt)
+                    null, // categoryId - service will randomize
+                    null  // moodId - service will randomize
+                );
+                libraryServiceClient.approveDiyTone(approveReq);
+            } catch (Exception e) {
+                log.error("Failed to automatically register audio file {} in community library: {}", fileId, e.getMessage(), e);
+            }
         }
         
         return result;
