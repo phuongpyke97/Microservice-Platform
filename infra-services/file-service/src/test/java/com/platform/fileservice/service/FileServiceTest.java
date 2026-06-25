@@ -29,6 +29,7 @@ class FileServiceTest {
     @Mock private FileMetadataRepository repository;
     @Mock private MinioClient minioClient;
     @Mock private MinioClient publicMinioClient;
+    @Mock private com.platform.fileservice.client.LibraryServiceClient libraryServiceClient;
 
     private FileService fileService;
 
@@ -41,7 +42,8 @@ class FileServiceTest {
                 new MinioProperties("http://localhost:9000", "http://localhost:9000", "minio", "minio123", "temp", "audio", "image", "audio-lib"),
                 "http://localhost:8765",
                 40000,
-                300000
+                300000,
+                libraryServiceClient
         );
     }
 

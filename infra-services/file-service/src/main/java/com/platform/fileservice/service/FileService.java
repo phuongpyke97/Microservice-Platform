@@ -17,6 +17,8 @@ import io.minio.http.Method;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.text.Normalizer;
@@ -32,9 +34,12 @@ import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
+import com.platform.fileservice.client.LibraryServiceClient;
+
 @Service
 public class FileService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileService.class);
     private static final long MAX_SIZE = 15L * 1024 * 1024;
     private static final long PRESIGNED_TTL_SECONDS = 300;
     private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -46,6 +51,7 @@ public class FileService {
     private final MinioClient publicMinioClient;
     private final MinioProperties properties;
     private final RestClient restClient;
+    private final LibraryServiceClient libraryServiceClient;
 
     public FileService(FileMetadataRepository repository,
                        MinioClient minioClient,
@@ -53,11 +59,13 @@ public class FileService {
                        MinioProperties properties,
                        @Value("${ai-worker.url:http://localhost:8765}") String aiWorkerUrl,
                        @Value("${ai-worker.connect-timeout-ms:40000}") int connectTimeout,
-                       @Value("${ai-worker.read-timeout-ms:300000}") int readTimeout) {
+                       @Value("${ai-worker.read-timeout-ms:300000}") int readTimeout,
+                       LibraryServiceClient libraryServiceClient) {
         this.repository = repository;
         this.minioClient = minioClient;
         this.publicMinioClient = publicMinioClient;
         this.properties = properties;
+        this.libraryServiceClient = libraryServiceClient;
 
         org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory = 
                 new org.springframework.http.client.SimpleClientHttpRequestFactory();
@@ -205,7 +213,28 @@ public class FileService {
         metadata.setStoredKey(targetKey);
         metadata.setBucket(targetBucket);
         metadata.setStatus(FileStatus.CONFIRMED);
-        return toResponse(repository.save(metadata));
+        FileMetadata saved = repository.save(metadata);
+
+        if (targetBucket.equals(properties.bucketAudioLib())) {
+            try {
+                log.info("Automatically registering confirmed user audio file {} into community library from file-service", fileId);
+                LibraryServiceClient.ApproveDiyToneRequest approveReq = new LibraryServiceClient.ApproveDiyToneRequest(
+                    fileId,
+                    null,
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    null
+                );
+                libraryServiceClient.approveDiyTone(approveReq);
+            } catch (Exception e) {
+                log.error("Failed to automatically register audio file {} in community library from file-service: {}", fileId, e.getMessage(), e);
+            }
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
