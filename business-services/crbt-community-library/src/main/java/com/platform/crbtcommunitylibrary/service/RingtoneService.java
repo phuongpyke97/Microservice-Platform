@@ -476,7 +476,7 @@ public class RingtoneService {
         return toRingtoneResponse(ringtoneRepository.save(ringtone));
     }
 
-    @Cacheable(value = "ringtones", key = "{#searchRequest.q(), #searchRequest.categoryId(), #searchRequest.moodId(), #searchRequest.status(), #searchRequest.createdFrom(), #searchRequest.createdTo(), #searchRequest.selectionCountFrom(), #searchRequest.selectionCountTo(), #pageable.pageNumber, #pageable.pageSize}")
+    @Cacheable(value = "ringtones", key = "{#searchRequest.q(), #searchRequest.categoryId(), #searchRequest.moodId(), #searchRequest.status(), #searchRequest.createdFrom(), #searchRequest.createdTo(), #searchRequest.selectionCountFrom(), #searchRequest.selectionCountTo(), #searchRequest.postBy(), #pageable.pageNumber, #pageable.pageSize}")
     @Transactional(readOnly = true)
     public PageResponse<RingtoneResponse> searchRingtones(
         RingtoneSearchRequest searchRequest,
