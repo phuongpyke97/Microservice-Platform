@@ -64,7 +64,14 @@ public class AdminUserService {
         try {
             var balancesResp = creditWalletClient.getBalances(userIds);
             if (balancesResp != null && balancesResp.data() != null) {
-                balancesMap.putAll(balancesResp.data());
+                balancesResp.data().forEach((k, v) -> {
+                    try {
+                        Long key = Long.valueOf(String.valueOf(k));
+                        balancesMap.put(key, v);
+                    } catch (Exception ex) {
+                        // ignore
+                    }
+                });
             }
         } catch (Exception e) {
             // Log or fallback silently
@@ -75,7 +82,14 @@ public class AdminUserService {
         try {
             var statsResp = creditTransactionClient.getStats(userIds);
             if (statsResp != null && statsResp.data() != null) {
-                statsMap.putAll(statsResp.data());
+                statsResp.data().forEach((k, v) -> {
+                    try {
+                        Long key = Long.valueOf(String.valueOf(k));
+                        statsMap.put(key, v);
+                    } catch (Exception ex) {
+                        // ignore
+                    }
+                });
             }
         } catch (Exception e) {
             // Log or fallback silently
